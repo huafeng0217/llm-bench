@@ -1,0 +1,13 @@
+# 本地数据：包含 API Key、评测结果、完整题库，绝不提交
+# 仅保留两个演示样例题库（不含任何敏感信息）
+data/*
+!data/ceval_sample.jsonl
+!data/mmlu_sample.jsonl
+
+# 助手工作区记忆
+.workbuddy/
+
+# Python
+__pycache__/
+*.pyc
+.venv/

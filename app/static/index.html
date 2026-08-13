@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Bench - 大模型基准测评</title>
+<style>
+  :root {
+    --bg:#f3f5f9; --bg2:#eef1f6; --card:#ffffff; --card2:#f7f9fc; --border:#e3e7ef; --border2:#ccd4e2;
+    --text:#1d2433; --muted:#667085; --faint:#98a2b3;
+    --accent:#4a7de0; --accent2:#3d6cd0; --green:#22995c; --red:#d64f58; --amber:#b97e1e;
+  }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--text);
+         font:14px/1.65 "Inter",-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+         -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1120px; margin:0 auto; padding:0 20px 80px; }
+
+  /* 顶栏 */
+  header { display:flex; align-items:center; gap:14px; padding:26px 0 8px; }
+  .logo { width:38px; height:38px; border-radius:11px; flex:0 0 auto;
+          background:linear-gradient(135deg,#3d6fe0,#6f9bf5); position:relative; }
+  .logo::after { content:""; position:absolute; inset:10px; border-radius:5px;
+                 border:2.5px solid rgba(255,255,255,.92); border-top-color:transparent;
+                 border-left-color:transparent; transform:rotate(45deg) translate(-1px,-1px); }
+  h1 { font-size:19px; font-weight:650; letter-spacing:.2px; }
+  .tagline { color:var(--muted); font-size:12.5px; }
+  .stats { display:flex; gap:10px; margin:16px 0 6px; }
+  .stat { flex:1; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 16px; }
+  .stat b { font-size:20px; font-weight:650; display:block; }
+  .stat span { color:var(--muted); font-size:12px; }
+
+  /* 分区标题 */
+  h2 { font-size:14.5px; font-weight:600; margin:30px 0 12px; display:flex; align-items:center; gap:9px; }
+  h2 .no { width:21px; height:21px; border-radius:7px; background:var(--card2); border:1px solid var(--border2);
+           color:var(--accent2); font-size:12px; display:inline-flex; align-items:center; justify-content:center; font-weight:600; }
+
+  .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin-bottom:12px;
+          box-shadow:0 1px 3px rgba(29,36,51,.05); }
+  .pill { display:flex; gap:8px; align-items:flex-start; background:var(--bg2); border:1px solid var(--border);
+          border-radius:10px; padding:9px 13px; color:var(--muted); font-size:12.5px; margin-bottom:10px; }
+  .pill::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--accent); margin-top:7px; flex:0 0 auto; }
+  .pill code { color:var(--accent2); background:rgba(74,125,224,.1); padding:0 5px; border-radius:5px; }
+
+  input,select { background:var(--bg2); color:var(--text); border:1px solid var(--border); border-radius:9px;
+                 padding:8px 11px; font-size:13px; width:100%; transition:border-color .15s; }
+  input:focus,select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(74,125,224,.14); }
+  input::placeholder { color:#98a2b3; }
+  label.muted { display:flex; flex-direction:column; gap:4px; font-size:12px; }
+
+  button { background:var(--accent); color:#fff; border:none; border-radius:9px; padding:8px 20px;
+           font-size:13px; font-weight:550; cursor:pointer; transition:filter .15s, transform .05s; }
+  button:hover { filter:brightness(1.12); }
+  button:active { transform:translateY(1px); }
+  button.ghost { background:transparent; border:1px solid var(--border2); color:var(--muted); padding:5px 12px; font-weight:500; }
+  button.ghost:hover { color:var(--text); border-color:var(--accent); filter:none; }
+
+  .row { display:flex; gap:10px; flex-wrap:wrap; }
+  .row > * { flex:1; min-width:140px; }
+
+  /* 基准卡片 */
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; }
+  .bm { cursor:pointer; position:relative; transition:border-color .15s, background .15s; }
+  .bm::before { content:""; position:absolute; left:0; top:14px; bottom:14px; width:3px; border-radius:3px;
+                background:transparent; transition:background .15s; }
+  .bm:hover { border-color:var(--border2); background:var(--card2); }
+  .bm.sel { border-color:var(--accent); background:var(--card2); }
+  .bm.sel::before { background:var(--accent); }
+  .bm .nm { font-weight:600; font-size:14px; }
+  .bm .desc { color:var(--muted); font-size:12.5px; margin:8px 0 2px; }
+  .bm a { color:var(--accent2); font-size:12px; text-decoration:none; }
+  .bm a:hover { text-decoration:underline; }
+  .tags { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .tag { font-size:11px; padding:2px 9px; border-radius:20px; border:1px solid var(--border2); color:var(--muted); }
+  .tag.ok { color:var(--green); border-color:rgba(34,153,92,.4); background:rgba(34,153,92,.07); }
+  .tag.warn { color:var(--amber); border-color:rgba(185,126,30,.4); background:rgba(185,126,30,.07); }
+
+  /* 表格 */
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--border); }
+  th { color:var(--muted); font-weight:500; font-size:12px; letter-spacing:.3px; }
+  tbody tr { transition:background .12s; }
+  tbody tr:hover { background:rgba(74,125,224,.05); }
+  tbody tr:last-child td { border-bottom:none; }
+
+  .bar { height:6px; background:var(--bg2); border-radius:4px; overflow:hidden; min-width:130px; }
+  .bar i { display:block; height:100%; border-radius:4px; transition:width .35s;
+           background:linear-gradient(90deg,#3d6fe0,#6f9bf5); }
+  .st-running { color:var(--accent2); } .st-done { color:var(--green); } .st-failed { color:var(--red); }
+  .acc { font-weight:650; }
+  .muted { color:var(--muted); font-size:12px; }
+  .empty { color:var(--faint); font-size:13px; padding:14px 0; text-align:center; }
+
+  .rank { display:inline-flex; width:22px; height:22px; border-radius:7px; align-items:center; justify-content:center;
+          font-size:12px; font-weight:650; background:var(--card2); border:1px solid var(--border2); color:var(--muted); }
+  .rank.r1 { background:rgba(185,126,30,.12); border-color:rgba(185,126,30,.45); color:var(--amber); }
+  .rank.r2 { background:rgba(102,112,133,.1); border-color:rgba(102,112,133,.4); color:#667085; }
+  .rank.r3 { background:rgba(170,105,60,.1); border-color:rgba(170,105,60,.38); color:#aa693c; }
+
+  details summary { cursor:pointer; color:var(--accent2); font-size:12.5px; user-select:none; }
+  pre.resp { white-space:pre-wrap; word-break:break-all; font-size:12px; color:var(--muted);
+             background:var(--bg2); border:1px solid var(--border); border-radius:9px;
+             padding:9px 12px; margin-top:6px; max-height:220px; overflow:auto; max-width:420px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo"></div>
+    <div>
+      <h1>LLM Bench</h1>
+      <div class="tagline">填入任意 OpenAI 兼容接口（base_url + API Key + 模型名），自动跑基准测试并对比排名</div>
+    </div>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><b id="stat-models">0</b><span>已接入模型</span></div>
+    <div class="stat"><b id="stat-bms">0</b><span>可用基准</span></div>
+    <div class="stat"><b id="stat-evals">0</b><span>评测任务</span></div>
+    <div class="stat"><b id="stat-best">-</b><span>最佳正确率</span></div>
+  </div>
+
+  <h2><span class="no">1</span>添加模型</h2>
+  <div class="pill">没有 key 也可以体验：模型名填 <code>demo</code>，base_url 填 <code>mock://local</code>，会用内置模拟模型跑通全流程。</div>
+  <div class="pill">保密说明：所有 API Key 只保存在你自己电脑的项目目录里（<code>data/app.db</code> 与 <code>data/models.json</code>），不会上传到任何服务器；该目录已加入 .gitignore 防止误提交到 git。</div>
+  <div class="card">
+    <div class="row" style="margin-bottom:10px">
+      <select id="m-preset" onchange="applyPreset()" style="flex:0 0 220px">
+        <option value="">选择服务商（自动填 base_url）…</option>
+        <option value="https://api.deepseek.com">DeepSeek</option>
+        <option value="https://dashscope.aliyuncs.com/compatible-mode/v1">通义千问（阿里）</option>
+        <option value="https://api.moonshot.cn/v1">Kimi（月之暗面）</option>
+        <option value="https://open.bigmodel.cn/api/paas/v4/">智谱 GLM</option>
+        <option value="https://api.openai.com/v1">OpenAI</option>
+        <option value="https://openrouter.ai/api/v1">OpenRouter</option>
+        <option value="http://localhost:11434/v1">本地 Ollama</option>
+        <option value="custom">自定义（手动填写）</option>
+      </select>
+    </div>
+    <div class="row">
+      <input id="m-name" placeholder="模型名（API 调用的名字，如 deepseek-v4-flash）">
+      <input id="m-url" placeholder="base_url（必填），如 https://api.deepseek.com">
+      <input id="m-key" placeholder="API Key" type="password">
+      <button style="flex:0 0 auto" class="ghost" onclick="testConn()">测试连接</button>
+      <button style="flex:0 0 auto" onclick="addModel()">添加</button>
+    </div>
+    <div class="muted" id="m-test-result" style="margin-top:8px"></div>
+  </div>
+  <div class="card" style="padding:6px 18px"><table><thead><tr><th>模型</th><th>base_url</th><th>Key</th><th style="width:70px"></th></tr></thead>
+    <tbody id="models"><tr><td colspan="4" class="empty">暂无模型</td></tr></tbody></table></div>
+
+  <h2><span class="no">2</span>选择基准并发起评测</h2>
+  <div id="benchmarks" class="grid"></div>
+  <div class="card" style="margin-top:12px">
+    <div class="row">
+      <select id="e-model" onchange="updateEvalHint()"></select>
+      <input id="e-limit" type="number" min="0" placeholder="题目数（0 或留空 = 全部）">
+      <button style="flex:0 0 auto" onclick="startEval()">开始评测</button>
+    </div>
+    <details style="margin-top:12px">
+      <summary>高级参数（可选，不填用默认值）</summary>
+      <div class="row" style="margin-top:10px">
+        <label class="muted">输出 token 上限<input id="e-maxtokens" type="number" value="2048" min="16" max="32768"></label>
+        <label class="muted">单题超时（秒）<input id="e-timeout" type="number" value="90" min="5" max="600"></label>
+        <label class="muted">并发数<input id="e-conc" type="number" value="8" min="1" max="32"></label>
+      </div>
+      <div class="muted" style="margin-top:6px">思考型模型（DeepSeek V4、R1、o 系列等）的输出上限要包含思考 token，2048 是安全值；并发调高速度快但可能触发服务商限流。</div>
+    </details>
+    <div class="muted" id="e-hint" style="margin-top:10px">请先选择一个基准（点击上方卡片）和模型。</div>
+  </div>
+
+  <h2><span class="no">3</span>评测任务</h2>
+  <div class="card" style="padding:6px 18px"><table><thead><tr>
+    <th style="width:40px">#</th><th>模型</th><th>基准</th><th>进度</th><th>正确率</th><th>状态</th><th style="width:130px"></th>
+  </tr></thead><tbody id="evals"><tr><td colspan="7" class="empty">暂无任务</td></tr></tbody></table></div>
+  <div id="items-box"></div>
+
+  <h2><span class="no">4</span>排行榜</h2>
+  <div class="card" style="padding:6px 18px"><table><thead><tr>
+    <th style="width:46px">名次</th><th>模型</th><th>基准</th><th>正确率</th><th>题数</th><th>平均延迟</th><th>Token 消耗</th>
+  </tr></thead><tbody id="board"><tr><td colspan="7" class="empty">完成一次评测后生成</td></tr></tbody></table></div>
+</div>
+
+<script>
+let selBenchmark = null;
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) { const t = await r.text(); throw new Error(t); }
+  return r.json();
+}
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function loadModels() {
+  const ms = await api("/api/models");
+  document.getElementById("stat-models").textContent = ms.length;
+  const tb = document.getElementById("models");
+  tb.innerHTML = ms.length ? ms.map(m =>
+    `<tr><td style="font-weight:550">${esc(m.name)}</td><td class="muted">${esc(m.base_url)}</td><td class="muted">${esc(m.api_key)}</td>
+     <td><button class="ghost" onclick="delModel(${m.id})">删除</button></td></tr>`).join("")
+    : `<tr><td colspan="4" class="empty">暂无模型</td></tr>`;
+  document.getElementById("e-model").innerHTML =
+    ms.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("") || `<option value="">（先添加模型）</option>`;
+  updateEvalHint();
+}
+
+function applyPreset() {
+  const v = document.getElementById("m-preset").value;
+  const urlInput = document.getElementById("m-url");
+  if (v === "custom") { urlInput.value = ""; urlInput.focus(); }
+  else if (v) urlInput.value = v;
+}
+
+function modelForm() {
+  return {
+    name: document.getElementById("m-name").value.trim(),
+    base_url: document.getElementById("m-url").value.trim(),
+    api_key: document.getElementById("m-key").value.trim(),
+  };
+}
+
+async function testConn() {
+  const m = modelForm();
+  const box = document.getElementById("m-test-result");
+  if (!m.name || !m.base_url) { box.textContent = "⚠ 模型名和 base_url 必填（可先从上方选择服务商自动填 base_url）"; return; }
+  box.textContent = "正在测试连接…";
+  try {
+    const r = await api("/api/models/test", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(m) });
+    box.textContent = r.ok
+      ? `✓ 连接成功（${r.latency_ms}ms），模型回复：${r.sample}`
+      : `✗ 连接失败：${r.error}`;
+  } catch (e) { box.textContent = "✗ 请求失败：" + e.message; }
+}
+
+async function addModel() {
+  const m = modelForm();
+  if (!m.name || !m.base_url) return alert("模型名和 base_url 必填（可先从上方选择服务商自动填 base_url）");
+  try {
+    await api("/api/models", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(m) });
+  } catch (e) { return alert("添加失败：" + e.message); }
+  document.getElementById("m-name").value = document.getElementById("m-url").value = document.getElementById("m-key").value = "";
+  document.getElementById("m-test-result").textContent = "";
+  loadModels();
+}
+
+async function delModel(id) {
+  try {
+    await api("/api/models/" + id, { method:"DELETE" });
+  } catch (e) { return alert("删除失败：" + e.message); }
+  loadModels();
+}
+
+function statusTag(s) {
+  const cls = s === "仍有区分度" ? "ok" : s === "已饱和" || s === "接近饱和" ? "warn" : "";
+  return `<span class="tag ${cls}">${esc(s)}</span>`;
+}
+
+async function loadBenchmarks() {
+  const bs = await api("/api/benchmarks");
+  document.getElementById("stat-bms").textContent = bs.length;
+  document.getElementById("benchmarks").innerHTML = bs.map(b => `
+    <div class="card bm" data-id="${esc(b.id)}" onclick="pickBenchmark('${esc(b.id)}', this)">
+      <div class="nm">${esc(b.name)}</div>
+      <div class="tags">
+        <span class="tag">${esc(b.category)}</span>
+        <span class="tag">${esc(b.lang)}</span>
+        <span class="tag">${b.count} 题</span>
+        ${statusTag(b.status)}
+      </div>
+      <div class="desc">${esc(b.description)}</div>
+      ${b.source ? `<a href="${esc(b.source)}" target="_blank" onclick="event.stopPropagation()">论文/来源 ↗</a>` : ""}
+    </div>`).join("");
+}
+
+function pickBenchmark(id, el) {
+  selBenchmark = id;
+  document.querySelectorAll(".bm").forEach(x => x.classList.remove("sel"));
+  el.classList.add("sel");
+  updateEvalHint();
+}
+
+function updateEvalHint() {
+  const sel = document.getElementById("e-model");
+  const mn = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : "";
+  document.getElementById("e-hint").textContent =
+    `将评测：模型【${mn || "未选择"}】 × 基准【${selBenchmark || "未选择"}】`;
+}
+
+async function startEval() {
+  const model_id = +document.getElementById("e-model").value;
+  const limit = +document.getElementById("e-limit").value || 0;
+  if (!model_id) return alert("请先添加并选择模型");
+  if (!selBenchmark) return alert("请先点击选择一个基准");
+  try {
+    const r = await api("/api/evaluations", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ model_id, benchmark: selBenchmark, limit,
+        max_tokens: +document.getElementById("e-maxtokens").value || 2048,
+        timeout_s: +document.getElementById("e-timeout").value || 90,
+        concurrency: +document.getElementById("e-conc").value || 8 }) });
+    document.getElementById("e-hint").textContent = `任务 #${r.id} 已启动，共 ${r.total} 题`;
+  } catch (e) { return alert("启动失败：" + e.message); }
+  refresh();
+}
+
+async function refresh() {
+  const es = await api("/api/evaluations");
+  document.getElementById("stat-evals").textContent = es.length;
+  const tb = document.getElementById("evals");
+  tb.innerHTML = es.length ? es.map(e => {
+    const pct = e.total ? Math.round(e.done / e.total * 100) : 0;
+    const stCls = e.status === "done" ? "st-done" : e.status === "failed" ? "st-failed" : "st-running";
+    return `<tr>
+      <td class="muted">${e.id}</td><td style="font-weight:550">${esc(e.model_name)}</td>
+      <td>${esc(e.benchmark)}<div class="muted">tokens≤${e.max_tokens ?? 2048} · ${e.timeout_s ?? 90}s · 并发${e.concurrency ?? 8}</div></td>
+      <td><div class="bar"><i style="width:${pct}%"></i></div><span class="muted">${e.done}/${e.total}</span></td>
+      <td class="acc">${e.accuracy == null ? "-" : e.accuracy + "%"}</td>
+      <td class="${stCls}">${e.status}${e.failed ? ` <span class="muted">(失败${e.failed})</span>` : ""}</td>
+      <td><button class="ghost" onclick="showItems(${e.id})">明细</button>
+          <button class="ghost" onclick="delEval(${e.id})">删除</button></td></tr>`;
+  }).join("") : `<tr><td colspan="7" class="empty">暂无任务</td></tr>`;
+
+  const bd = await api("/api/leaderboard");
+  document.getElementById("stat-best").textContent = bd.length ? bd[0].accuracy + "%" : "-";
+  document.getElementById("board").innerHTML = bd.length ? bd.map((b, i) =>
+    `<tr><td><span class="rank r${i+1}">${i+1}</span></td>
+     <td style="font-weight:550">${esc(b.model_name)}</td><td>${esc(b.benchmark_name)}</td>
+     <td class="acc">${b.accuracy}%</td><td>${b.total}</td>
+     <td class="muted">${b.avg_latency_ms} ms</td>
+     <td class="muted">${b.prompt_tokens + b.completion_tokens}</td></tr>`).join("")
+    : `<tr><td colspan="7" class="empty">完成一次评测后生成</td></tr>`;
+}
+
+async function delEval(id) {
+  try {
+    await api("/api/evaluations/" + id, { method:"DELETE" });
+  } catch (e) { return alert("删除失败：" + e.message); }
+  document.getElementById("items-box").innerHTML = "";
+  refresh();
+}
+
+async function showItems(id) {
+  const items = await api(`/api/evaluations/${id}/items?limit=50`);
+  document.getElementById("items-box").innerHTML = `
+    <div class="card"><b>任务 #${id} 明细（前 ${items.length} 条）</b>
+    <div class="muted" style="margin:4px 0 8px">完整逐题明细（含模型原始输出）已自动保存到本地文件 data/results/eval_${id}.jsonl</div>
+    <table><thead><tr><th>#</th><th>题目</th><th>期望</th><th>模型答</th><th>判定</th><th>延迟</th><th>模型原始输出</th></tr></thead>
+    <tbody>${items.map(it => `<tr>
+      <td class="muted">${it.idx}</td>
+      <td style="max-width:300px">${esc((it.question||"").slice(0,60))}${(it.question||"").length>60?"…":""}</td>
+      <td>${esc(it.expected)}</td><td>${esc(it.predicted ?? "-")}</td>
+      <td>${it.error ? '<span class="st-failed">错误</span>' : it.correct ? '<span class="st-done">✓</span>' : '<span class="st-failed">✗</span>'}</td>
+      <td class="muted">${it.latency_ms}ms</td>
+      <td style="max-width:280px">${it.error
+          ? `<span class="st-failed" style="font-size:12px">${esc(it.error.slice(0,120))}</span>`
+          : `<details><summary>查看</summary><pre class="resp">${esc(it.raw_response || "（空）")}</pre></details>`}</td>
+      </tr>`).join("")}</tbody></table></div>`;
+}
+
+loadModels(); loadBenchmarks(); refresh();
+setInterval(refresh, 2500);
+</script>
+</body>
+</html>

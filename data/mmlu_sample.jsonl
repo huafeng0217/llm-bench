@@ -1,0 +1,12 @@
+{"question": "What is the capital of Australia?", "A": "Sydney", "B": "Melbourne", "C": "Canberra", "D": "Brisbane", "answer": "C", "subject": "geography"}
+{"question": "Which gas do plants primarily absorb from the atmosphere for photosynthesis?", "A": "Oxygen", "B": "Carbon dioxide", "C": "Nitrogen", "D": "Hydrogen", "answer": "B", "subject": "biology"}
+{"question": "Who wrote the play 'Romeo and Juliet'?", "A": "Charles Dickens", "B": "William Shakespeare", "C": "Jane Austen", "D": "Mark Twain", "answer": "B", "subject": "literature"}
+{"question": "Which organelle is known as the powerhouse of the cell?", "A": "Nucleus", "B": "Ribosome", "C": "Mitochondria", "D": "Golgi apparatus", "answer": "C", "subject": "biology"}
+{"question": "Which data structure operates on a first-in, first-out (FIFO) principle?", "A": "Stack", "B": "Queue", "C": "Binary tree", "D": "Graph", "answer": "B", "subject": "computer_science"}
+{"question": "What is 15% of 200?", "A": "20", "B": "25", "C": "30", "D": "35", "answer": "C", "subject": "math"}
+{"question": "The speed of light in a vacuum is closest to which of the following?", "A": "3 x 10^6 m/s", "B": "3 x 10^7 m/s", "C": "3 x 10^8 m/s", "D": "3 x 10^9 m/s", "answer": "C", "subject": "physics"}
+{"question": "Which is the largest ocean on Earth?", "A": "Atlantic Ocean", "B": "Indian Ocean", "C": "Arctic Ocean", "D": "Pacific Ocean", "answer": "D", "subject": "geography"}
+{"question": "What is the chemical symbol for gold?", "A": "Ag", "B": "Au", "C": "Fe", "D": "Cu", "answer": "B", "subject": "chemistry"}
+{"question": "In which year did World War II end?", "A": "1918", "B": "1939", "C": "1945", "D": "1950", "answer": "C", "subject": "history"}
+{"question": "What is the derivative of x^2 with respect to x?", "A": "x", "B": "2x", "C": "x^2", "D": "2", "answer": "B", "subject": "math"}
+{"question": "Which planet in our solar system has the most confirmed moons as of 2024?", "A": "Earth", "B": "Mars", "C": "Jupiter", "D": "Saturn", "answer": "D", "subject": "astronomy"}
