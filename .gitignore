@@ -7,6 +7,9 @@ data/*
 # 助手工作区记忆
 .workbuddy/
 
+# 开发日志（含电脑配置、模型信息等隐私，仓库已公开，不推送）
+DEVELOPMENT_LOG.md
+
 # Python
 __pycache__/
 *.pyc
