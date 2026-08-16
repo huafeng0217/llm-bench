@@ -1,5 +1,6 @@
 import asyncio
 import json
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -8,10 +9,19 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from . import db, engine
-from .benchmarks import get_meta
+from .benchmarks import META, get_meta
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 MODELS_FILE = Path(__file__).resolve().parent.parent / "data" / "models.json"
+
+# 引入统一下载脚本（scripts/download.py），供下载按钮调用
+SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+import download as dl  # noqa: E402
+
+# 下载状态：benchmark_id -> {"status": "idle"|"running"|"done"|"failed", "message": str}
+DOWNLOAD_STATE: dict[str, dict] = {}
 
 
 def import_models_file():
@@ -135,11 +145,60 @@ def delete_model(mid: int):
 
 @app.get("/api/benchmarks")
 def list_benchmarks():
+    # 已下载题库（data 目录下实际存在，含 bfcl_v4 子目录）
+    existing = {d["id"]: d["count"] for d in engine.list_datasets()}
     out = []
-    for d in engine.list_datasets():
-        meta = get_meta(d["id"])
-        meta["count"] = d["count"]
+    # 先列出所有配置了元数据的 benchmark（含未下载的，前端据此显示下载按钮）
+    for bid in META:
+        meta = get_meta(bid)
+        meta["count"] = existing.get(bid, 0)
+        meta["downloaded"] = bid in existing
+        meta["downloadable"] = bid in dl.DOWNLOADERS
         out.append(meta)
+    # 再加上 data 目录里存在、但 META 未收录的自定义题库
+    for d in engine.list_datasets():
+        if d["id"] not in META:
+            meta = get_meta(d["id"])
+            meta["count"] = d["count"]
+            meta["downloaded"] = True
+            meta["downloadable"] = d["id"] in dl.DOWNLOADERS
+            out.append(meta)
+    return out
+
+
+# ---------- 题库下载 ----------
+
+@app.post("/api/benchmarks/{benchmark_id}/download")
+async def download_benchmark(benchmark_id: str):
+    if benchmark_id not in dl.DOWNLOADERS:
+        raise HTTPException(400, "该题库不支持自动下载")
+    cur = DOWNLOAD_STATE.get(benchmark_id)
+    if cur and cur["status"] == "running":
+        return {"ok": True, "status": "running", "message": "正在下载中"}
+    DOWNLOAD_STATE[benchmark_id] = {"status": "running", "message": "下载中…"}
+
+    async def _run():
+        try:
+            ok, msg = await asyncio.to_thread(dl.download_one, benchmark_id)
+            DOWNLOAD_STATE[benchmark_id] = {"status": "done" if ok else "failed", "message": msg}
+        except Exception as e:  # noqa: BLE001
+            DOWNLOAD_STATE[benchmark_id] = {"status": "failed", "message": str(e)[:300]}
+
+    asyncio.create_task(_run())
+    return {"ok": True, "status": "running", "message": "已开始下载"}
+
+
+@app.get("/api/benchmarks/downloads")
+def list_downloads():
+    existing = {d["id"] for d in engine.list_datasets()}
+    out = {}
+    for bid in dl.DOWNLOADERS:
+        state = DOWNLOAD_STATE.get(bid, {"status": "idle", "message": ""})
+        out[bid] = {
+            "status": state["status"],
+            "message": state["message"],
+            "downloaded": bid in existing,
+        }
     return out
 
 
@@ -194,8 +253,35 @@ def get_items(eid: int, offset: int = 0, limit: int = 50):
     )
 
 
+@app.post("/api/evaluations/{eid}/stop")
+def stop_evaluation(eid: int):
+    task = engine.RUNNING.get(eid)
+    if task:
+        task.cancel()
+        return {"ok": True}
+    row = db.query_one("SELECT status FROM evaluations WHERE id=?", (eid,))
+    if not row:
+        raise HTTPException(404, "任务不存在")
+    if row["status"] in ("running", "pending"):
+        # 任务在跑但未注册（如服务重启后残留的僵尸任务），直接标记为停止
+        db.execute(
+            "UPDATE evaluations SET status='stopped', finished_at=datetime('now','localtime') WHERE id=?",
+            (eid,),
+        )
+        return {"ok": True}
+    return {"ok": False, "note": "任务已结束，无法停止"}
+
+
 @app.delete("/api/evaluations/{eid}")
-def delete_evaluation(eid: int):
+async def delete_evaluation(eid: int):
+    task = engine.RUNNING.get(eid)
+    if task:
+        # 先停掉运行中的任务，避免删除后后台继续调 API 烧 token / 写入孤儿数据
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     db.execute("DELETE FROM eval_items WHERE eval_id=?", (eid,))
     db.execute("DELETE FROM evaluations WHERE id=?", (eid,))
     engine.delete_items_file(eid)

@@ -55,11 +55,37 @@
   button.ghost { background:transparent; border:1px solid var(--border2); color:var(--muted); padding:5px 12px; font-weight:500; }
   button.ghost:hover { color:var(--text); border-color:var(--accent); filter:none; }
 
+  /* 更多操作（⋯）下拉菜单 */
+  .menu-wrap { position:relative; display:inline-block; }
+  .icon-btn { width:30px; height:30px; border-radius:50%; background:transparent; border:none;
+              color:var(--muted); display:inline-flex; align-items:center; justify-content:center;
+              cursor:pointer; padding:0; transition:color .15s, background .15s; }
+  .icon-btn:hover { color:var(--accent2); background:var(--card2); filter:none; }
+  .menu { position:absolute; right:0; top:calc(100% + 4px); background:var(--card);
+          border:1px solid var(--border2); border-radius:10px; box-shadow:0 8px 24px rgba(29,36,51,.16);
+          min-width:124px; padding:5px; display:none; z-index:300; }
+  .menu.open { display:block; }
+  .menu-item { display:block; width:100%; text-align:left; background:none; border:none; color:var(--text);
+               padding:8px 12px; border-radius:7px; font-size:13px; cursor:pointer; font-weight:500; }
+  .menu-item:hover { background:var(--bg2); filter:none; }
+  .menu-item.danger { color:var(--red); }
+  .menu-item.danger:hover { background:rgba(214,79,88,.08); }
+
   .row { display:flex; gap:10px; flex-wrap:wrap; }
   .row > * { flex:1; min-width:140px; }
 
   /* 基准卡片 */
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; }
+  .catbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .catchip { font-size:12px; padding:5px 14px; border-radius:20px; cursor:pointer;
+             border:1px solid var(--border2); color:var(--muted); background:var(--card);
+             user-select:none; transition:border-color .15s, color .15s; }
+  .catchip:hover { border-color:var(--accent); color:var(--text); }
+  .catchip.on { color:#fff; font-weight:600; border-color:transparent; }
+  .cat-head { grid-column:1/-1; display:flex; align-items:center; gap:8px; margin:8px 0 2px;
+              font-size:13px; font-weight:600; }
+  .cat-head .dot { width:9px; height:9px; border-radius:3px; }
+  .cat-head .cnt { color:var(--faint); font-weight:500; font-size:12px; }
   .bm { cursor:pointer; position:relative; transition:border-color .15s, background .15s; }
   .bm::before { content:""; position:absolute; left:0; top:14px; bottom:14px; width:3px; border-radius:3px;
                 background:transparent; transition:background .15s; }
@@ -86,7 +112,7 @@
   .bar { height:6px; background:var(--bg2); border-radius:4px; overflow:hidden; min-width:130px; }
   .bar i { display:block; height:100%; border-radius:4px; transition:width .35s;
            background:linear-gradient(90deg,#3d6fe0,#6f9bf5); }
-  .st-running { color:var(--accent2); } .st-done { color:var(--green); } .st-failed { color:var(--red); }
+  .st-running { color:var(--accent2); } .st-done { color:var(--green); } .st-failed { color:var(--red); } .st-stopped { color:var(--amber); }
   .acc { font-weight:650; }
   .muted { color:var(--muted); font-size:12px; }
   .empty { color:var(--faint); font-size:13px; padding:14px 0; text-align:center; }
@@ -150,6 +176,7 @@
     <tbody id="models"><tr><td colspan="4" class="empty">暂无模型</td></tr></tbody></table></div>
 
   <h2><span class="no">2</span>选择基准并发起评测</h2>
+  <div id="cat-filter" class="catbar"></div>
   <div id="benchmarks" class="grid"></div>
   <div class="card" style="margin-top:12px">
     <div class="row">
@@ -183,6 +210,93 @@
 
 <script>
 let selBenchmark = null;
+let catFilter = "";   // "" = 全部
+let downloadStates = {};   // benchmark_id -> {status, message, downloaded}
+
+function bmCard(b) {
+  const sel = b.id === selBenchmark ? " sel" : "";
+  const dl = downloadStates[b.id] || {};
+  let dlHtml;
+  if (b.count > 0) {
+    dlHtml = `<span class="tag ok">已就绪</span>`;
+  } else if (dl.status === "running") {
+    dlHtml = `<button class="ghost" style="cursor:default" disabled onclick="event.stopPropagation()">下载中…</button>`;
+  } else if (b.downloadable) {
+    dlHtml = `<button class="ghost" onclick="event.stopPropagation(); downloadBm('${esc(b.id)}')">下载</button>`;
+  } else {
+    dlHtml = `<span class="tag warn">暂未提供下载</span>`;
+  }
+  return `
+    <div class="card bm${sel}" data-id="${esc(b.id)}" onclick="pickBenchmark('${esc(b.id)}', this)">
+      <div class="nm">${esc(b.name)}</div>
+      <div class="tags">
+        <span class="tag">${esc(b.category)}</span>
+        <span class="tag">${esc(b.lang)}</span>
+        <span class="tag">${b.count > 0 ? b.count + " 题" : "未下载"}</span>
+        ${statusTag(b.status)}
+      </div>
+      <div class="desc">${esc(b.description)}</div>
+      <div style="display:flex; align-items:center; gap:8px; margin-top:8px">
+        ${dlHtml}
+        ${b.source ? `<a href="${esc(b.source)}" target="_blank" onclick="event.stopPropagation()">论文/来源 ↗</a>` : ""}
+      </div>
+    </div>`;
+}
+
+function setCat(id) {
+  catFilter = id;
+  loadBenchmarks();
+}
+
+async function loadBenchmarks() {
+  const [bs, dl] = await Promise.all([api("/api/benchmarks"), api("/api/benchmarks/downloads")]);
+  downloadStates = dl;
+  document.getElementById("stat-bms").textContent = bs.length;
+  // 收集分类（保持服务端 CATEGORIES 顺序）
+  const catMap = new Map();
+  bs.forEach(b => {
+    const cid = b.category_id || "custom";
+    if (!catMap.has(cid)) catMap.set(cid, { id: cid, name: b.category || "自定义", color: b.category_color || "#8a94a6" });
+  });
+  const cats = [...catMap.values()];
+
+  // 分类筛选 chips
+  const chip = c => `<span class="catchip ${catFilter === c.id ? "on" : ""}"
+    style="${catFilter === c.id ? `background:${c.color}` : ""}"
+    onclick="setCat('${c.id}')">${esc(c.name)}</span>`;
+  document.getElementById("cat-filter").innerHTML =
+    `<span class="catchip ${catFilter === "" ? "on" : ""}" style="${catFilter === "" ? "background:var(--accent)" : ""}" onclick="setCat('')">全部 · ${bs.length}</span>` +
+    cats.map(chip).join("");
+
+  // 按分类分组渲染
+  const shown = catFilter ? bs.filter(b => (b.category_id || "custom") === catFilter) : bs;
+  const groups = [];
+  cats.forEach(c => {
+    const list = shown.filter(b => (b.category_id || "custom") === c.id);
+    if (!list.length) return;
+    groups.push(
+      `<div class="cat-head"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}<span class="cnt">${list.length} 个</span></div>` +
+      list.map(bmCard).join(""));
+  });
+  document.getElementById("benchmarks").innerHTML =
+    groups.join("") || `<div class="empty" style="grid-column:1/-1">该分类下暂无基准</div>`;
+}
+
+async function downloadBm(id) {
+  try {
+    await api("/api/benchmarks/" + id + "/download", { method:"POST" });
+  } catch (e) { return alert("下载失败：" + e.message); }
+  loadBenchmarks();          // 立即刷新为「下载中…」
+  pollDownloadUntilDone();
+}
+
+async function pollDownloadUntilDone() {
+  const dl = await api("/api/benchmarks/downloads");
+  downloadStates = dl;
+  const running = Object.values(dl).some(s => s.status === "running");
+  loadBenchmarks();          // 用最新状态重渲染（完成后题数会自动出现）
+  if (running) setTimeout(pollDownloadUntilDone, 3000);
+}
 
 async function api(path, opts) {
   const r = await fetch(path, opts);
@@ -255,23 +369,6 @@ function statusTag(s) {
   return `<span class="tag ${cls}">${esc(s)}</span>`;
 }
 
-async function loadBenchmarks() {
-  const bs = await api("/api/benchmarks");
-  document.getElementById("stat-bms").textContent = bs.length;
-  document.getElementById("benchmarks").innerHTML = bs.map(b => `
-    <div class="card bm" data-id="${esc(b.id)}" onclick="pickBenchmark('${esc(b.id)}', this)">
-      <div class="nm">${esc(b.name)}</div>
-      <div class="tags">
-        <span class="tag">${esc(b.category)}</span>
-        <span class="tag">${esc(b.lang)}</span>
-        <span class="tag">${b.count} 题</span>
-        ${statusTag(b.status)}
-      </div>
-      <div class="desc">${esc(b.description)}</div>
-      ${b.source ? `<a href="${esc(b.source)}" target="_blank" onclick="event.stopPropagation()">论文/来源 ↗</a>` : ""}
-    </div>`).join("");
-}
-
 function pickBenchmark(id, el) {
   selBenchmark = id;
   document.querySelectorAll(".bm").forEach(x => x.classList.remove("sel"));
@@ -308,15 +405,29 @@ async function refresh() {
   const tb = document.getElementById("evals");
   tb.innerHTML = es.length ? es.map(e => {
     const pct = e.total ? Math.round(e.done / e.total * 100) : 0;
-    const stCls = e.status === "done" ? "st-done" : e.status === "failed" ? "st-failed" : "st-running";
+    const stCls = e.status === "done" ? "st-done" : e.status === "failed" ? "st-failed" : e.status === "stopped" ? "st-stopped" : "st-running";
+    const running = e.status === "running" || e.status === "pending";
     return `<tr>
       <td class="muted">${e.id}</td><td style="font-weight:550">${esc(e.model_name)}</td>
       <td>${esc(e.benchmark)}<div class="muted">tokens≤${e.max_tokens ?? 2048} · ${e.timeout_s ?? 90}s · 并发${e.concurrency ?? 8}</div></td>
       <td><div class="bar"><i style="width:${pct}%"></i></div><span class="muted">${e.done}/${e.total}</span></td>
       <td class="acc">${e.accuracy == null ? "-" : e.accuracy + "%"}</td>
       <td class="${stCls}">${e.status}${e.failed ? ` <span class="muted">(失败${e.failed})</span>` : ""}</td>
-      <td><button class="ghost" onclick="showItems(${e.id})">明细</button>
-          <button class="ghost" onclick="delEval(${e.id})">删除</button></td></tr>`;
+      <td><div class="menu-wrap">
+        <button class="icon-btn" onclick="toggleMenu(event, ${e.id})" aria-label="更多操作" title="更多操作">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <circle cx="10" cy="10" r="8.4" fill="none" stroke="currentColor" stroke-width="1.6"/>
+            <circle cx="6.6" cy="10" r="1.5" fill="currentColor"/>
+            <circle cx="10" cy="10" r="1.5" fill="currentColor"/>
+            <circle cx="13.4" cy="10" r="1.5" fill="currentColor"/>
+          </svg>
+        </button>
+        <div class="menu" id="menu-${e.id}">
+          <button class="menu-item" onclick="showItems(${e.id})">明细</button>
+          ${running ? `<button class="menu-item" onclick="stopEval(${e.id})">停止</button>` : ""}
+          <button class="menu-item danger" onclick="delEval(${e.id})">删除</button>
+        </div>
+      </div></td></tr>`;
   }).join("") : `<tr><td colspan="7" class="empty">暂无任务</td></tr>`;
 
   const bd = await api("/api/leaderboard");
@@ -337,6 +448,26 @@ async function delEval(id) {
   document.getElementById("items-box").innerHTML = "";
   refresh();
 }
+
+async function stopEval(id) {
+  try {
+    await api("/api/evaluations/" + id + "/stop", { method:"POST" });
+  } catch (e) { return alert("停止失败：" + e.message); }
+  refresh();
+}
+
+function toggleMenu(ev, id) {
+  ev.stopPropagation();
+  const menu = document.getElementById("menu-" + id);
+  if (!menu) return;
+  const wasOpen = menu.classList.contains("open");
+  document.querySelectorAll(".menu.open").forEach(m => m.classList.remove("open"));
+  if (!wasOpen) menu.classList.add("open");
+}
+
+document.addEventListener("click", () => {
+  document.querySelectorAll(".menu.open").forEach(m => m.classList.remove("open"));
+});
 
 async function showItems(id) {
   const items = await api(`/api/evaluations/${id}/items?limit=50`);

@@ -4,7 +4,9 @@
     python scripts/download_datasets.py mmlu --n 2000
     python scripts/download_datasets.py ceval --n 1000
 
-数据源为 HuggingFace datasets-server 的 HTTP API，国内不可达时自动回退 hf-mirror。
+数据源为 HuggingFace datasets-server 的 HTTP API。
+注意：hf-mirror 只镜像 HF 文件、不提供 datasets-server 的 rows API 等价端点
+（datasets-server.hf-mirror.com 不存在），故本脚本不做 hf-mirror 回退，仅靠 429 退避重试。
 输出文件：data/<benchmark>.jsonl，每行 {"question","A","B","C","D","answer","subject"}。
 """
 import argparse

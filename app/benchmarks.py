@@ -2,6 +2,17 @@
 
 key 为 data/ 目录下 jsonl 文件名（不含后缀）。
 """
+# 统一分类体系（前端按此分组展示）
+CATEGORIES = [
+    {"id": "knowledge", "name": "通用知识", "color": "#4a7de0"},
+    {"id": "chinese", "name": "中文能力", "color": "#e05a4a"},
+    {"id": "science", "name": "科学推理", "color": "#7a5ae0"},
+    {"id": "math", "name": "数学推理", "color": "#2fa36b"},
+    {"id": "agent", "name": "Agent / 工具调用", "color": "#e0952f"},
+    {"id": "code", "name": "代码工程", "color": "#2f9be0"},
+    {"id": "custom", "name": "自定义", "color": "#8a94a6"},
+]
+
 META = {
     "mmlu_sample": {
         "name": "MMLU 演示样例",
@@ -56,7 +67,7 @@ META = {
         "category": "科学推理",
         "lang": "英文",
         "status": "仍有区分度",
-        "description": "448 道研究生级理化生选择题，由领域专家编写且无法通过搜索作弊，是当前区分前沿模型推理能力的主力基准。",
+        "description": "198 道研究生级理化生选择题（GPQA Diamond 子集），由领域专家编写且无法通过搜索作弊，是当前区分前沿模型推理能力的主力基准。",
         "source": "https://arxiv.org/abs/2311.12022",
     },
     "gsm8k": {
@@ -64,7 +75,7 @@ META = {
         "category": "数学推理",
         "lang": "英文",
         "status": "已饱和",
-        "description": "8500 道小学数学应用题，测多步算术推理。前沿模型已接近满分，基本失去区分度。",
+        "description": "约 7500 道小学数学应用题（train 集，test 无公开答案），测多步算术推理。前沿模型已接近满分，基本失去区分度。",
         "source": "https://arxiv.org/abs/2110.14168",
     },
     "math500": {
@@ -74,6 +85,47 @@ META = {
         "status": "接近饱和",
         "description": "竞赛数学 benchmark MATH 的 500 题子集，难度高于 GSM8K，常用于快速评估数学推理。",
         "source": "https://arxiv.org/abs/2103.03874",
+    },
+    # ---------- BFCL v4（Agent / 工具调用）----------
+    "BFCL_v4_simple_python": {
+        "name": "BFCL v4 · 单函数",
+        "category": "Agent / 工具调用",
+        "lang": "英文",
+        "status": "仍有区分度",
+        "description": "伯克利函数调用排行榜（BFCL）v4 单函数子集：给一个问题与一个工具定义，模型须选择正确函数并填对参数。官方用 AST 匹配评分。",
+        "source": "https://gorilla.cs.berkeley.edu/leaderboard",
+    },
+    "BFCL_v4_multiple": {
+        "name": "BFCL v4 · 多函数选择",
+        "category": "Agent / 工具调用",
+        "lang": "英文",
+        "status": "仍有区分度",
+        "description": "BFCL v4 多函数子集：同时给出多个工具，模型须在候选集中挑出正确的那一个，考验函数辨识能力。",
+        "source": "https://gorilla.cs.berkeley.edu/leaderboard",
+    },
+    "BFCL_v4_parallel": {
+        "name": "BFCL v4 · 并行调用",
+        "category": "Agent / 工具调用",
+        "lang": "英文",
+        "status": "仍有区分度",
+        "description": "BFCL v4 并行子集：单轮请求中须同时调用多个不同函数，考验并行工具调用的编排能力。",
+        "source": "https://gorilla.cs.berkeley.edu/leaderboard",
+    },
+    "BFCL_v4_parallel_multiple": {
+        "name": "BFCL v4 · 并行多选",
+        "category": "Agent / 工具调用",
+        "lang": "英文",
+        "status": "仍有区分度",
+        "description": "BFCL v4 并行+多函数组合子集：多个问题×多个候选函数，须并行调用且各自选对函数，难度最高。",
+        "source": "https://gorilla.cs.berkeley.edu/leaderboard",
+    },
+    "BFCL_v4_irrelevance": {
+        "name": "BFCL v4 · 无关拒绝",
+        "category": "Agent / 工具调用",
+        "lang": "英文",
+        "status": "仍有区分度",
+        "description": "BFCL v4 无关性子集：问题与给出的工具毫无关系，正确行为是拒绝调用任何函数，测模型是否过度调用工具（幻觉防御）。",
+        "source": "https://gorilla.cs.berkeley.edu/leaderboard",
     },
 }
 
@@ -91,4 +143,13 @@ def get_meta(benchmark_id: str) -> dict:
     meta.update(META.get(benchmark_id, {}))
     meta.setdefault("name", benchmark_id)
     meta["id"] = benchmark_id
+    # 附带所属分类 id 与颜色，前端按此分组展示
+    for c in CATEGORIES:
+        if c["name"] == meta["category"]:
+            meta["category_id"] = c["id"]
+            meta["category_color"] = c["color"]
+            break
+    else:
+        meta["category_id"] = "custom"
+        meta["category_color"] = "#8a94a6"
     return meta
