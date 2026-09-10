@@ -10,6 +10,9 @@ data/*
 # 开发日志（含电脑配置、模型信息等隐私，仓库已公开，不推送）
 DEVELOPMENT_LOG.md
 
+# 本地启动脚本（含本机 venv 绝对路径，别人 clone 后不适用）
+start.bat
+
 # Python
 __pycache__/
 *.pyc
