@@ -34,6 +34,12 @@ AVAILABLE = {
     "BFCL_v4_parallel": "BFCL v4 并行调用（200 题）",
     "BFCL_v4_parallel_multiple": "BFCL v4 并行多选（200 题）",
     "BFCL_v4_irrelevance": "BFCL v4 无关拒绝（240 题）",
+    "BFCL_v4_simple_java": "BFCL v4 单函数-Java（100 题）",
+    "BFCL_v4_simple_javascript": "BFCL v4 单函数-JS（50 题）",
+    "BFCL_v4_multi_turn_base": "BFCL v4 多轮对话（200 题）",
+    "BFCL_v4_multi_turn_long_context": "BFCL v4 多轮长上下文（200 题）",
+    "BFCL_v4_multi_turn_miss_func": "BFCL v4 多轮缺函数（200 题）",
+    "BFCL_v4_multi_turn_miss_param": "BFCL v4 多轮缺参数（200 题）",
 }
 
 DOWNLOADERS = {
@@ -49,6 +55,12 @@ DOWNLOADERS = {
     "BFCL_v4_parallel": lambda: download_bfcl.download(["BFCL_v4_parallel"]),
     "BFCL_v4_parallel_multiple": lambda: download_bfcl.download(["BFCL_v4_parallel_multiple"]),
     "BFCL_v4_irrelevance": lambda: download_bfcl.download(["BFCL_v4_irrelevance"]),
+    "BFCL_v4_simple_java": lambda: download_bfcl.download(["BFCL_v4_simple_java"]),
+    "BFCL_v4_simple_javascript": lambda: download_bfcl.download(["BFCL_v4_simple_javascript"]),
+    "BFCL_v4_multi_turn_base": lambda: download_bfcl.download(["BFCL_v4_multi_turn_base"]),
+    "BFCL_v4_multi_turn_long_context": lambda: download_bfcl.download(["BFCL_v4_multi_turn_long_context"]),
+    "BFCL_v4_multi_turn_miss_func": lambda: download_bfcl.download(["BFCL_v4_multi_turn_miss_func"]),
+    "BFCL_v4_multi_turn_miss_param": lambda: download_bfcl.download(["BFCL_v4_multi_turn_miss_param"]),
 }
 
 

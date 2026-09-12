@@ -27,11 +27,31 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "bfcl_v4"
 # 注意：format_sensitivity 只是引用其他子集 id 的列表（测格式敏感度），非独立题库，不下载。
 SUBSETS = [
     "BFCL_v4_simple_python",
+    "BFCL_v4_simple_java",         # 多语言：Java 版单函数
+    "BFCL_v4_simple_javascript",   # 多语言：JavaScript 版单函数
     "BFCL_v4_multiple",
     "BFCL_v4_parallel",
     "BFCL_v4_parallel_multiple",
     "BFCL_v4_irrelevance",  # 特殊：无 possible_answer 文件，标准答案为"拒绝调用"
+    "BFCL_v4_multi_turn_base",           # 多轮对话：基础
+    "BFCL_v4_multi_turn_long_context",   # 多轮：长上下文
+    "BFCL_v4_multi_turn_miss_func",      # 多轮：缺少函数
+    "BFCL_v4_multi_turn_miss_param",     # 多轮：缺少参数
 ]
+
+# multi_turn 子集：判分是「每轮期望调用」，且工具定义不在题目里，需按 involved_classes 另加载
+MULTI_TURN_SUBSETS = {
+    "BFCL_v4_multi_turn_base", "BFCL_v4_multi_turn_long_context",
+    "BFCL_v4_multi_turn_miss_func", "BFCL_v4_multi_turn_miss_param",
+}
+
+# multi_turn 用到的工具定义文档（位于 multi_turn_func_doc/，JSONL 格式）
+FUNC_DOC_NAMES = [
+    "gorilla_file_system", "math_api", "memory_kv", "memory_rec_sum", "memory_vector",
+    "message_api", "posting_api", "ticket_api", "trading_bot", "travel_booking",
+    "vehicle_control", "web_search",
+]
+FUNC_DOC_DIR = DATA_DIR / "func_doc"
 
 
 def _http_get_one(url: str):
@@ -94,11 +114,34 @@ def save_jsonl(path: Path, items: list):
             f.write(json.dumps(it, ensure_ascii=False) + "\n")
 
 
+def download_func_docs():
+    """下载 multi_turn 子集用到的工具定义文档（JSONL）到 data/bfcl_v4/func_doc/。"""
+    FUNC_DOC_DIR.mkdir(parents=True, exist_ok=True)
+    n_new = 0
+    for name in FUNC_DOC_NAMES:
+        p = FUNC_DOC_DIR / f"{name}.jsonl"
+        if p.exists() and p.stat().st_size > 0:
+            continue
+        try:
+            items = fetch_jsonl(f"{BASE}/multi_turn_func_doc/{name}.json")
+        except Exception as e:  # noqa: BLE001
+            print(f"工具文档失败 {name}: {e}", file=sys.stderr)
+            continue
+        save_jsonl(p, items)
+        n_new += 1
+        time.sleep(0.3)
+    print(f"工具文档：{FUNC_DOC_DIR}（{len(FUNC_DOC_NAMES)} 个文件，本次新增 {n_new}）")
+
+
 def download(subsets=None):
     """下载 BFCL v4 子集。subsets=None 表示全部；否则传子集名列表。"""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    names = subsets or SUBSETS
+    # 涉及 multi_turn 子集时，一并准备工具定义文档
+    if any(n in MULTI_TURN_SUBSETS for n in names):
+        download_func_docs()
     total = 0
-    for name in (subsets or SUBSETS):
+    for name in names:
         q_path = DATA_DIR / f"{name}.jsonl"
         a_path = DATA_DIR / f"{name}_answer.jsonl"
         # 断点续传：两文件都齐了就跳过

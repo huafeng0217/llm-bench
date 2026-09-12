@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from . import db, engine
-from .benchmarks import META, get_meta
+from .benchmarks import CATEGORIES, META, get_meta
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 MODELS_FILE = Path(__file__).resolve().parent.parent / "data" / "models.json"
@@ -225,12 +225,22 @@ async def create_evaluation(e: EvalIn):
 
 
 @app.get("/api/evaluations")
-def list_evaluations():
-    rows = db.query(
-        "SELECT e.*, m.name AS model_name FROM evaluations e"
-        " JOIN models m ON m.id=e.model_id ORDER BY e.id DESC LIMIT 100"
-    )
-    return [eval_view(r) for r in rows]
+def list_evaluations(limit: int = 0, offset: int = 0):
+    """评测任务列表（按 id 倒序，最新在前）。
+
+    - limit=0：返回全部
+    - limit>0：分页返回，并给出 total 供前端做分页
+    返回 {"items": [...], "total": N}
+    """
+    total = db.query_one("SELECT COUNT(*) AS c FROM evaluations")["c"]
+    sql = ("SELECT e.*, m.name AS model_name FROM evaluations e"
+           " JOIN models m ON m.id=e.model_id ORDER BY e.id DESC")
+    params: tuple = ()
+    if limit and limit > 0:
+        sql += " LIMIT ? OFFSET ?"
+        params = (limit, max(offset, 0))
+    rows = db.query(sql, params)
+    return {"items": [eval_view(r) for r in rows], "total": total}
 
 
 @app.get("/api/evaluations/{eid}")
@@ -272,11 +282,10 @@ def stop_evaluation(eid: int):
     return {"ok": False, "note": "任务已结束，无法停止"}
 
 
-@app.delete("/api/evaluations/{eid}")
-async def delete_evaluation(eid: int):
+async def _delete_one_evaluation(eid: int):
+    """删除单个评测：先停掉运行中的任务（避免继续烧 token / 写孤儿数据），再删明细、主记录与导出文件。"""
     task = engine.RUNNING.get(eid)
     if task:
-        # 先停掉运行中的任务，避免删除后后台继续调 API 烧 token / 写入孤儿数据
         task.cancel()
         try:
             await task
@@ -285,6 +294,25 @@ async def delete_evaluation(eid: int):
     db.execute("DELETE FROM eval_items WHERE eval_id=?", (eid,))
     db.execute("DELETE FROM evaluations WHERE id=?", (eid,))
     engine.delete_items_file(eid)
+
+
+class BatchIdsIn(BaseModel):
+    ids: list[int]
+
+
+@app.post("/api/evaluations/batch-delete")
+async def batch_delete_evaluations(body: BatchIdsIn):
+    """批量删除评测任务（逐个走单删逻辑，含停止运行中的任务）。"""
+    n = 0
+    for eid in body.ids:
+        await _delete_one_evaluation(eid)
+        n += 1
+    return {"ok": True, "deleted": n}
+
+
+@app.delete("/api/evaluations/{eid}")
+async def delete_evaluation(eid: int):
+    await _delete_one_evaluation(eid)
     return {"ok": True}
 
 
@@ -292,10 +320,16 @@ async def delete_evaluation(eid: int):
 
 @app.get("/api/leaderboard")
 def leaderboard():
+    """排行榜：按分类分区，每区含「综合榜 + 各基准分项榜」。
+
+    综合分 = 该模型在本分类下**已评测**基准的正确率算术平均；
+    排序按「覆盖度优先，再按综合分」，避免只跑简单基准刷分。
+    """
     rows = db.query(
         "SELECT e.*, m.name AS model_name FROM evaluations e"
         " JOIN models m ON m.id=e.model_id WHERE e.status='done' AND e.done>0"
     )
+    # 1) 每个 (模型, 基准) 取最高正确率
     best = {}
     for r in rows:
         acc = r["correct"] / r["done"] * 100
@@ -311,7 +345,55 @@ def leaderboard():
                 "prompt_tokens": r["prompt_tokens"],
                 "completion_tokens": r["completion_tokens"],
             }
-    return sorted(best.values(), key=lambda x: -x["accuracy"])
+
+    # 2) 按分类归组
+    grouped = {}   # category_id -> {benchmark: [item, ...]}
+    cat_meta = {}  # category_id -> {name, color}
+    for item in best.values():
+        meta = get_meta(item["benchmark"])
+        cid = meta["category_id"]
+        grouped.setdefault(cid, {}).setdefault(item["benchmark"], []).append(item)
+        cat_meta[cid] = {"name": meta["category"], "color": meta["category_color"]}
+
+    # 3) 逐分类组装：分项榜（各自按正确率排序）+ 综合榜
+    out = []
+    for c in CATEGORIES:  # 保持 CATEGORIES 的展示顺序
+        cid = c["id"]
+        if cid not in grouped:
+            continue
+        boards = []
+        model_scores = {}  # 模型 -> [该分类下各基准的正确率]
+        for bid, items in grouped[cid].items():
+            items.sort(key=lambda x: -x["accuracy"])
+            boards.append({
+                "benchmark": bid,
+                "benchmark_name": get_meta(bid)["name"],
+                "rows": items,
+            })
+            for it in items:
+                model_scores.setdefault(it["model_name"], []).append(it["accuracy"])
+        n_bench = len(boards)
+        combined = [
+            {
+                "model_name": m,
+                "avg_accuracy": round(sum(s) / len(s), 2),
+                "covered": len(s),
+                "total": n_bench,
+            }
+            for m, s in model_scores.items()
+        ]
+        combined.sort(key=lambda x: (-x["covered"], -x["avg_accuracy"]))
+        # 分项榜：按该基准的最高分降序（有亮点的基准排前面）
+        boards.sort(key=lambda b: -max(r["accuracy"] for r in b["rows"]))
+        out.append({
+            "id": cid,
+            "name": cat_meta[cid]["name"],
+            "color": cat_meta[cid]["color"],
+            "n_benchmarks": n_bench,
+            "combined": combined,
+            "boards": boards,
+        })
+    return out
 
 
 # ---------- 前端 ----------

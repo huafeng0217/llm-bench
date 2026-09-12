@@ -54,6 +54,8 @@
   button:active { transform:translateY(1px); }
   button.ghost { background:transparent; border:1px solid var(--border2); color:var(--muted); padding:5px 12px; font-weight:500; }
   button.ghost:hover { color:var(--text); border-color:var(--accent); filter:none; }
+  button.ghost:disabled { opacity:.45; cursor:default; }
+  button.ghost:disabled:hover { color:var(--muted); border-color:var(--border2); }
 
   /* 更多操作（⋯）下拉菜单 */
   .menu-wrap { position:relative; display:inline-block; }
@@ -124,9 +126,11 @@
   .rank.r3 { background:rgba(170,105,60,.1); border-color:rgba(170,105,60,.38); color:#aa693c; }
 
   details summary { cursor:pointer; color:var(--accent2); font-size:12.5px; user-select:none; }
-  pre.resp { white-space:pre-wrap; word-break:break-all; font-size:12px; color:var(--muted);
+  /* 模型原始输出：整行展开显示，宽度占满表格，横向不再需要滚动 */
+  pre.resp { white-space:pre-wrap; word-break:break-word; font-size:12px; color:var(--text);
              background:var(--bg2); border:1px solid var(--border); border-radius:9px;
-             padding:9px 12px; margin-top:6px; max-height:220px; overflow:auto; max-width:420px; }
+             padding:10px 14px; margin:0; max-height:420px; overflow:auto; }
+  tr.raw-row > td { background:var(--card2); padding:8px 12px; border-bottom:1px solid var(--border); }
 </style>
 </head>
 <body>
@@ -196,22 +200,31 @@
     <div class="muted" id="e-hint" style="margin-top:10px">请先选择一个基准（点击上方卡片）和模型。</div>
   </div>
 
-  <h2><span class="no">3</span>评测任务</h2>
+  <h2><span class="no">3</span>评测任务<span id="batch-toggle" style="margin-left:auto"></span></h2>
   <div class="card" style="padding:6px 18px"><table><thead><tr>
+    <th id="th-check" style="width:32px; display:none"><input type="checkbox" id="task-check-all" onclick="toggleAllTasks(this)" title="全选本页"></th>
     <th style="width:40px">#</th><th>模型</th><th>基准</th><th>进度</th><th>正确率</th><th>状态</th><th style="width:130px"></th>
-  </tr></thead><tbody id="evals"><tr><td colspan="7" class="empty">暂无任务</td></tr></tbody></table></div>
+  </tr></thead><tbody id="evals"><tr><td colspan="7" class="empty">暂无任务</td></tr></tbody></table>
+    <div id="batch-bar" style="padding:4px 0"></div>
+    <div id="task-controls" style="padding:8px 0"></div></div>
   <div id="items-box"></div>
 
   <h2><span class="no">4</span>排行榜</h2>
-  <div class="card" style="padding:6px 18px"><table><thead><tr>
-    <th style="width:46px">名次</th><th>模型</th><th>基准</th><th>正确率</th><th>题数</th><th>平均延迟</th><th>Token 消耗</th>
-  </tr></thead><tbody id="board"><tr><td colspan="7" class="empty">完成一次评测后生成</td></tr></tbody></table></div>
+  <div id="board"><div class="card"><div class="empty">完成一次评测后生成</div></div></div>
 </div>
 
 <script>
 let selBenchmark = null;
 let catFilter = "";   // "" = 全部
 let downloadStates = {};   // benchmark_id -> {status, message, downloaded}
+let expandedCats = {};     // 排行榜分类展开状态: category_id -> bool
+let tasksExpanded = false; // 任务列表是否展开
+let taskPage = 0;          // 任务列表当前页（展开后分页用）
+const TASK_PREVIEW = 5;    // 收起时显示的最新条数
+const TASK_PAGE_SIZE = 10; // 展开后每页条数
+let batchMode = false;          // 是否进入「批量」选择模式（进入后才显示勾选框）
+let selectedTasks = new Set();  // 批量操作选中的任务 id
+let currentEvalIds = [];        // 当前页显示的任务 id（供「全选本页」用）
 
 function bmCard(b) {
   const sel = b.id === selBenchmark ? " sel" : "";
@@ -400,14 +413,19 @@ async function startEval() {
 }
 
 async function refresh() {
-  const es = await api("/api/evaluations");
-  document.getElementById("stat-evals").textContent = es.length;
+  // 评测任务：收起时只显示最新 TASK_PREVIEW 条；展开后按 TASK_PAGE_SIZE 分页
+  const _limit = tasksExpanded ? TASK_PAGE_SIZE : TASK_PREVIEW;
+  const _offset = tasksExpanded ? taskPage * TASK_PAGE_SIZE : 0;
+  const _res = await api(`/api/evaluations?limit=${_limit}&offset=${_offset}`);
+  const es = _res.items;
+  document.getElementById("stat-evals").textContent = _res.total;
   const tb = document.getElementById("evals");
   tb.innerHTML = es.length ? es.map(e => {
     const pct = e.total ? Math.round(e.done / e.total * 100) : 0;
     const stCls = e.status === "done" ? "st-done" : e.status === "failed" ? "st-failed" : e.status === "stopped" ? "st-stopped" : "st-running";
     const running = e.status === "running" || e.status === "pending";
     return `<tr>
+      ${batchMode ? `<td><input type="checkbox" ${selectedTasks.has(e.id) ? "checked" : ""} onclick="toggleTaskSel(${e.id}, this)"></td>` : ""}
       <td class="muted">${e.id}</td><td style="font-weight:550">${esc(e.model_name)}</td>
       <td>${esc(e.benchmark)}<div class="muted">tokens≤${e.max_tokens ?? 2048} · ${e.timeout_s ?? 90}s · 并发${e.concurrency ?? 8}</div></td>
       <td><div class="bar"><i style="width:${pct}%"></i></div><span class="muted">${e.done}/${e.total}</span></td>
@@ -428,17 +446,140 @@ async function refresh() {
           <button class="menu-item danger" onclick="delEval(${e.id})">删除</button>
         </div>
       </div></td></tr>`;
-  }).join("") : `<tr><td colspan="7" class="empty">暂无任务</td></tr>`;
+  }).join("") : `<tr><td colspan="${batchMode ? 8 : 7}" class="empty">暂无任务</td></tr>`;
+  currentEvalIds = es.map(e => e.id);
+  document.getElementById("th-check").style.display = batchMode ? "" : "none";
+  renderTaskControls(_res.total);
+  renderBatchBar();
 
-  const bd = await api("/api/leaderboard");
-  document.getElementById("stat-best").textContent = bd.length ? bd[0].accuracy + "%" : "-";
-  document.getElementById("board").innerHTML = bd.length ? bd.map((b, i) =>
-    `<tr><td><span class="rank r${i+1}">${i+1}</span></td>
-     <td style="font-weight:550">${esc(b.model_name)}</td><td>${esc(b.benchmark_name)}</td>
-     <td class="acc">${b.accuracy}%</td><td>${b.total}</td>
-     <td class="muted">${b.avg_latency_ms} ms</td>
-     <td class="muted">${b.prompt_tokens + b.completion_tokens}</td></tr>`).join("")
-    : `<tr><td colspan="7" class="empty">完成一次评测后生成</td></tr>`;
+  const bds = await api("/api/leaderboard");
+  // 顶部统计：最佳正确率取所有分项里的最高值
+  let bestAcc = null;
+  bds.forEach(c => c.boards.forEach(b => b.rows.forEach(r => {
+    if (bestAcc === null || r.accuracy > bestAcc) bestAcc = r.accuracy;
+  })));
+  document.getElementById("stat-best").textContent = bestAcc !== null ? bestAcc + "%" : "-";
+  // 总览：各分类冠军一览。每行本身即开关，点击展开/收起该分类详情（可同时展开多个）
+  const overview = `
+    <div class="card" style="padding:14px 18px">
+      <div class="cat-head" style="margin:0"><span class="dot" style="background:var(--accent)"></span>总览<span class="cnt">点击分类查看详情，可同时展开多个</span></div>
+      <table style="margin-top:10px"><thead><tr><th>分类</th><th>冠军模型</th><th style="width:110px">综合得分</th><th style="width:110px">覆盖</th></tr></thead>
+      <tbody>${bds.map(c => {
+        const champ = c.combined[0];
+        const open = !!expandedCats[c.id];
+        return `<tr style="cursor:pointer" onclick="toggleCat('${esc(c.id)}')">
+          <td><span style="display:inline-block;width:12px;color:var(--faint)">${open ? "▾" : "▸"}</span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:3px;background:${c.color};margin-right:6px"></span>${esc(c.name)}</td>
+          <td style="font-weight:550">${esc(champ.model_name)}</td>
+          <td class="acc">${champ.avg_accuracy}%</td>
+          <td class="muted">${champ.covered}/${champ.total}</td>
+        </tr>`;
+      }).join("")}</tbody></table>
+    </div>`;
+  // 详情区：只渲染已展开的分类卡片
+  const details = bds.filter(c => expandedCats[c.id]).map(cat => `
+    <div class="card" style="padding:14px 18px">
+      <div class="cat-head" style="margin:0"><span class="dot" style="background:${cat.color}"></span>${esc(cat.name)}<span class="cnt">${cat.n_benchmarks} 个基准</span></div>
+      <div style="font-weight:600;font-size:13px;margin:12px 0 6px">综合排行 <span class="muted" style="font-weight:400">（分类内各基准平均分 · 每项取多次测试最高分）</span></div>
+      <table><thead><tr><th style="width:46px">名次</th><th>模型</th><th style="width:110px">综合得分</th><th style="width:130px">覆盖</th></tr></thead>
+      <tbody>${cat.combined.map((m, i) => `<tr>
+        <td><span class="rank r${i+1}">${i+1}</span></td>
+        <td style="font-weight:550">${esc(m.model_name)}</td>
+        <td class="acc">${m.avg_accuracy}%</td>
+        <td class="muted">${m.covered}/${m.total}${m.covered < m.total ? ' <span class="tag warn">未跑全</span>' : ''}</td>
+      </tr>`).join("")}</tbody></table>
+      <div style="font-weight:600;font-size:13px;margin:16px 0 6px">分项</div>
+      <table><thead><tr><th style="width:190px">基准</th><th>模型</th><th style="width:100px">正确率</th><th style="width:70px">题数</th><th style="width:110px">平均延迟</th><th style="width:90px">Token</th></tr></thead>
+      <tbody>${cat.boards.map(b => b.rows.map((r, i) => `<tr>
+        ${i === 0 ? `<td rowspan="${b.rows.length}" style="font-weight:600;vertical-align:top">${esc(b.benchmark_name)}</td>` : ""}
+        <td><span class="rank r${i+1}">${i+1}</span> ${esc(r.model_name)}</td>
+        <td class="acc">${r.accuracy}%</td><td>${r.total}</td>
+        <td class="muted">${r.avg_latency_ms} ms</td>
+        <td class="muted">${r.prompt_tokens + r.completion_tokens}</td>
+      </tr>`).join("")).join("")}</tbody></table>
+    </div>`).join("");
+  document.getElementById("board").innerHTML = bds.length ? overview + details
+    : `<div class="card"><div class="empty">完成一次评测后生成</div></div>`;
+}
+
+// ---- 任务列表：展开 / 分页 控制 ----
+function renderTaskControls(total) {
+  const box = document.getElementById("task-controls");
+  if (!box) return;
+  if (!tasksExpanded) {
+    box.innerHTML = total > TASK_PREVIEW
+      ? `<div style="text-align:center"><button class="ghost" onclick="toggleTasks()">展开全部 ${total} 条记录</button></div>`
+      : "";
+    return;
+  }
+  const pages = Math.max(1, Math.ceil(total / TASK_PAGE_SIZE));
+  box.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap">
+    <button class="ghost" onclick="taskPrev()" ${taskPage <= 0 ? "disabled" : ""}>上一页</button>
+    <span class="muted">第 ${taskPage + 1} / ${pages} 页 · 共 ${total} 条</span>
+    <button class="ghost" onclick="taskNext(${pages})" ${taskPage >= pages - 1 ? "disabled" : ""}>下一页</button>
+    <button class="ghost" onclick="toggleTasks()">收起</button>
+  </div>`;
+}
+
+function toggleTasks() { tasksExpanded = !tasksExpanded; taskPage = 0; refresh(); }
+function taskPrev() { if (taskPage > 0) { taskPage--; refresh(); } }
+function taskNext(pages) { if (taskPage < pages - 1) { taskPage++; refresh(); } }
+
+// ---- 排行榜：分类展开 / 收起 ----
+function toggleCat(id) { expandedCats[id] = !expandedCats[id]; refresh(); }
+
+// ---- 任务列表：批量选择 / 批量删除 ----
+function renderBatchBar() {
+  // 标题右侧：批量模式开关
+  const tog = document.getElementById("batch-toggle");
+  if (tog) {
+    tog.innerHTML = `<button class="ghost" onclick="${batchMode ? "exitBatchMode()" : "enterBatchMode()"}">${batchMode ? "退出批量" : "批量"}</button>`;
+  }
+  // 表格下方：进入批量模式后才出现的操作栏
+  const box = document.getElementById("batch-bar");
+  if (!box) return;
+  box.innerHTML = batchMode
+    ? `<div style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap">
+        <span class="muted">已选 ${selectedTasks.size} 条</span>
+        <button class="ghost" style="color:var(--red);border-color:rgba(214,79,88,.4)" onclick="batchDelete()" ${selectedTasks.size ? "" : "disabled"}>批量删除</button>
+        <button class="ghost" onclick="clearTaskSel()" ${selectedTasks.size ? "" : "disabled"}>取消选择</button>
+      </div>`
+    : "";
+}
+
+function enterBatchMode() { batchMode = true; refresh(); }
+function exitBatchMode() { batchMode = false; selectedTasks.clear(); refresh(); }
+
+function toggleTaskSel(id, cb) {
+  if (cb.checked) selectedTasks.add(id); else selectedTasks.delete(id);
+  renderBatchBar();
+}
+
+// 全选/取消本页显示的任务
+function toggleAllTasks(cb) {
+  currentEvalIds.forEach(id => cb.checked ? selectedTasks.add(id) : selectedTasks.delete(id));
+  refresh();
+}
+
+function clearTaskSel() {
+  selectedTasks.clear();
+  const all = document.getElementById("task-check-all");
+  if (all) all.checked = false;
+  refresh();
+}
+
+async function batchDelete() {
+  const ids = [...selectedTasks];
+  if (!ids.length) return;
+  if (!confirm(`确定删除选中的 ${ids.length} 条任务？此操作不可恢复。`)) return;
+  try {
+    await api("/api/evaluations/batch-delete", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+  } catch (e) { return alert("批量删除失败：" + e.message); }
+  selectedTasks.clear();
+  document.getElementById("items-box").innerHTML = "";
+  refresh();
 }
 
 async function delEval(id) {
@@ -469,22 +610,52 @@ document.addEventListener("click", () => {
   document.querySelectorAll(".menu.open").forEach(m => m.classList.remove("open"));
 });
 
+let itemsCache = [];   // 当前明细数据（供展开原始输出取用）
+
 async function showItems(id) {
   const items = await api(`/api/evaluations/${id}/items?limit=50`);
+  itemsCache = items;
   document.getElementById("items-box").innerHTML = `
-    <div class="card"><b>任务 #${id} 明细（前 ${items.length} 条）</b>
-    <div class="muted" style="margin:4px 0 8px">完整逐题明细（含模型原始输出）已自动保存到本地文件 data/results/eval_${id}.jsonl</div>
-    <table><thead><tr><th>#</th><th>题目</th><th>期望</th><th>模型答</th><th>判定</th><th>延迟</th><th>模型原始输出</th></tr></thead>
-    <tbody>${items.map(it => `<tr>
-      <td class="muted">${it.idx}</td>
-      <td style="max-width:300px">${esc((it.question||"").slice(0,60))}${(it.question||"").length>60?"…":""}</td>
-      <td>${esc(it.expected)}</td><td>${esc(it.predicted ?? "-")}</td>
-      <td>${it.error ? '<span class="st-failed">错误</span>' : it.correct ? '<span class="st-done">✓</span>' : '<span class="st-failed">✗</span>'}</td>
-      <td class="muted">${it.latency_ms}ms</td>
-      <td style="max-width:280px">${it.error
-          ? `<span class="st-failed" style="font-size:12px">${esc(it.error.slice(0,120))}</span>`
-          : `<details><summary>查看</summary><pre class="resp">${esc(it.raw_response || "（空）")}</pre></details>`}</td>
-      </tr>`).join("")}</tbody></table></div>`;
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div>
+          <b>任务 #${id} 明细（前 ${items.length} 条）</b>
+          <div class="muted" style="margin:4px 0 0">完整逐题明细（含模型原始输出）已保存到本地文件 data/results/eval_${id}.jsonl</div>
+        </div>
+        <button class="ghost" onclick="closeItems()">关闭</button>
+      </div>
+      <table style="margin-top:10px"><thead><tr><th>#</th><th>题目</th><th>期望</th><th>模型答</th><th>判定</th><th>延迟</th><th style="width:90px">原始输出</th></tr></thead>
+      <tbody>${items.map(it => `<tr>
+        <td class="muted">${it.idx}</td>
+        <td style="max-width:300px">${esc((it.question||"").slice(0,60))}${(it.question||"").length>60?"…":""}</td>
+        <td>${esc(it.expected)}</td><td>${esc(it.predicted ?? "-")}</td>
+        <td>${it.error ? '<span class="st-failed">错误</span>' : it.correct ? '<span class="st-done">✓</span>' : '<span class="st-failed">✗</span>'}</td>
+        <td class="muted">${it.latency_ms}ms</td>
+        <td><button class="ghost" onclick="toggleRaw(${it.idx}, this)">查看</button></td>
+      </tr>`).join("")}</tbody></table>
+    </div>`;
+}
+
+function closeItems() {
+  document.getElementById("items-box").innerHTML = "";
+  itemsCache = [];
+}
+
+// 模型原始输出：在该题所在行下方插入一整行（colspan 横跨全表）显示，宽度占满，再次点击收起
+function toggleRaw(idx, btn) {
+  const tr = btn.closest("tr");
+  const exist = document.getElementById("raw-" + idx);
+  if (exist) { exist.remove(); btn.textContent = "查看"; return; }
+  const it = itemsCache.find(x => x.idx === idx) || {};
+  const body = it.error
+    ? `【错误】\n${esc(it.error)}\n\n【原始输出】\n${esc(it.raw_response || "（空）")}`
+    : esc(it.raw_response || "（空）");
+  const row = document.createElement("tr");
+  row.id = "raw-" + idx;
+  row.className = "raw-row";
+  row.innerHTML = `<td colspan="7"><pre class="resp">${body}</pre></td>`;
+  tr.after(row);
+  btn.textContent = "收起";
 }
 
 loadModels(); loadBenchmarks(); refresh();
