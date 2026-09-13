@@ -17,3 +17,6 @@ start.bat
 __pycache__/
 *.pyc
 .venv/
+
+# 下载 parquet 题库时自动装的 pyarrow（约 28MB，仅下载题库用，非运行时依赖）
+.vendor/

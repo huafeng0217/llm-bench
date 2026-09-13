@@ -42,7 +42,7 @@
   .pill { display:flex; gap:8px; align-items:flex-start; background:var(--bg2); border:1px solid var(--border);
           border-radius:10px; padding:9px 13px; color:var(--muted); font-size:12.5px; margin-bottom:10px; }
   .pill::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--accent); margin-top:7px; flex:0 0 auto; }
-  .pill code { color:var(--accent2); background:rgba(74,125,224,.1); padding:0 5px; border-radius:5px; }
+  .muted code, .pill code { color:var(--accent2); background:rgba(74,125,224,.1); padding:0 5px; border-radius:5px; font-size:12px; }
 
   input,select { background:var(--bg2); color:var(--text); border:1px solid var(--border); border-radius:9px;
                  padding:8px 11px; font-size:13px; width:100%; transition:border-color .15s; }
@@ -138,6 +138,16 @@
              background:var(--bg2); border:1px solid var(--border); border-radius:9px;
              padding:10px 14px; margin:0; max-height:420px; overflow:auto; }
   tr.raw-row > td { background:var(--card2); padding:8px 12px; border-bottom:1px solid var(--border); }
+
+  /* 成绩总览：基准 × 模型 色块矩阵。border-spacing + 圆角做出「色块」感 */
+  .ov-table { border-collapse:separate; border-spacing:3px; }
+  .ov-table th { text-align:center; font-size:12px; }
+  .ov-table th:first-child { text-align:left; }
+  .ov-table td { text-align:center; font-size:12.5px; font-variant-numeric:tabular-nums; padding:6px 8px; }
+  .ov-table td.ov-bench { text-align:left; font-weight:550; color:var(--text); white-space:nowrap; }
+  .ov-table td.ov-group { text-align:left; background:var(--bg2); font-weight:600; font-size:12.5px; border-radius:6px; }
+  .ov-table td.ov-empty { color:var(--faint); }
+  .ov-table td.ov-cell { font-weight:600; border-radius:6px; cursor:default; }
 </style>
 </head>
 <body>
@@ -157,31 +167,34 @@
     <div class="stat" style="--c:#b97e1e"><b id="stat-best">-</b><span>最佳正确率</span></div>
   </div>
 
-  <h2><span class="no">1</span>添加模型</h2>
-  <div class="pill">没有 key 也可以体验：模型名填 <code>demo</code>，base_url 填 <code>mock://local</code>，会用内置模拟模型跑通全流程。</div>
-  <div class="pill">保密说明：所有 API Key 只保存在你自己电脑的项目目录里（<code>data/app.db</code> 与 <code>data/models.json</code>），不会上传到任何服务器；该目录已加入 .gitignore 防止误提交到 git。</div>
-  <div class="card">
-    <div class="row" style="margin-bottom:10px">
-      <select id="m-preset" onchange="applyPreset()" style="flex:0 0 220px">
-        <option value="">选择服务商（自动填 base_url）…</option>
-        <option value="https://api.deepseek.com">DeepSeek</option>
-        <option value="https://dashscope.aliyuncs.com/compatible-mode/v1">通义千问（阿里）</option>
-        <option value="https://api.moonshot.cn/v1">Kimi（月之暗面）</option>
-        <option value="https://open.bigmodel.cn/api/paas/v4/">智谱 GLM</option>
-        <option value="https://api.openai.com/v1">OpenAI</option>
-        <option value="https://openrouter.ai/api/v1">OpenRouter</option>
-        <option value="http://localhost:11434/v1">本地 Ollama</option>
-        <option value="custom">自定义（手动填写）</option>
-      </select>
+  <h2><span class="no">1</span>模型管理<span id="add-model-toggle" style="margin-left:auto"></span></h2>
+  <div class="muted" style="font-size:12.5px; margin:-4px 0 10px">
+    没有 key 也能体验：模型名填 <code>demo</code>、base_url 填 <code>mock://local</code>。所有 API Key 只保存在本地 <code>data/</code> 目录，不会上传到任何服务器。
+  </div>
+  <div id="add-model-box" style="display:none">
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <select id="m-preset" onchange="applyPreset()" style="flex:0 0 220px">
+          <option value="">选择服务商（自动填 base_url）…</option>
+          <option value="https://api.deepseek.com">DeepSeek</option>
+          <option value="https://dashscope.aliyuncs.com/compatible-mode/v1">通义千问（阿里）</option>
+          <option value="https://api.moonshot.cn/v1">Kimi（月之暗面）</option>
+          <option value="https://open.bigmodel.cn/api/paas/v4/">智谱 GLM</option>
+          <option value="https://api.openai.com/v1">OpenAI</option>
+          <option value="https://openrouter.ai/api/v1">OpenRouter</option>
+          <option value="http://localhost:11434/v1">本地 Ollama</option>
+          <option value="custom">自定义（手动填写）</option>
+        </select>
+      </div>
+      <div class="row">
+        <input id="m-name" placeholder="模型名（API 调用的名字，如 deepseek-v4-flash）">
+        <input id="m-url" placeholder="base_url（必填），如 https://api.deepseek.com">
+        <input id="m-key" placeholder="API Key" type="password">
+        <button style="flex:0 0 auto" class="ghost" onclick="testConn()">测试连接</button>
+        <button style="flex:0 0 auto" onclick="addModel()">添加</button>
+      </div>
+      <div class="muted" id="m-test-result" style="margin-top:8px"></div>
     </div>
-    <div class="row">
-      <input id="m-name" placeholder="模型名（API 调用的名字，如 deepseek-v4-flash）">
-      <input id="m-url" placeholder="base_url（必填），如 https://api.deepseek.com">
-      <input id="m-key" placeholder="API Key" type="password">
-      <button style="flex:0 0 auto" class="ghost" onclick="testConn()">测试连接</button>
-      <button style="flex:0 0 auto" onclick="addModel()">添加</button>
-    </div>
-    <div class="muted" id="m-test-result" style="margin-top:8px"></div>
   </div>
   <div class="card" style="padding:6px 18px"><table><thead><tr><th>模型</th><th>base_url</th><th>Key</th><th style="width:70px"></th></tr></thead>
     <tbody id="models"><tr><td colspan="4" class="empty">暂无模型</td></tr></tbody></table></div>
@@ -216,7 +229,10 @@
     <div id="task-controls" style="padding:8px 0"></div></div>
   <div id="items-box"></div>
 
-  <h2><span class="no">4</span>排行榜</h2>
+  <h2><span class="no">4</span>成绩总览</h2>
+  <div id="overview"><div class="card"><div class="empty">完成一次评测后生成</div></div></div>
+
+  <h2><span class="no">5</span>排行榜</h2>
   <div id="board"><div class="card"><div class="empty">完成一次评测后生成</div></div></div>
 </div>
 
@@ -375,7 +391,19 @@ async function addModel() {
   } catch (e) { return alert("添加失败：" + e.message); }
   document.getElementById("m-name").value = document.getElementById("m-url").value = document.getElementById("m-key").value = "";
   document.getElementById("m-test-result").textContent = "";
+  setAddModelOpen(false);   // 添加成功后自动收起表单
   loadModels();
+}
+
+// 「＋ 添加模型」开关：默认收起表单，模型列表始终显示
+function setAddModelOpen(open) {
+  document.getElementById("add-model-box").style.display = open ? "" : "none";
+  document.getElementById("add-model-toggle").innerHTML =
+    `<button class="ghost" onclick="toggleAddModel()">${open ? "收起" : "＋ 添加模型"}</button>`;
+  if (open) document.getElementById("m-name").focus();
+}
+function toggleAddModel() {
+  setAddModelOpen(document.getElementById("add-model-box").style.display === "none");
 }
 
 async function delModel(id) {
@@ -460,6 +488,8 @@ async function refresh() {
   renderTaskControls(_res.total);
   renderBatchBar();
 
+  await renderOverviewBlock();
+
   const bds = await api("/api/leaderboard");
   // 顶部统计：最佳正确率取所有分项里的最高值
   let bestAcc = null;
@@ -509,6 +539,122 @@ async function refresh() {
     : `<div class="card"><div class="empty">完成一次评测后生成</div></div>`;
 }
 
+// ---------- 成绩总览：基准 × 模型 色块矩阵 ----------
+
+let ovData = null;       // /api/overview 原始数据
+let ovOnlyData = true;   // 是否只显示有数据的基准
+let ovPickModel = null;  // 已展开能力画像的模型 id
+
+async function renderOverviewBlock() {
+  const box = document.getElementById("overview");
+  if (!box) return;
+  try {
+    ovData = await api("/api/overview");
+  } catch (e) {
+    box.innerHTML = `<div class="card"><div class="empty">总览加载失败：${esc(e.message)}</div></div>`;
+    return;
+  }
+  drawOverview();
+}
+
+function toggleOvOnlyData() { ovOnlyData = !ovOnlyData; drawOverview(); }
+function pickOvModel(id) { ovPickModel = (ovPickModel === id ? null : id); drawOverview(); }
+
+function drawOverview() {
+  const box = document.getElementById("overview");
+  if (!box) return;
+  const d = ovData;
+  if (!d || !d.models.length) {
+    box.innerHTML = `<div class="card"><div class="empty">完成一次评测后生成</div></div>`;
+    return;
+  }
+  const models = d.models;
+  const groups = d.groups
+    .map(g => ({ ...g, benchmarks: g.benchmarks.filter(b => !ovOnlyData || Object.keys(b.scores).length) }))
+    .filter(g => g.benchmarks.length);
+  if (!groups.length) {
+    box.innerHTML = `<div class="card"><div class="empty">还没有任何成绩</div></div>`;
+    return;
+  }
+
+  const head = `<tr><th style="width:200px">基准</th>` + models.map(m =>
+    `<th style="cursor:pointer" title="点击查看 ${esc(m.name)} 的能力画像"
+         onclick="pickOvModel(${m.id})">${esc(m.name)}</th>`).join("") + `</tr>`;
+
+  const body = groups.map(g => {
+    const gRow = `<tr><td class="ov-group" colspan="${models.length + 1}">
+        <span class="dot" style="background:${g.color}"></span>${esc(g.name)}</td></tr>`;
+    return gRow + g.benchmarks.map(b => {
+      const vals = Object.values(b.scores).map(s => s.accuracy);
+      const max = vals.length ? Math.max(...vals) : 0;
+      const cells = models.map(m => {
+        const s = b.scores[m.id];
+        if (!s) return `<td class="ov-empty">—</td>`;
+        // 只按「相对该基准最高分的比例」上色。不同基准的难度基线差很多，
+        // 若改成绝对正确率，AIME 的 20%（其实已属很强）会被画成极浅，造成误读。
+        const ratio = max > 0 ? s.accuracy / max : 1;
+        // 色阶拉到 0.06~0.82，让「强/弱」的深浅差真正看得出来
+        const alpha = 0.06 + 0.76 * Math.max(0, Math.min(ratio, 1));
+        // 深色块配白字、浅色块配深字 —— 是为了任何深浅下都看得清，不是随机配色
+        const fg = alpha > 0.45 ? "#fff" : "var(--text)";
+        return `<td class="ov-cell" style="background:rgba(74,125,224,${alpha.toFixed(3)});color:${fg}"
+                    title="${esc(b.name)} · ${esc(m.name)}：${s.accuracy}%（${s.total} 题 · 任务 #${s.eval_id}）"
+                    >${s.accuracy}%</td>`;
+      }).join("");
+      return `<tr><td class="ov-bench" title="${esc(b.id)}">${esc(b.name)}</td>${cells}</tr>`;
+    }).join("");
+  }).join("");
+
+  const pick = models.find(m => m.id === ovPickModel);
+  box.innerHTML = `
+    <div class="card" style="padding:14px 18px">
+      <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:10px">
+        <span class="muted" style="font-size:12.5px;line-height:1.75">
+          行 = 基准，列 = 模型；颜色深浅表示 <b>在该基准上的相对强弱</b>（每一行以该行最高分为满色）。
+          <br>这样不同难度的基准之间不会互相误导 —— 否则 AIME 考 20%（其实已属很强）会被画得极浅。
+          <br><span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle">弱<i
+              style="display:inline-block;width:26px;height:11px;border-radius:3px;background:rgba(74,125,224,.06)"></i><i
+              style="display:inline-block;width:26px;height:11px;border-radius:3px;background:rgba(74,125,224,.30)"></i><i
+              style="display:inline-block;width:26px;height:11px;border-radius:3px;background:rgba(74,125,224,.54)"></i><i
+              style="display:inline-block;width:26px;height:11px;border-radius:3px;background:rgba(74,125,224,.82)"></i>强</span>
+          <span style="margin-left:6px">（深色块配白字、浅色块配深字，只是为了看得清）</span>
+        </span>
+        <span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="ghost" onclick="toggleOvOnlyData()">${ovOnlyData ? "显示全部基准" : "只看有数据的"}</button>
+        </span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="ov-table"><thead>${head}</thead><tbody>${body}</tbody></table>
+      </div>
+      ${pick ? renderOvProfile(pick) : ""}
+    </div>`;
+}
+
+// 点模型名展开的能力画像（方案 3，与矩阵共用同一份数据）
+function renderOvProfile(m) {
+  const list = [];
+  ovData.groups.forEach(g => g.benchmarks.forEach(b => {
+    const s = b.scores[m.id];
+    if (s) list.push({ group: g.name, bench: b.name, acc: s.accuracy });
+  }));
+  if (!list.length) return "";
+  list.sort((a, b) => b.acc - a.acc);
+  const rows = list.map(x => `<tr>
+      <td class="muted" style="width:110px;font-size:12px">${esc(x.group)}</td>
+      <td style="width:190px">${esc(x.bench)}</td>
+      <td><div class="score-cell"><span class="acc">${x.acc}%</span>
+          <div class="bar"><i style="width:${Math.min(x.acc, 100)}%"></i></div></div></td>
+    </tr>`).join("");
+  return `<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <b style="font-size:13px">${esc(m.name)} 的能力画像</b>
+        <span class="muted" style="font-size:12px">共 ${list.length} 个基准 · 按分数降序</span>
+        <button class="ghost" style="margin-left:auto" onclick="pickOvModel(${m.id})">收起</button>
+      </div>
+      <table>${rows}</table>
+    </div>`;
+}
+
 // ---- 任务列表：展开 / 分页 控制 ----
 function renderTaskControls(total) {
   const box = document.getElementById("task-controls");
@@ -548,6 +694,8 @@ function renderBatchBar() {
   box.innerHTML = batchMode
     ? `<div style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap">
         <span class="muted">已选 ${selectedTasks.size} 条</span>
+        <button class="ghost" onclick="compareTasks()" ${selectedTasks.size === 2 ? "" : "disabled"}
+                title="选中恰好 2 个同一基准的任务，可逐题对比">逐题对比</button>
         <button class="ghost" style="color:var(--red);border-color:rgba(214,79,88,.4)" onclick="batchDelete()" ${selectedTasks.size ? "" : "disabled"}>批量删除</button>
         <button class="ghost" onclick="clearTaskSel()" ${selectedTasks.size ? "" : "disabled"}>取消选择</button>
       </div>`
@@ -588,6 +736,108 @@ async function batchDelete() {
   selectedTasks.clear();
   document.getElementById("items-box").innerHTML = "";
   refresh();
+}
+
+// ---------- 逐题对比（选中恰好 2 个同一基准的任务）----------
+
+let compareData = null;       // 当前对比结果，供「只看分歧题」切换时重渲染
+let compareOnlyDiff = false;  // 是否只看分歧题
+
+async function compareTasks() {
+  const ids = [...selectedTasks];
+  if (ids.length !== 2) return alert("请恰好选中 2 个任务再对比（需要同一基准）");
+  document.getElementById("items-box").innerHTML = `<div class="card"><div class="empty">对比中…</div></div>`;
+  let d;
+  try {
+    d = await api(`/api/evaluations/compare?ids=${ids.join(",")}`);
+  } catch (e) {
+    document.getElementById("items-box").innerHTML =
+      `<div class="card"><span style="color:var(--red)">对比失败：${esc(e.message)}</span>
+       <button class="ghost" style="margin-left:12px" onclick="closeCompare()">关闭</button></div>`;
+    document.getElementById("items-box").scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  compareData = d;
+  compareOnlyDiff = false;
+  renderCompareView();
+  document.getElementById("items-box").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function toggleCompareDiff(cb) { compareOnlyDiff = cb.checked; renderCompareView(); }
+
+function closeCompare() {
+  compareData = null;
+  document.getElementById("items-box").innerHTML = "";
+}
+
+function renderCompareView() {
+  const d = compareData;
+  if (!d) return;
+  const s = d.stats, A = d.a, B = d.b;
+  const diffN = s.only_a + s.only_b;
+  const items = compareOnlyDiff ? d.items.filter(it => it.a.correct !== it.b.correct) : d.items;
+
+  const stat = (label, n, color) => `<div style="text-align:center;min-width:70px">
+      <div style="font-size:19px;font-weight:650;color:${color}">${n}</div>
+      <div class="muted" style="font-size:11.5px">${label}</div></div>`;
+
+  const side = (tag, e, color) => `<div style="display:flex;align-items:center;gap:8px">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
+                   border-radius:7px;font-size:12px;font-weight:650;color:#fff;background:${color}">${tag}</span>
+      <b>${esc(e.model_name)}</b>
+      <span class="muted">正确率 ${e.accuracy}%（${e.done}/${e.total}）</span></div>`;
+
+  const cell = x => `<td style="${x.correct ? "" : "background:rgba(214,79,88,.06)"}">${esc(x.predicted ?? "—")}</td>`;
+
+  const rows = items.length ? items.map(it => {
+    const diff = it.a.correct !== it.b.correct;
+    const mark = (it.a.correct && it.b.correct) ? `<span class="st-done">都对</span>`
+      : (!it.a.correct && !it.b.correct) ? `<span class="muted">都错</span>`
+      : it.a.correct ? `<span style="color:var(--accent2);font-weight:600">仅 A 对</span>`
+      : `<span style="color:var(--amber);font-weight:600">仅 B 对</span>`;
+    const q = it.question || "";
+    return `<tr style="${diff ? "background:rgba(185,126,30,.07)" : ""}">
+        <td>${it.idx}</td>
+        <td style="max-width:360px" title="${esc(q)}">${esc(q.slice(0, 100))}${q.length > 100 ? "…" : ""}</td>
+        <td>${esc(String(it.expected ?? "—"))}</td>
+        ${cell(it.a)}${cell(it.b)}
+        <td>${mark}</td></tr>`;
+  }).join("") : `<tr><td colspan="6" class="empty">${compareOnlyDiff ? "两个模型没有分歧题（要么都对、要么都错）" : "没有可对比的题目"}</td></tr>`;
+
+  const warn = (s.a_only || s.b_only)
+    ? `<div class="muted" style="font-size:12px;margin-top:6px">注意：A 共 ${s.a_count} 题、B 共 ${s.b_count} 题，
+       仅对比两者都跑了的 ${s.common} 题（A 独有 ${s.a_only}、B 独有 ${s.b_only} 未计入）。</div>` : "";
+
+  document.getElementById("items-box").innerHTML = `
+    <div class="card" style="border-color:var(--border2)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <b style="font-size:14.5px">逐题对比</b>
+        <span class="tag">${esc(d.benchmark)}</span>
+        <button class="ghost" style="margin-left:auto" onclick="closeCompare()">关闭</button>
+      </div>
+      <div style="display:flex;gap:26px;flex-wrap:wrap;margin-bottom:14px">
+        ${side("A", A, "var(--accent)")}
+        ${side("B", B, "var(--amber)")}
+      </div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;justify-content:center;
+                  background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:11px 16px;margin-bottom:12px">
+        ${stat("共同题", s.common, "var(--text)")}
+        ${stat("都对", s.both_correct, "var(--green)")}
+        ${stat("都错", s.both_wrong, "var(--muted)")}
+        ${stat("仅 A 对", s.only_a, "var(--accent2)")}
+        ${stat("仅 B 对", s.only_b, "var(--amber)")}
+      </div>
+      ${warn}
+      <label class="muted" style="display:flex;flex-direction:row;align-items:center;gap:7px;
+                                  margin:12px 0 8px;cursor:pointer">
+        <input type="checkbox" style="width:auto" ${compareOnlyDiff ? "checked" : ""}
+               onclick="toggleCompareDiff(this)"> 只看分歧题（${diffN} 题）
+      </label>
+      <table><thead><tr>
+        <th style="width:44px">#</th><th>题目</th><th style="width:90px">期望</th>
+        <th style="width:110px">A 回答</th><th style="width:110px">B 回答</th><th style="width:84px">结果</th>
+      </tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
 }
 
 async function delEval(id) {
@@ -666,7 +916,7 @@ function toggleRaw(idx, btn) {
   btn.textContent = "收起";
 }
 
-loadModels(); loadBenchmarks(); refresh();
+setAddModelOpen(false); loadModels(); loadBenchmarks(); refresh();
 setInterval(refresh, 2500);
 </script>
 </body>

@@ -243,6 +243,78 @@ def list_evaluations(limit: int = 0, offset: int = 0):
     return {"items": [eval_view(r) for r in rows], "total": total}
 
 
+@app.get("/api/evaluations/compare")
+def compare_evaluations(ids: str):
+    """逐题对比两个评测任务（同一基准，按题目 idx 对齐）。
+
+    用法：GET /api/evaluations/compare?ids=77,79
+
+    返回两个任务各自的成绩、逐题答案，以及「分歧统计」：
+    共同正确 / 共同错误 / 仅 A 对 / 仅 B 对 —— 后两项就是最值得看的「分歧题」。
+
+    注意：本路由必须定义在 /api/evaluations/{eid} **之前**，否则 "compare"
+    会被当成 eid 去解析（int 转换失败 → 422）。
+    """
+    try:
+        pair = [int(x) for x in ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(400, "ids 需为逗号分隔的数字，如 ids=77,79")
+    if len(pair) != 2:
+        raise HTTPException(400, "对比需要恰好 2 个任务 id")
+    a_id, b_id = pair
+    rows = db.query(
+        "SELECT e.*, m.name AS model_name FROM evaluations e"
+        " JOIN models m ON m.id=e.model_id WHERE e.id IN (?,?)", (a_id, b_id),
+    )
+    found = {r["id"]: r for r in rows}
+    if a_id not in found or b_id not in found:
+        raise HTTPException(404, "任务不存在（可能已被删除）")
+    a, b = found[a_id], found[b_id]
+    if a["benchmark"] != b["benchmark"]:
+        raise HTTPException(
+            400, f"两个任务的基准不同（{a['benchmark']} vs {b['benchmark']}），逐题对比需要同一基准")
+
+    def load_items(eid: int) -> dict:
+        return {r["idx"]: r for r in db.query(
+            "SELECT idx, question, expected, predicted, raw_response, correct, latency_ms, error"
+            " FROM eval_items WHERE eval_id=?", (eid,))}
+
+    ia, ib = load_items(a_id), load_items(b_id)
+    common = sorted(set(ia) & set(ib))
+    stats = {"both_correct": 0, "both_wrong": 0, "only_a": 0, "only_b": 0}
+    items = []
+    for i in common:
+        ra, rb = ia[i], ib[i]
+        ca, cb = bool(ra["correct"]), bool(rb["correct"])
+        if ca and cb:
+            stats["both_correct"] += 1
+        elif not ca and not cb:
+            stats["both_wrong"] += 1
+        elif ca:
+            stats["only_a"] += 1
+        else:
+            stats["only_b"] += 1
+        items.append({
+            "idx": i,
+            "question": ra["question"],
+            "expected": ra["expected"],
+            "a": {"predicted": ra["predicted"], "correct": ca,
+                  "raw_response": ra["raw_response"], "error": ra["error"],
+                  "latency_ms": ra["latency_ms"]},
+            "b": {"predicted": rb["predicted"], "correct": cb,
+                  "raw_response": rb["raw_response"], "error": rb["error"],
+                  "latency_ms": rb["latency_ms"]},
+        })
+    stats.update({
+        "common": len(common),
+        "a_count": len(ia), "b_count": len(ib),
+        "a_only": len(set(ia) - set(ib)),   # 仅 A 跑了的题（如 limit 不同）
+        "b_only": len(set(ib) - set(ia)),
+    })
+    return {"benchmark": a["benchmark"], "a": eval_view(a), "b": eval_view(b),
+            "stats": stats, "items": items}
+
+
 @app.get("/api/evaluations/{eid}")
 def get_evaluation(eid: int):
     row = db.query_one(
@@ -394,6 +466,67 @@ def leaderboard():
             "boards": boards,
         })
     return out
+
+
+# ---------- 成绩总览（基准 × 模型 矩阵）----------
+
+@app.get("/api/overview")
+def overview():
+    """成绩总览：矩阵「基准 × 模型」，供前端热力表展示。
+
+    与排行榜的分工：排行榜回答「每个分类里谁最强」，这里回答
+    「全局看，谁在哪一块强」——行是基准（按分类分组），列是模型，
+    格子是该模型在该基准的最好成绩（多次测试取最高，与排行榜口径一致）。
+
+    只把「有成绩的模型」作为列返回，避免出现整列空白；基准则全量返回
+    （含暂无数据的，scores 为空 dict），是否隐藏空行交给前端过滤。
+    """
+    rows = db.query(
+        "SELECT e.*, m.name AS model_name FROM evaluations e"
+        " JOIN models m ON m.id=e.model_id WHERE e.status='done' AND e.done>0"
+    )
+    best: dict = {}         # (model_id, benchmark) -> 最优成绩
+    model_names: dict = {}  # model_id -> 模型名
+    for r in rows:
+        acc = r["correct"] / r["done"] * 100
+        model_names[r["model_id"]] = r["model_name"]
+        key = (r["model_id"], r["benchmark"])
+        if key not in best or acc > best[key]["accuracy"]:
+            best[key] = {
+                "accuracy": round(acc, 2),
+                "total": r["done"],
+                "eval_id": r["id"],
+                "avg_latency_ms": round(r["total_latency_ms"] / r["done"]),
+            }
+
+    # 基准 -> {model_id: 成绩}
+    by_bench: dict = {}
+    for (mid, bid), v in best.items():
+        by_bench.setdefault(bid, {})[mid] = v
+
+    groups = []
+    for c in CATEGORIES:
+        bms = []
+        for bid, meta in META.items():
+            if meta.get("category") != c["name"]:
+                continue
+            bms.append({
+                "id": bid,
+                "name": meta["name"],
+                "scores": {str(mid): v for mid, v in by_bench.get(bid, {}).items()},
+            })
+        if not bms:
+            continue
+        # 有成绩的基准排前面：这样「只看有数据的」时不必跳过空行
+        bms.sort(key=lambda b: (not b["scores"], b["name"]))
+        groups.append({"id": c["id"], "name": c["name"],
+                       "color": c["color"], "benchmarks": bms})
+
+    return {
+        "models": [{"id": mid, "name": nm}
+                   for mid, nm in sorted(model_names.items(), key=lambda kv: kv[1])],
+        "groups": groups,
+    }
 
 
 # ---------- 前端 ----------

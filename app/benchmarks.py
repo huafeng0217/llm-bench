@@ -46,6 +46,14 @@ META = {
         "description": "MMLU 的增强版：选项从 4 个增至 10 个，更强调推理而非记忆，难度明显更高，对前沿模型仍有区分度。",
         "source": "https://arxiv.org/abs/2406.01574",
     },
+    "truthfulqa": {
+        "name": "TruthfulQA",
+        "category": "通用知识",
+        "lang": "英文",
+        "status": "仍有区分度",
+        "description": "776 道真实性选择题（4~10 选 1），专门针对人类常见的误解与伪科学（如「吃西瓜籽会在肚子里长西瓜」）。题目里混入多个听起来合理的错误说法，选对说明模型没有被预训练语料里的错误信息带偏，是衡量幻觉倾向的经典基准。",
+        "source": "https://arxiv.org/abs/2109.07958",
+    },
     "ceval": {
         "name": "C-Eval",
         "category": "中文能力",
@@ -85,6 +93,22 @@ META = {
         "status": "接近饱和",
         "description": "竞赛数学 benchmark MATH 的 500 题子集，难度高于 GSM8K，常用于快速评估数学推理。",
         "source": "https://arxiv.org/abs/2103.03874",
+    },
+    "aime": {
+        "name": "AIME 2022-2024",
+        "category": "数学推理",
+        "lang": "英文",
+        "status": "仍有区分度",
+        "description": "美国数学邀请赛（AIME）2022~2024 年真题共 90 题，答案都是 0~999 的整数。难度远高于 GSM8K / MATH-500，当前前沿模型正确率通常只有 10%~30%，是最能拉开差距的数学基准之一。注意：题目年份较早，可能已被部分纳入训练数据。",
+        "source": "https://huggingface.co/datasets/AI-MO/aimo-validation-aime",
+    },
+    "aime2025": {
+        "name": "AIME 2025",
+        "category": "数学推理",
+        "lang": "英文",
+        "status": "仍有区分度",
+        "description": "AIME 2025 年真题共 30 题（I 卷 + II 卷），同样要求整数答案。因为年份最新、几乎不可能出现在训练数据里，这个分数最能反映模型的真实数学推理水平。题量少（30 题），每对一题准确率跳 3.3%，建议与 AIME 2022-2024 对比看。",
+        "source": "https://huggingface.co/datasets/yentinglin/aime_2025",
     },
     # ---------- BFCL v4（Agent / 工具调用）----------
     "BFCL_v4_simple_python": {

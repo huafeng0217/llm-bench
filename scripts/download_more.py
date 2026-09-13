@@ -322,9 +322,140 @@ def download_math500():
     print(f"完成：math500.jsonl（共 {len(items)} 题）")
 
 
+# ---------- AIME / TruthfulQA ----------
+
+HF_RESOLVE = "https://huggingface.co/datasets/{ds}/resolve/main/{path}"
+VENDOR_DIR = Path(__file__).resolve().parent.parent / ".vendor"
+
+
+def _ensure_pyarrow():
+    """确保能解析 parquet：优先用已装的 pyarrow，否则自动装到项目内 .vendor。
+
+    为什么不直接 pip install：venv 在项目外，写它会被文件沙箱拒绝；而 pip 的
+    安装流程（解包 → 改名 → 写 .whl.metadata）在受限环境下会 Errno 13。
+    这里改为直接下载 wheel（本质是 zip）解压，绕开 pip 的文件操作，
+    且全部落在项目内。pyarrow 只是「下载题库」时的工具，不是运行时依赖。
+    """
+    try:
+        import pyarrow  # noqa: F401
+        return
+    except ImportError:
+        pass
+    if str(VENDOR_DIR) not in sys.path:
+        sys.path.insert(0, str(VENDOR_DIR))
+    try:
+        import pyarrow  # noqa: F401
+        return
+    except ImportError:
+        pass
+    import zipfile
+    print("未检测到 pyarrow，自动下载到 .vendor（仅用于解析 parquet，约 28MB）…")
+    meta = json.loads(http_get("https://pypi.org/pypi/pyarrow/json").decode("utf-8"))
+    tag = f"cp{sys.version_info.major}{sys.version_info.minor}"
+    cand = [u for u in meta["urls"] if u["filename"].endswith(f"{tag}-{tag}-win_amd64.whl")]
+    if not cand:
+        raise RuntimeError(f"PyPI 上没有匹配当前 Python（{tag}）的 pyarrow wheel")
+    w = cand[0]
+    print(f"  下载 {w['filename']}（{w['size'] / 1e6:.1f} MB）…")
+    z = zipfile.ZipFile(io.BytesIO(http_get(w["url"], timeout=300)))
+    n = 0
+    for name in z.namelist():
+        if name.endswith("/"):
+            continue
+        dst = VENDOR_DIR / name
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_bytes(z.read(name))
+        n += 1
+    print(f"  解压 {n} 个文件到 {VENDOR_DIR}")
+    sys.path.insert(0, str(VENDOR_DIR))
+    import pyarrow  # noqa: F401
+
+
+def read_parquet(ds: str, path: str) -> list:
+    """从 HF 直接下 parquet 并解析为 list[dict]。
+
+    走 resolve 端点而非 datasets-server：后者在国内常不可达（连接超时），
+    而 huggingface.co 的 resolve 端点稳定。
+    """
+    _ensure_pyarrow()
+    import pyarrow.parquet as pq
+    raw = http_get(HF_RESOLVE.format(ds=ds, path=path), timeout=180)
+    return pq.read_table(io.BytesIO(raw)).to_pylist()
+
+
+def download_aime(only: str | None = None):
+    """AIME（美国数学邀请赛）：整数答案，复用数值题判分链路。
+
+    分两个题库是刻意的——2025 年的题更可能是「模型没见过」的：
+      - aime       2022~2024，共 90 题（AI-MO/aimo-validation-aime）
+      - aime2025   2025 年，共 30 题（yentinglin/aime_2025），污染最少
+    对比两者分数能粗略看出训练数据污染的影响。
+
+    only 传 "aime" / "aime2025" 可只下一个（网页上点单个下载按钮时用）。
+    """
+    src = [
+        ("aime", "AI-MO/aimo-validation-aime", "data/train-00000-of-00001.parquet"),
+        ("aime2025", "yentinglin/aime_2025", "data/train-00000-of-00001-243207c6c994e1bd.parquet"),
+    ]
+    if only:
+        src = [s for s in src if s[0] == only]
+    for name, ds, path in src:
+        try:
+            rows = read_parquet(ds, path)
+        except Exception as e:  # noqa: BLE001
+            print(f"  失败 {ds}: {e}", file=sys.stderr)
+            continue
+        items = []
+        for r in rows:
+            q = (r.get("problem") or "").strip()
+            a = str(r.get("answer", "")).strip()
+            if not q or not a.lstrip("-").isdigit():
+                continue
+            # 去掉前导零（"033" → "33"）；引擎按数值比较，不受影响
+            items.append({"question": q, "answer": str(int(a)), "subject": name})
+        write_jsonl(DATA_DIR / f"{name}.jsonl", items)
+        print(f"完成：{name}.jsonl（共 {len(items)} 题）")
+
+
+TRUTHFULQA_MC = "https://raw.githubusercontent.com/sylinrl/TruthfulQA/main/data/mc_task.json"
+
+
+def download_truthfulqa():
+    """TruthfulQA（MC1）：测模型是否会复述常见误解/伪科学，790 题。
+
+    处理了两个坑：
+      1. 原始 mc1_targets 里**正确项恒定排在第 0 位**（实测 790/790），
+         必须打乱选项，否则模型无脑选 A 就能满分。
+      2. 选项数 2~13 个不等，超过 10 个的超出引擎字母表（A-J），跳过。
+    打乱用固定随机种子，保证每次下载结果一致、可复现。
+    """
+    import random
+    data = json.loads(http_get(TRUTHFULQA_MC, timeout=120).decode("utf-8"))
+    rng = random.Random(42)
+    items, skipped = [], 0
+    for row in data:
+        q = (row.get("question") or "").strip()
+        pairs = list((row.get("mc1_targets") or {}).items())  # [(选项文本, 0/1)]
+        # 只收「恰好一个正确项」且选项数落在 A-J 内的题
+        if not q or sum(v for _, v in pairs) != 1 or not (2 <= len(pairs) <= len(CHOICES)):
+            skipped += 1
+            continue
+        rng.shuffle(pairs)
+        it = {"question": q, "subject": "truthfulqa"}
+        for i, (text, label) in enumerate(pairs):
+            it[CHOICES[i]] = str(text)
+            if label == 1:
+                it["answer"] = CHOICES[i]
+        items.append(it)
+    write_jsonl(DATA_DIR / "truthfulqa.jsonl", items)
+    print(f"完成：truthfulqa.jsonl（共 {len(items)} 题"
+          + (f"，跳过 {skipped}（无正确项/选项超 10）" if skipped else "") + "）")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("benchmark", choices=["cmmlu", "gpqa", "mmlu_pro", "gsm8k", "math500", "all"])
+    ap.add_argument("benchmark", choices=["cmmlu", "gpqa", "mmlu_pro", "gsm8k", "math500",
+                                          "aime", "truthfulqa", "all"])
     args = ap.parse_args()
     if args.benchmark in ("cmmlu", "all"):
         download_cmmlu()
@@ -336,3 +467,7 @@ if __name__ == "__main__":
         download_gsm8k()
     if args.benchmark in ("math500", "all"):
         download_math500()
+    if args.benchmark in ("aime", "all"):
+        download_aime()
+    if args.benchmark in ("truthfulqa", "all"):
+        download_truthfulqa()
