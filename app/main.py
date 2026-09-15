@@ -1,6 +1,7 @@
 import asyncio
 import json
 import sys
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -8,17 +9,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import db, engine
+from . import benchmarks as bm
+from . import db, engine, sandbox, summary
 from .benchmarks import CATEGORIES, META, get_meta
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 MODELS_FILE = Path(__file__).resolve().parent.parent / "data" / "models.json"
-
-# 引入统一下载脚本（scripts/download.py），供下载按钮调用
-SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
-import download as dl  # noqa: E402
 
 # 下载状态：benchmark_id -> {"status": "idle"|"running"|"done"|"failed", "message": str}
 DOWNLOAD_STATE: dict[str, dict] = {}
@@ -55,10 +51,31 @@ def sync_models_file():
     )
 
 
+def reap_stale_running():
+    """把残留的 running/pending 任务标成 stopped。
+
+    评测任务是**进程内的 asyncio task**，不可能跨服务重启存活，所以服务启动时
+    凡是还写着 running 的，必然是上次被强杀留下的僵尸（实测见过跑了 497/500
+    一直挂着、模型都删了还显示「运行中」的）。不清掉的话界面上永远转圈，
+    用户也分不清是真在跑还是卡死了。
+
+    注意：若用 scripts/resume_eval.py 在**另一个进程**里续跑，而这边同时重启，
+    这条续跑会被误标为 stopped —— 影响仅限状态显示，续跑结束仍会写成 done。
+    """
+    conn = db.get_conn()
+    n = conn.execute("UPDATE evaluations SET status='stopped', finished_at=datetime('now','localtime')"
+                     " WHERE status IN ('running','pending')").rowcount
+    conn.commit()
+    return n
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
     import_models_file()
+    reaped = reap_stale_running()
+    if reaped:
+        print(f"[启动] 清理了 {reaped} 个上次遗留的僵尸任务（标记为已停止）")
     yield
 
 
@@ -105,10 +122,16 @@ def mask_key(k: str) -> str:
 
 def eval_view(row: dict) -> dict:
     done = row["done"] or 0
+    # 实时进度：在跑几题、距上一题完成多久。
+    # 前端靠它区分「难题慢」和「任务死了」—— 只看 done 的话两者长得一样。
+    prog = engine.PROGRESS.get(row["id"]) or {}
+    last_at = prog.get("last_at")
     return {
         **row,
         "accuracy": round(row["correct"] / done * 100, 2) if done else None,
         "avg_latency_ms": round(row["total_latency_ms"] / done) if done else None,
+        "inflight": prog.get("inflight", 0),
+        "last_done_ago_s": round(time.time() - last_at) if last_at else None,
     }
 
 
@@ -153,7 +176,7 @@ def list_benchmarks():
         meta = get_meta(bid)
         meta["count"] = existing.get(bid, 0)
         meta["downloaded"] = bid in existing
-        meta["downloadable"] = bid in dl.DOWNLOADERS
+        meta["downloadable"] = bid in bm.DOWNLOADERS
         out.append(meta)
     # 再加上 data 目录里存在、但 META 未收录的自定义题库
     for d in engine.list_datasets():
@@ -161,16 +184,30 @@ def list_benchmarks():
             meta = get_meta(d["id"])
             meta["count"] = d["count"]
             meta["downloaded"] = True
-            meta["downloadable"] = d["id"] in dl.DOWNLOADERS
+            meta["downloadable"] = d["id"] in bm.DOWNLOADERS
             out.append(meta)
     return out
+
+
+# ---------- 代码沙箱状态 ----------
+
+@app.get("/api/sandbox/status")
+async def sandbox_status():
+    """给前端探测代码沙箱是否就绪（只有代码类基准才需要）。
+
+    单独一个接口而不是塞进 /api/benchmarks：探测要调 docker，约 1 秒，
+    不该拖慢每次打开页面都要请求的题库列表。
+    """
+    ok, msg = await asyncio.to_thread(sandbox.docker_available)
+    return {"available": ok, "message": msg, "image": sandbox.IMAGE,
+            "concurrency": engine.SANDBOX_CONCURRENCY}
 
 
 # ---------- 题库下载 ----------
 
 @app.post("/api/benchmarks/{benchmark_id}/download")
 async def download_benchmark(benchmark_id: str):
-    if benchmark_id not in dl.DOWNLOADERS:
+    if benchmark_id not in bm.DOWNLOADERS:
         raise HTTPException(400, "该题库不支持自动下载")
     cur = DOWNLOAD_STATE.get(benchmark_id)
     if cur and cur["status"] == "running":
@@ -179,7 +216,7 @@ async def download_benchmark(benchmark_id: str):
 
     async def _run():
         try:
-            ok, msg = await asyncio.to_thread(dl.download_one, benchmark_id)
+            ok, msg = await asyncio.to_thread(bm.download_one, benchmark_id)
             DOWNLOAD_STATE[benchmark_id] = {"status": "done" if ok else "failed", "message": msg}
         except Exception as e:  # noqa: BLE001
             DOWNLOAD_STATE[benchmark_id] = {"status": "failed", "message": str(e)[:300]}
@@ -192,7 +229,7 @@ async def download_benchmark(benchmark_id: str):
 def list_downloads():
     existing = {d["id"] for d in engine.list_datasets()}
     out = {}
-    for bid in dl.DOWNLOADERS:
+    for bid in bm.DOWNLOADERS:
         state = DOWNLOAD_STATE.get(bid, {"status": "idle", "message": ""})
         out[bid] = {
             "status": state["status"],
@@ -333,6 +370,27 @@ def get_items(eid: int, offset: int = 0, limit: int = 50):
         " FROM eval_items WHERE eval_id=? ORDER BY idx LIMIT ? OFFSET ?",
         (eid, limit, offset),
     )
+
+
+@app.post("/api/evaluations/{eid}/resume")
+async def resume_evaluation(eid: int):
+    """续跑一个没跑完的任务：只补做剩下的题，已完成的成果不重算。
+
+    典型场景：进程被杀 / 服务重启，任务卡在 stopped，但已经烧掉的 API 调用
+    不该白费。若沙箱不可用（代码类基准），引擎会在开跑前直接标 failed 并写明原因。
+    """
+    row = db.query_one("SELECT status, done, total, benchmark FROM evaluations WHERE id=?", (eid,))
+    if not row:
+        raise HTTPException(404, "任务不存在")
+    if eid in engine.RUNNING:
+        raise HTTPException(400, "该任务正在运行中")
+    if row["total"] and row["done"] >= row["total"]:
+        raise HTTPException(400, "该任务已全部完成，无需续跑")
+    if row["done"] == 0:
+        raise HTTPException(400, "该任务还没有任何已完成题目，请直接新建评测")
+    task = asyncio.create_task(engine.run_evaluation(eid, resume=True))
+    engine.RUNNING[eid] = task
+    return {"ok": True, "id": eid, "done": row["done"], "total": row["total"]}
 
 
 @app.post("/api/evaluations/{eid}/stop")
@@ -527,6 +585,147 @@ def overview():
                    for mid, nm in sorted(model_names.items(), key=lambda kv: kv[1])],
         "groups": groups,
     }
+
+
+# ---------- AI 总结 ----------
+
+# 生成状态：生成一次可能要几十秒到两分钟（思考型模型），所以走后台任务 + 前端轮询，
+# 和题库下载用的是同一套模式，不阻塞 HTTP 请求。
+# started_at / expected_s 是给前端画进度条用的：进度本身无法真实获知（模型是一次性返回的），
+# 只能按历史耗时估一个预期值，前端据此做**模拟**进度。所以字段名叫 expected 而不是 progress。
+SUMMARY_STATE: dict = {"status": "idle", "message": "", "model_id": None,
+                       "model_name": None, "started_at": None, "expected_s": 45}
+
+
+class SummaryIn(BaseModel):
+    model_id: int
+    force: bool = False   # 数据没变时是否也强制重新生成
+
+
+def _expected_seconds(model_id: int) -> int:
+    """按该模型历史上生成总结的耗时估个预期值，供前端模拟进度条。
+
+    没有历史就兜底 45 秒。这只是个估计值 —— 进度条本来就是模拟的，
+    所以刻意不叫 progress，也不承诺精确。
+    """
+    row = db.query_one("SELECT AVG(latency_ms) AS avg_ms FROM summaries"
+                       " WHERE model_id=? AND error IS NULL", (model_id,))
+    if row and row["avg_ms"]:
+        return max(10, min(300, int(row["avg_ms"] / 1000 * 1.2)))
+    return 45
+
+
+def _summary_view(row: dict, fingerprint: str):
+    """把落库的总结转成前端要的形态。"""
+    if not row:
+        return None
+    try:
+        content = json.loads(row["content"] or "{}")
+    except ValueError:
+        content = {}
+    try:
+        unverified = json.loads(row["unverified"] or "[]")
+    except ValueError:
+        unverified = []
+    return {
+        "id": row["id"],
+        "content": content,
+        "model_id": row["model_id"],
+        "model_name": row["model_name"],
+        "created_at": row["created_at"],
+        "unverified": unverified,
+        "prompt_tokens": row["prompt_tokens"],
+        "completion_tokens": row["completion_tokens"],
+        "latency_ms": row["latency_ms"],
+        # 数据变了就是「过期」：前端据此提示该重新生成，而不是偷偷用旧结论
+        "stale": row["fingerprint"] != fingerprint,
+    }
+
+
+@app.get("/api/summary/stats")
+def summary_stats():
+    """统计明细：矩阵、排名、显著性判定、数据问题。
+
+    **完全由代码算出，不经过 AI** —— 前端把这份数据原样渲染出来，
+    用户就能拿它核对 AI 写的那段总结。这是「总结可信」的前提。
+    """
+    stats = summary.collect()
+    return {"fingerprint": summary.fingerprint(stats),
+            "confidence": stats["confidence"],
+            "comparable_benchmarks": stats["comparable_benchmarks"],
+            "caveats": stats["caveats"],
+            "rankings": [{"benchmark": b,
+                          "name": get_meta(b)["name"],
+                          "rows": stats["rankings"][b],
+                          "comparisons": [c for c in stats["comparisons"] if c["benchmark"] == b]}
+                         for b in stats["rankings"]],
+            "models": stats["models"],
+            "benchmarks": stats["benchmarks"]}
+
+
+@app.get("/api/summary")
+def get_summary():
+    """返回**每个模型一条**总结条目。
+
+    设计取舍：同一个模型重新生成会**覆盖**旧的（不留历史），
+    不同模型各留一条 —— 这样才能横向比较「不同模型怎么看同一份数据」。
+    若保留同一模型的历史，条目会越堆越多，反而看不出哪个是当前结论。
+    """
+    stats = summary.collect()
+    fp = summary.fingerprint(stats)
+    rows = db.query("SELECT * FROM summaries WHERE error IS NULL ORDER BY created_at DESC, id DESC")
+    return {"state": SUMMARY_STATE, "fingerprint": fp,
+            "entries": [_summary_view(r, fp) for r in rows]}
+
+
+async def _run_summary(model_id: int, force: bool, fingerprint: str):
+    global SUMMARY_STATE
+    try:
+        stats = summary.collect()
+        if not force:
+            cached = db.query_one(
+                "SELECT id FROM summaries WHERE fingerprint=? AND model_id=? AND error IS NULL"
+                " ORDER BY id DESC LIMIT 1", (fingerprint, model_id))
+            if cached:
+                SUMMARY_STATE = dict(SUMMARY_STATE, status="done",
+                                     message="数据没有变化，直接用了上次生成的总结")
+                return
+        model_cfg = db.query_one("SELECT * FROM models WHERE id=?", (model_id,))
+        if not model_cfg:
+            raise RuntimeError("模型不存在")
+        gen = await summary.generate(model_cfg, stats)
+        unverified = summary.verify_numbers(gen["content"], stats)
+        # 同一模型只留最新一条：先删旧的再插，保证「一个模型一个条目」
+        db.execute("DELETE FROM summaries WHERE model_id=?", (model_id,))
+        db.execute(
+            "INSERT INTO summaries(fingerprint, model_id, model_name, content, unverified,"
+            " prompt_tokens, completion_tokens, latency_ms) VALUES(?,?,?,?,?,?,?,?)",
+            (fingerprint, model_id, model_cfg["name"],
+             json.dumps(gen["content"], ensure_ascii=False),
+             json.dumps(unverified, ensure_ascii=False),
+             gen["prompt_tokens"], gen["completion_tokens"], gen["latency_ms"]))
+        msg = "完成"
+        if unverified:
+            msg = f"完成，但有 {len(unverified)} 个数字在输入数据里回查不到，建议核对"
+        SUMMARY_STATE = dict(SUMMARY_STATE, status="done", message=msg)
+    except Exception as e:  # noqa: BLE001
+        SUMMARY_STATE = dict(SUMMARY_STATE, status="failed", message=str(e)[:300])
+
+
+@app.post("/api/summary")
+async def create_summary(body: SummaryIn):
+    global SUMMARY_STATE
+    if SUMMARY_STATE.get("status") == "running":
+        return {"ok": True, "status": "running", "message": "正在生成中"}
+    model = db.query_one("SELECT id, name FROM models WHERE id=?", (body.model_id,))
+    if not model:
+        raise HTTPException(404, "模型不存在")
+    fingerprint = summary.fingerprint(summary.collect())
+    SUMMARY_STATE = {"status": "running", "message": "正在生成…",
+                     "model_id": body.model_id, "model_name": model["name"],
+                     "started_at": time.time(), "expected_s": _expected_seconds(body.model_id)}
+    asyncio.create_task(_run_summary(body.model_id, body.force, fingerprint))
+    return {"ok": True, "status": "running", "expected_s": SUMMARY_STATE["expected_s"]}
 
 
 # ---------- 前端 ----------

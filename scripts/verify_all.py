@@ -1,0 +1,79 @@
+"""一键跑完全部自检脚本。
+
+为什么需要它
+------------
+自检脚本现在有 6 个，靠人记着逐个跑并不现实 —— 我自己就差点在改完核心分派后
+只跑了其中一个。这个入口按依赖分档、逐个跑、最后给一张汇总表：
+
+  - **纯计算**（不需要 Docker / 网络）：verify_summary、verify_summaries
+  - **需要 Docker**：verify_dispatch、verify_sandbox、verify_humaneval、verify_livecodebench
+
+Docker 不可用时后者标成 SKIP 而不是 FAIL —— 那说明环境不具备，不是代码坏了。
+
+用法::
+
+    python scripts/verify_all.py
+"""
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+SCRIPTS = [
+    # (脚本, 是否需要 Docker, 一句话说明)
+    ("verify_imports.py", False, "静态检查：用到但未定义/未 import 的名字"),
+    ("verify_summary.py", False, "统计层：刷分假象护栏 / 显著性 / 数据一致性"),
+    ("verify_summaries.py", False, "AI 总结：分类覆盖 / 自造名字 / 显著差异 / 数字可追溯"),
+    ("verify_dispatch.py", True, "判分分派：6 种题型各跑一遍完整链路（用 mock 模型）"),
+    ("verify_sandbox.py", True, "沙箱隔离：8 项攻击载荷 + 判分链路"),
+    ("verify_humaneval.py", True, "HumanEval：代码抽取 + 164 道官方参考解法"),
+    ("verify_livecodebench.py", True, "LiveCodeBench：测试用例解码 + 判分器"),
+]
+
+
+def docker_ok() -> bool:
+    try:
+        from app import sandbox
+        ok, _ = sandbox.docker_available()
+        return ok
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def main():
+    has_docker = docker_ok()
+    print(f"Docker: {'可用' if has_docker else '不可用（需要 Docker 的项会跳过）'}")
+    print(f"Python: {sys.executable}")
+    print("=" * 78)
+
+    results = []
+    for name, needs_docker, desc in SCRIPTS:
+        if needs_docker and not has_docker:
+            print(f"\n[SKIP] {name} —— {desc}（需要 Docker）")
+            results.append((name, "SKIP", desc))
+            continue
+        print(f"\n{'#' * 78}\n# {name} —— {desc}\n{'#' * 78}")
+        rc = subprocess.run([sys.executable, str(ROOT / "scripts" / name)]).returncode
+        results.append((name, "PASS" if rc == 0 else "FAIL", desc))
+
+    print("\n" + "=" * 78)
+    print(f"{'脚本':<28}{'结果':<7}说明")
+    print("-" * 78)
+    for name, status, desc in results:
+        print(f"{name:<28}{status:<7}{desc}")
+
+    failed = [n for n, s, _ in results if s == "FAIL"]
+    skipped = [n for n, s, _ in results if s == "SKIP"]
+    print("=" * 78)
+    if failed:
+        print(f"结论：{len(failed)} 个脚本失败 -> {', '.join(failed)}")
+        return 1
+    tail = f"（{len(skipped)} 个因缺 Docker 跳过）" if skipped else ""
+    print(f"结论：全部通过{tail}。")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

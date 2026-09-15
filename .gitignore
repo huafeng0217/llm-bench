@@ -18,5 +18,10 @@ __pycache__/
 *.pyc
 .venv/
 
-# 下载 parquet 题库时自动装的 pyarrow（约 28MB，仅下载题库用，非运行时依赖）
+# 下载 parquet 题库时自动装的 pyarrow（wheel 约 28MB，解压后约 82MB）
+# 只用于「重新下载需解析 parquet 的题库（如 AIME）」，不是运行时依赖
+# 删掉也能自愈：下次下载时 _ensure_pyarrow() 会自动重新装到项目内
 .vendor/
+
+# 代码沙箱的临时工作目录（每个任务用完即删，异常退出时可能残留）
+.sandbox/

@@ -58,6 +58,22 @@ def init_db():
             error TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_items_eval ON eval_items(eval_id);
+        -- AI 总结：落库是为了可追溯（谁生成的、依据哪份数据、什么时候），
+        -- 不是为了缓存 —— fingerprint 才是缓存判据：数据没变就不该重新烧 token。
+        CREATE TABLE IF NOT EXISTS summaries(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fingerprint TEXT NOT NULL,      -- 输入矩阵指纹
+            model_id INTEGER,               -- 用哪个模型生成的
+            model_name TEXT,
+            content TEXT,                   -- 模型返回的 JSON 原文
+            unverified TEXT,                -- 回查不到的数字（防幻觉）
+            prompt_tokens INTEGER DEFAULT 0,
+            completion_tokens INTEGER DEFAULT 0,
+            latency_ms INTEGER DEFAULT 0,
+            error TEXT,
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_summaries_fp ON summaries(fingerprint);
         """
     )
     # 老库补列：评测运行参数

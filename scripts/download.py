@@ -1,109 +1,46 @@
-"""统一下载 benchmark 题库到项目 data/ 目录。
+"""统一下载入口（薄 CLI）。
 
-整合三个下载脚本，提供一个统一入口，既可命令行手动下载，也被后端
-（app/main.py 的 /api/benchmarks/{id}/download）调用。
+实际的下载实现已经搬到 `app/benchmarks/` 下、和各自的元数据放在一起 ——
+「一个基准一个文件」，加基准不用再来改这里。
+本脚本只负责命令行参数解析与打印。
 
 用法（在项目根目录执行）：
     python scripts/download.py                 # 下载全部可下载题库
     python scripts/download.py mmlu ceval      # 下载指定题库
-    python scripts/download.py cmmlu gpqa
+    python scripts/download.py humaneval livecodebench
 
-可下载题库见下方 AVAILABLE 字典。mmlu_sample / ceval_sample 是内置样例题，无需下载。
+可下载题库见 `app.benchmarks.AVAILABLE`。`mmlu_sample` / `ceval_sample` 是内置样例题，无需下载。
 """
 import sys
 from pathlib import Path
 
-# 让本脚本能 import 同目录下的其它下载脚本
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import download_bfcl  # noqa: E402
-import download_datasets  # noqa: E402
-import download_more  # noqa: E402
-
-# benchmark_id -> 说明（与 app/benchmarks.py 的 META 键对应）
-AVAILABLE = {
-    "mmlu": "MMLU（完整约 1.4 万题）",
-    "ceval": "C-Eval（val 划分 1346 题）",
-    "cmmlu": "CMMLU（67 学科约 1.1 万题）",
-    "gpqa": "GPQA Diamond（198 题）",
-    "mmlu_pro": "MMLU-Pro（10 选 1，约 1.2 万题）",
-    "gsm8k": "GSM8K（数学应用题，约 7473 题）",
-    "math500": "MATH-500（竞赛数学，500 题）",
-    "aime": "AIME 2022-2024（数学竞赛真题，90 题）",
-    "aime2025": "AIME 2025（最新真题，30 题）",
-    "truthfulqa": "TruthfulQA（真实性/抗幻觉，776 题）",
-    "BFCL_v4_simple_python": "BFCL v4 单函数（400 题）",
-    "BFCL_v4_multiple": "BFCL v4 多函数选择（200 题）",
-    "BFCL_v4_parallel": "BFCL v4 并行调用（200 题）",
-    "BFCL_v4_parallel_multiple": "BFCL v4 并行多选（200 题）",
-    "BFCL_v4_irrelevance": "BFCL v4 无关拒绝（240 题）",
-    "BFCL_v4_simple_java": "BFCL v4 单函数-Java（100 题）",
-    "BFCL_v4_simple_javascript": "BFCL v4 单函数-JS（50 题）",
-    "BFCL_v4_multi_turn_base": "BFCL v4 多轮对话（200 题）",
-    "BFCL_v4_multi_turn_long_context": "BFCL v4 多轮长上下文（200 题）",
-    "BFCL_v4_multi_turn_miss_func": "BFCL v4 多轮缺函数（200 题）",
-    "BFCL_v4_multi_turn_miss_param": "BFCL v4 多轮缺参数（200 题）",
-}
-
-DOWNLOADERS = {
-    "mmlu": lambda: download_datasets.download("mmlu", 0),
-    "ceval": lambda: download_datasets.download("ceval", 0),
-    "cmmlu": download_more.download_cmmlu,
-    "gpqa": download_more.download_gpqa,
-    "mmlu_pro": download_more.download_mmlu_pro,
-    "gsm8k": download_more.download_gsm8k,
-    "math500": download_more.download_math500,
-    "aime": lambda: download_more.download_aime("aime"),
-    "aime2025": lambda: download_more.download_aime("aime2025"),
-    "truthfulqa": download_more.download_truthfulqa,
-    "BFCL_v4_simple_python": lambda: download_bfcl.download(["BFCL_v4_simple_python"]),
-    "BFCL_v4_multiple": lambda: download_bfcl.download(["BFCL_v4_multiple"]),
-    "BFCL_v4_parallel": lambda: download_bfcl.download(["BFCL_v4_parallel"]),
-    "BFCL_v4_parallel_multiple": lambda: download_bfcl.download(["BFCL_v4_parallel_multiple"]),
-    "BFCL_v4_irrelevance": lambda: download_bfcl.download(["BFCL_v4_irrelevance"]),
-    "BFCL_v4_simple_java": lambda: download_bfcl.download(["BFCL_v4_simple_java"]),
-    "BFCL_v4_simple_javascript": lambda: download_bfcl.download(["BFCL_v4_simple_javascript"]),
-    "BFCL_v4_multi_turn_base": lambda: download_bfcl.download(["BFCL_v4_multi_turn_base"]),
-    "BFCL_v4_multi_turn_long_context": lambda: download_bfcl.download(["BFCL_v4_multi_turn_long_context"]),
-    "BFCL_v4_multi_turn_miss_func": lambda: download_bfcl.download(["BFCL_v4_multi_turn_miss_func"]),
-    "BFCL_v4_multi_turn_miss_param": lambda: download_bfcl.download(["BFCL_v4_multi_turn_miss_param"]),
-}
+from app import benchmarks as bm  # noqa: E402
 
 
-def download_one(name: str):
-    """下载单个题库，返回 (ok, message)。"""
-    fn = DOWNLOADERS.get(name)
-    if not fn:
-        return False, f"未知或不可下载的题库: {name}"
-    try:
-        fn()
-        return True, "完成"
-    except Exception as e:  # noqa: BLE001
-        return False, str(e)[:300]
-
-
-def download_all():
-    """下载全部可下载题库，返回 {name: (ok, message)}。"""
-    out = {}
-    for name in DOWNLOADERS:
-        out[name] = download_one(name)
-    return out
-
-
-if __name__ == "__main__":
+def main():
     import argparse
 
     ap = argparse.ArgumentParser(description="统一下载 benchmark 题库到项目 data/ 目录")
-    ap.add_argument("names", nargs="*", help="题库名（留空 = 下载全部）。可选: " + ", ".join(AVAILABLE))
+    ap.add_argument("names", nargs="*",
+                    help="题库名（留空 = 下载全部）。可选: " + ", ".join(bm.AVAILABLE))
     args = ap.parse_args()
 
-    names = args.names or list(DOWNLOADERS)
-    bad = [n for n in names if n not in DOWNLOADERS]
+    names = args.names or list(bm.DOWNLOADERS)
+    bad = [n for n in names if n not in bm.DOWNLOADERS]
     if bad:
-        print(f"未知题库: {bad}\n可选: {', '.join(AVAILABLE)}")
-        sys.exit(2)
+        print(f"未知题库: {bad}\n可选: {', '.join(bm.AVAILABLE)}")
+        return 2
 
+    failed = 0
     for n in names:
-        print(f"\n===== 下载 {n}（{AVAILABLE[n]}）=====")
-        ok, msg = download_one(n)
+        print(f"\n===== 下载 {n}（{bm.AVAILABLE[n]}）=====")
+        ok, msg = bm.download_one(n)
         print(f"[{'成功' if ok else '失败'}] {n}: {msg}")
+        failed += 0 if ok else 1
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

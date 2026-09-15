@@ -54,6 +54,9 @@
            font-size:13px; font-weight:550; cursor:pointer; transition:filter .15s, transform .05s; }
   button:hover { filter:brightness(1.12); }
   button:active { transform:translateY(1px); }
+  /* 禁用态：代码类基准在沙箱不可用时不让点「开始评测」，要看起来就是不能点 */
+  button:disabled { opacity:.45; cursor:not-allowed; filter:none; }
+  button:disabled:hover { filter:none; }
   button.ghost { background:transparent; border:1px solid var(--border2); color:var(--muted); padding:5px 12px; font-weight:500; white-space:nowrap; }
   button.ghost:hover { color:var(--text); border-color:var(--accent); filter:none; }
   button.ghost:disabled { opacity:.45; cursor:default; }
@@ -115,6 +118,29 @@
   tbody tr:last-child td { border-bottom:none; }
 
   .bar { height:6px; background:var(--bg2); border-radius:4px; overflow:hidden; min-width:130px; }
+
+  /* AI 总结的生成进度条。
+     进度本身是**估算**的（模型一次性返回，中间没有可观测阶段），所以设计上不追求数字精确，
+     而是靠"一直在动"来表达"还活着"：填充条里跑流动斜纹，宽度用缓动过渡。
+     百分比只是参考，旁边同时给出真实已用秒数。 */
+  .gen-card { padding:14px 18px; }
+  .gen-head { display:flex; align-items:center; gap:8px; }
+  .gen-pct { margin-left:auto; font-variant-numeric:tabular-nums; font-weight:600;
+             font-size:13px; color:var(--accent2); }
+  .gen-track { position:relative; height:10px; margin-top:12px; border-radius:99px;
+               background:var(--bg2); overflow:hidden; }
+  .gen-fill { display:block; height:100%; border-radius:99px; position:relative;
+              background:linear-gradient(90deg,#7aa2ec,#4a7de0);
+              box-shadow:0 1px 3px rgba(74,125,224,.35);
+              transition:width .6s cubic-bezier(.4,0,.2,1); }
+  .gen-fill::after { content:""; position:absolute; inset:0;
+              background-image:linear-gradient(115deg,
+                rgba(255,255,255,.30) 25%, transparent 25%, transparent 50%,
+                rgba(255,255,255,.30) 50%, rgba(255,255,255,.30) 75%, transparent 75%);
+              background-size:22px 22px; animation:genmove .9s linear infinite; }
+  @keyframes genmove { from { background-position:0 0; } to { background-position:22px 0; } }
+  .gen-note { margin-top:7px; font-size:12px; }
+
   /* 排行榜：分数 + 横条（一眼看出强弱） */
   .score-cell { display:flex; align-items:center; gap:10px; }
   .score-cell .bar { flex:1; min-width:56px; }
@@ -145,9 +171,14 @@
   .ov-table th:first-child { text-align:left; }
   .ov-table td { text-align:center; font-size:12.5px; font-variant-numeric:tabular-nums; padding:6px 8px; }
   .ov-table td.ov-bench { text-align:left; font-weight:550; color:var(--text); white-space:nowrap; }
-  .ov-table td.ov-group { text-align:left; background:var(--bg2); font-weight:600; font-size:12.5px; border-radius:6px; }
+  /* 分类表头用最浅的一档，普通格子用稍深一档 —— 两者若同色，表头会和数据格子糊在一起 */
+  .ov-table td.ov-group { text-align:left; background:var(--card2); font-weight:600; font-size:12.5px; border-radius:6px; }
   .ov-table td.ov-empty { color:var(--faint); }
   .ov-table td.ov-cell { font-weight:600; border-radius:6px; cursor:default; }
+  /* 每个基准行的最高分单独用一种颜色挑出来，其余格子统一底色 ——
+     不再用深浅色阶：色阶要盯着比深浅才看得出差别，而"谁在这一项上最好"是一眼就该看到的。 */
+  .ov-table td.ov-top { background:var(--accent); color:#fff; }
+  .ov-table td.ov-plain { background:var(--bg2); color:var(--text); }
 </style>
 </head>
 <body>
@@ -206,7 +237,7 @@
     <div class="row">
       <select id="e-model" onchange="updateEvalHint()"></select>
       <input id="e-limit" type="number" min="0" placeholder="题目数（0 或留空 = 全部）">
-      <button style="flex:0 0 auto" onclick="startEval()">开始评测</button>
+      <button id="start-btn" style="flex:0 0 auto" onclick="startEval()">开始评测</button>
     </div>
     <details style="margin-top:12px">
       <summary>高级参数（可选，不填用默认值）</summary>
@@ -234,10 +265,34 @@
 
   <h2><span class="no">5</span>排行榜</h2>
   <div id="board"><div class="card"><div class="empty">完成一次评测后生成</div></div></div>
+
+  <h2><span class="no">6</span>AI 总结</h2>
+  <div class="card">
+    <div class="row">
+      <select id="s-model"></select>
+      <button id="s-gen" style="flex:0 0 auto" onclick="genSummary()">生成总结</button>
+    </div>
+    <div class="muted" style="margin-top:8px">
+      总结只依据下方「本次依据的数据」，由所选模型写成。
+      <b>所有统计量（排名、覆盖率、差距是否显著）都是程序算好的</b>，模型只负责解释，
+      因此换个模型来写，数字也不会变。
+    </div>
+  </div>
+  <div id="summary-box"></div>
 </div>
 
 <script>
 let selBenchmark = null;
+let benchMeta = {};      // benchmark_id -> 元数据（用来判断选中的是不是代码类基准）
+let sbxState = null;     // 代码沙箱探测结果缓存（一次页面加载只探一次，可点「重新检测」重置）
+// 任务进度追踪：eval_id -> {done, at}，记录「上次看到 done 变化」的时刻。
+// 后端新版本会直接给 inflight / last_done_ago_s；旧版本没有时用这个本地推算兜底。
+let taskProgress = {};
+// AI 总结：data 是 /api/summary 的返回，stats 是 /api/summary/stats 的返回
+// （统计与叙述分开取：统计要能独立渲染出来给用户核对）
+let summaryData = null;
+let summaryStats = null;
+let summaryPoll = null;
 let catFilter = "";   // "" = 全部
 let downloadStates = {};   // benchmark_id -> {status, message, downloaded}
 let expandedCats = {};     // 排行榜分类展开状态: category_id -> bool
@@ -253,6 +308,17 @@ let currentEvalIds = [];        // 当前页显示的任务 id（供「全选本
 function bmCard(b) {
   const sel = b.id === selBenchmark ? " sel" : "";
   const dl = downloadStates[b.id] || {};
+  // 代码类基准要真的执行模型生成的代码，必须本机 Docker 可用。
+  // 优先用后端的 requires_docker；旧后端没这个字段时退回按分类判断（目前「代码工程」两个都要 Docker）。
+  // sbxState 还是 null 时（还没探测完）先不打警告，避免刚打开页面就一片红。
+  const needsDocker = b.requires_docker != null ? !!b.requires_docker : b.category_id === "code";
+  const sbxDown = needsDocker && sbxState && !sbxState.available;
+  const dockerTag = needsDocker
+    ? `<span class="tag ${sbxDown ? "warn" : ""}" title="${esc(
+        sbxDown ? "代码沙箱不可用：" + (sbxState.message || "")
+                : "这个基准会把模型生成的代码放进一次性 Docker 容器里真实执行")}"
+      >需要 Docker${sbxDown ? " · 未就绪" : ""}</span>`
+    : "";
   let dlHtml;
   if (b.count > 0) {
     dlHtml = `<span class="tag ok">已就绪</span>`;
@@ -271,6 +337,7 @@ function bmCard(b) {
         <span class="tag">${esc(b.lang)}</span>
         <span class="tag">${b.count > 0 ? b.count + " 题" : "未下载"}</span>
         ${statusTag(b.status)}
+        ${dockerTag}
       </div>
       <div class="desc" title="${esc(b.description)}">${esc(b.description)}</div>
       <div style="display:flex; align-items:center; gap:8px; margin-top:8px">
@@ -288,6 +355,7 @@ function setCat(id) {
 async function loadBenchmarks() {
   const [bs, dl] = await Promise.all([api("/api/benchmarks"), api("/api/benchmarks/downloads")]);
   downloadStates = dl;
+  benchMeta = Object.fromEntries(bs.map(b => [b.id, b]));
   document.getElementById("stat-bms").textContent = bs.length;
   // 收集分类（保持服务端 CATEGORIES 顺序）
   const catMap = new Map();
@@ -345,6 +413,13 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 async function loadModels() {
   const ms = await api("/api/models");
   document.getElementById("stat-models").textContent = ms.length;
+  // AI 总结的模型选择器：直接用已接入的模型，不额外维护一份名单
+  const ssel = document.getElementById("s-model");
+  if (ssel) {
+    const keep = ssel.value;
+    ssel.innerHTML = ms.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("");
+    if (keep && ms.some(m => String(m.id) === keep)) ssel.value = keep;
+  }
   const tb = document.getElementById("models");
   tb.innerHTML = ms.length ? ms.map(m =>
     `<tr><td style="font-weight:550">${esc(m.name)}</td><td class="muted">${esc(m.base_url)}</td><td class="muted">${esc(m.api_key)}</td>
@@ -425,11 +500,42 @@ function pickBenchmark(id, el) {
   updateEvalHint();
 }
 
-function updateEvalHint() {
+async function probeSandbox(force) {
+  // 代码沙箱探测：一次页面加载只探一次（探测要调 docker，约 1 秒），点「重新检测」可强制刷新
+  if (force) sbxState = null;
+  if (sbxState) return sbxState;
+  try { sbxState = await api("/api/sandbox/status"); }
+  catch (e) { sbxState = { available: false, message: "探测失败：" + e.message }; }
+  return sbxState;
+}
+
+async function updateEvalHint(force) {
   const sel = document.getElementById("e-model");
   const mn = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : "";
-  document.getElementById("e-hint").textContent =
-    `将评测：模型【${mn || "未选择"}】 × 基准【${selBenchmark || "未选择"}】`;
+  let html = `将评测：模型【${esc(mn || "未选择")}】 × 基准【${esc(selBenchmark || "未选择")}】`;
+  const m = benchMeta[selBenchmark];
+  const btn = document.getElementById("start-btn");
+  let blocked = null;
+  if (m && (m.requires_docker || m.category_id === "code")) {
+    // 代码类基准要真跑容器：先把沙箱能不能用摆出来，别让用户点了「开始评测」才发现
+    if (force) { sbxState = null; loadBenchmarks(); }  // 顺带刷新卡片上的标签
+    if (!sbxState) {
+      document.getElementById("e-hint").innerHTML = html + `<br><span class="muted">正在检测代码沙箱…</span>`;
+      await probeSandbox();
+    }
+    if (sbxState.available) {
+      html += `<br><span class="tag ok">代码沙箱就绪</span> <span class="muted">${esc(sbxState.message)} · 模型代码在一次性容器里执行：禁网、只读根目录、256MB 内存、限 64 进程、${sbxState.concurrency} 路并发</span>`;
+    } else {
+      html += `<br><span class="tag warn">代码沙箱不可用</span> <span class="muted">${esc(sbxState.message)}</span>`;
+      blocked = sbxState.message;
+    }
+    html += ` <a href="#" onclick="updateEvalHint(true);return false">重新检测</a>`;
+  }
+  if (btn) {
+    btn.disabled = !!blocked;
+    btn.title = blocked ? "代码沙箱不可用，该基准无法评测：" + blocked : "";
+  }
+  document.getElementById("e-hint").innerHTML = html;
 }
 
 async function startEval() {
@@ -437,6 +543,12 @@ async function startEval() {
   const limit = +document.getElementById("e-limit").value || 0;
   if (!model_id) return alert("请先添加并选择模型");
   if (!selBenchmark) return alert("请先点击选择一个基准");
+  const bm = benchMeta[selBenchmark];
+  if (bm && (bm.requires_docker || bm.category_id === "code")) {
+    // 按钮通常已经被禁用，这里只是兜底：确认沙箱真能用再发请求，别白建一个注定失败的任务
+    const s = await probeSandbox();
+    if (!s.available) return alert("代码沙箱不可用，无法评测该基准：\n\n" + s.message);
+  }
   try {
     const r = await api("/api/evaluations", { method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ model_id, benchmark: selBenchmark, limit,
@@ -456,15 +568,49 @@ async function refresh() {
   const es = _res.items;
   document.getElementById("stat-evals").textContent = _res.total;
   const tb = document.getElementById("evals");
-  tb.innerHTML = es.length ? es.map(e => {
+  // 展开中的「⋯」菜单：innerHTML 一换，节点就没了。
+  // 所以先把它的 id 记下来，重渲染后恢复 —— 否则 refresh 每 2.5 秒跑一次，
+  // 用户点开菜单后只有 2.5 秒的操作窗口，超时菜单就自己关掉。
+  const openedMenu = (document.querySelector(".menu.open") || {}).id || null;
+  const rowsHtml = es.length ? es.map(e => {
     const pct = e.total ? Math.round(e.done / e.total * 100) : 0;
     const stCls = e.status === "done" ? "st-done" : e.status === "failed" ? "st-failed" : e.status === "stopped" ? "st-stopped" : "st-running";
     const running = e.status === "running" || e.status === "pending";
+    // 可续跑：不是运行中、有部分成果、又没跑满 —— 典型是被杀/重启留下的任务
+    const resumable = !running && e.done > 0 && e.total > 0 && e.done < e.total;
+    // 「距上次有题目完成多久」。后端给了就用后端的（准确），没给就本地推算：
+    // 每次 refresh 对比 done 是否变化，变了就刷新时间戳。
+    // 注意本地计时只能从「打开页面」算起，所以显示时用「≥」而不是「=」，别假装知道得更多。
+    let staleS = null, localTimer = false;
+    if (running) {
+      const now = Date.now();
+      const prev = taskProgress[e.id];
+      if (!prev || prev.done !== e.done) taskProgress[e.id] = { done: e.done, at: now, seen: !!prev };
+      const st = taskProgress[e.id];
+      if (e.last_done_ago_s != null) {
+        staleS = e.last_done_ago_s;
+      } else {
+        staleS = Math.round((now - st.at) / 1000);
+        localTimer = !st.seen;   // 还没亲眼见过它动过
+      }
+    }
+    // 慢和死长得一样，所以要明确写出来：在跑几题 + 距上次完成多久。
+    // 阈值 300s：实测难题单题可以跑 200~280 秒，超过 5 分钟才值得去看一眼。
+    let liveHtml = "";
+    if (running) {
+      const slow = staleS > 300;
+      const parts = [];
+      if (e.inflight != null) parts.push(`${e.inflight} 题进行中`);
+      if (staleS < 5) parts.push(localTimer ? "进度监视中" : "刚刚有进展");
+      else parts.push(localTimer ? `≥${staleS}s 无进展` : `上次完成 ${staleS}s 前`);
+      liveHtml = `<div class="muted" style="font-size:12px;margin-top:2px${slow ? ";color:var(--amber)" : ""}"
+        title="并发跑多道题时，只要其中几道是难题（实测单题可达 200~280 秒），整体进度就会几分钟不动 —— 不代表卡死。容器只在模型返回代码之后才启动，所以「没有容器」也是正常的。">${parts.join(" · ")}${slow ? " ⚠" : ""}</div>`;
+    }
     return `<tr>
       ${batchMode ? `<td><input type="checkbox" ${selectedTasks.has(e.id) ? "checked" : ""} onclick="toggleTaskSel(${e.id}, this)"></td>` : ""}
       <td class="muted">${e.id}</td><td style="font-weight:550">${esc(e.model_name)}</td>
       <td title="输出上限 ${e.max_tokens ?? 2048} tokens · 单题超时 ${e.timeout_s ?? 90}s · 并发 ${e.concurrency ?? 8}"><span style="font-weight:550">${esc(e.benchmark)}</span></td>
-      <td><div class="score-cell"><div class="bar"><i style="width:${pct}%"></i></div><span class="muted" style="min-width:64px;text-align:right">${e.done}/${e.total}</span></div></td>
+      <td><div class="score-cell"><div class="bar"><i style="width:${pct}%"></i></div><span class="muted" style="min-width:64px;text-align:right">${e.done}/${e.total}</span></div>${liveHtml}</td>
       <td class="acc">${e.accuracy == null ? "-" : e.accuracy + "%"}</td>
       <td class="${stCls}">${ST_TEXT[e.status] || e.status}${e.failed ? ` <span class="muted">(失败${e.failed})</span>` : ""}</td>
       <td><div class="menu-wrap">
@@ -479,10 +625,20 @@ async function refresh() {
         <div class="menu" id="menu-${e.id}">
           <button class="menu-item" onclick="showItems(${e.id})">明细</button>
           ${running ? `<button class="menu-item" onclick="stopEval(${e.id})">停止</button>` : ""}
+          ${resumable ? `<button class="menu-item" onclick="resumeEval(${e.id})">继续（补跑剩余 ${e.total - e.done} 题）</button>` : ""}
           <button class="menu-item danger" onclick="delEval(${e.id})">删除</button>
         </div>
       </div></td></tr>`;
   }).join("") : `<tr><td colspan="${batchMode ? 8 : 7}" class="empty">暂无任务</td></tr>`;
+  // 内容没变就不动 DOM：否则每次 refresh 都会重置 hover / 展开态。
+  // 没有任务在跑时这个字符串是稳定的，于是绝大多数轮询都变成零副作用。
+  if (tb.innerHTML !== rowsHtml) {
+    tb.innerHTML = rowsHtml;
+    if (openedMenu) {
+      const m = document.getElementById(openedMenu);
+      if (m) m.classList.add("open");
+    }
+  }
   currentEvalIds = es.map(e => e.id);
   document.getElementById("th-check").style.display = batchMode ? "" : "none";
   renderTaskControls(_res.total);
@@ -590,15 +746,11 @@ function drawOverview() {
       const cells = models.map(m => {
         const s = b.scores[m.id];
         if (!s) return `<td class="ov-empty">—</td>`;
-        // 只按「相对该基准最高分的比例」上色。不同基准的难度基线差很多，
-        // 若改成绝对正确率，AIME 的 20%（其实已属很强）会被画成极浅，造成误读。
-        const ratio = max > 0 ? s.accuracy / max : 1;
-        // 色阶拉到 0.06~0.82，让「强/弱」的深浅差真正看得出来
-        const alpha = 0.06 + 0.76 * Math.max(0, Math.min(ratio, 1));
-        // 深色块配白字、浅色块配深字 —— 是为了任何深浅下都看得清，不是随机配色
-        const fg = alpha > 0.45 ? "#fff" : "var(--text)";
-        return `<td class="ov-cell" style="background:rgba(74,125,224,${alpha.toFixed(3)});color:${fg}"
-                    title="${esc(b.name)} · ${esc(m.name)}：${s.accuracy}%（${s.total} 题 · 任务 #${s.eval_id}）"
+        // 只把该基准的最高分挑出来，其余格子统一底色。
+        // 并列最高时**每个都标** —— 它们确实并列，挑一个既武断又会误导。
+        const top = s.accuracy === max;
+        return `<td class="ov-cell ${top ? "ov-top" : "ov-plain"}"
+                    title="${esc(b.name)} · ${esc(m.name)}：${s.accuracy}%（${s.total} 题 · 任务 #${s.eval_id}）${top ? " —— 该基准最高" : ""}"
                     >${s.accuracy}%</td>`;
       }).join("");
       return `<tr><td class="ov-bench" title="${esc(b.id)}">${esc(b.name)}</td>${cells}</tr>`;
@@ -610,14 +762,10 @@ function drawOverview() {
     <div class="card" style="padding:14px 18px">
       <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:10px">
         <span class="muted" style="font-size:12.5px;line-height:1.75">
-          行 = 基准，列 = 模型；颜色深浅表示 <b>在该基准上的相对强弱</b>（每一行以该行最高分为满色）。
-          <br>这样不同难度的基准之间不会互相误导 —— 否则 AIME 考 20%（其实已属很强）会被画得极浅。
-          <br><span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle">弱<i
-              style="display:inline-block;width:26px;height:11px;border-radius:3px;background:rgba(74,125,224,.06)"></i><i
-              style="display:inline-block;width:26px;height:11px;border-radius:3px;background:rgba(74,125,224,.30)"></i><i
-              style="display:inline-block;width:26px;height:11px;border-radius:3px;background:rgba(74,125,224,.54)"></i><i
-              style="display:inline-block;width:26px;height:11px;border-radius:3px;background:rgba(74,125,224,.82)"></i>强</span>
-          <span style="margin-left:6px">（深色块配白字、浅色块配深字，只是为了看得清）</span>
+          行 = 基准，列 = 模型。<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle">
+          <i style="display:inline-block;width:26px;height:11px;border-radius:3px;background:var(--accent)"></i></span>
+          <b>蓝色 = 该基准上参与评测的模型中的最高分</b>，并列最高会同时标出；其余格子统一底色。
+          <br>悬停任一格子可以看到题量与任务号。
         </span>
         <span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <button class="ghost" onclick="toggleOvOnlyData()">${ovOnlyData ? "显示全部基准" : "只看有数据的"}</button>
@@ -855,6 +1003,15 @@ async function stopEval(id) {
   refresh();
 }
 
+async function resumeEval(id) {
+  // 续跑只补剩下的题，已完成的成果不重算（进程被杀 / 服务重启后用）
+  try {
+    const r = await api("/api/evaluations/" + id + "/resume", { method:"POST" });
+    alert(`任务 #${id} 已开始续跑：已完成 ${r.done}/${r.total}，本次补跑 ${r.total - r.done} 题`);
+  } catch (e) { return alert("续跑失败：" + e.message); }
+  refresh();
+}
+
 function toggleMenu(ev, id) {
   ev.stopPropagation();
   const menu = document.getElementById("menu-" + id);
@@ -916,7 +1073,240 @@ function toggleRaw(idx, btn) {
   btn.textContent = "收起";
 }
 
+// ---- AI 总结 ----
+
+// 注：程序判定的「数据问题」映射表（CAVEAT_KIND）随该板块一起移除了 ——
+// 这些内部质量信号不再上页面，改由 python scripts/verify_summary.py 在终端输出。
+let summaryTicker = null;     // 模拟进度条的定时器
+let lastGenModelId = null;    // 刚生成完的模型：自动展开它的条目
+
+async function loadSummary() {
+  await fetchSummary();
+  renderSummary();
+}
+
+// 「进度」其实无从获知：模型是一次性返回整段 JSON 的，中间没有可观测的阶段。
+// 所以这里是**模拟**进度：按该模型历史耗时估一个预期值，用 1-e^(-2t/预期) 逼近 95%，
+// 越接近越慢，完成后直接跳满。
+// 系数取 2 是为了让「到达预计时间」时约 82% —— 用 1-e^(-t/预期) 的话那时才 60%，
+// 会让人以为卡住了。界面上同时显示真实已用秒数，百分比只是"还在动"的视觉反馈。
+function summaryProgressPct(state) {
+  if (!state || !state.started_at) return 8;
+  const elapsed = Math.max(0, Date.now() / 1000 - state.started_at);
+  const expect = state.expected_s || 45;
+  return Math.min(95, Math.round(95 * (1 - Math.exp(-2 * elapsed / expect))));
+}
+
+function stopSummaryTicker() {
+  if (summaryTicker) { clearInterval(summaryTicker); summaryTicker = null; }
+}
+
+function startSummaryTicker() {
+  stopSummaryTicker();
+  const tick = () => {
+    const st = (summaryData || {}).state || {};
+    if (st.status !== "running") { stopSummaryTicker(); return; }
+    const pct = summaryProgressPct(st);
+    const bar = document.getElementById("s-bar");
+    const num = document.getElementById("s-pct");
+    const txt = document.getElementById("s-elapsed");
+    if (bar) bar.style.width = pct + "%";
+    if (num) num.textContent = pct + "%";
+    if (txt) {
+      const used = Math.round(Date.now() / 1000 - st.started_at);
+      const exp = st.expected_s || 45;
+      // 百分比是估算的，所以把「真实已用秒数」放在显眼处；超时后不再显示预期值，免得像在报错误
+      txt.textContent = used > exp * 1.6
+        ? `已用 ${used} 秒 · 比预计的 ${exp} 秒久一些，思考型模型遇到长总结会慢（进度百分比为估算）`
+        : `已用 ${used} 秒 · 预计 ${exp} 秒左右（模型是一次性返回的，进度百分比为估算）`;
+    }
+  };
+  tick();                                   // 先画一次，别等到 500ms 后才动
+  summaryTicker = setInterval(tick, 400);
+}
+
+// 模型常在 note 开头把基准名又写一遍（「TruthfulQA：…」），而外面已经用粗体显示了基准名，
+// 渲染时不处理就会变成「TruthfulQA：TruthfulQA：…」。这里把重复的前缀去掉。
+function stripLead(name, txt) {
+  let s = String(txt || "");
+  if (!name) return s;
+  const escName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp("^\\s*" + escName + "\\s*(?:[（(][^）)]*[）)])?\\s*[：:]\\s*");
+  // 循环剥：模型有时会把基准名连着写两遍
+  for (let i = 0; i < 4 && re.test(s); i++) s = s.replace(re, "");
+  return s;
+}
+
+function renderEntry(s, stats) {
+  const c = s.content || {};
+  const selfReport = stats.models && stats.models.some(m => m.name === s.model_name);
+  // 一级维度是**能力分类**（不是逐个模型铺开基准清单）；
+  // 同时给出逐模型总览与逐基准明细 —— 「写全」是这份总结的价值所在，
+  // 把「哪些比不出差别」讲清楚比笼统说谁领先有用得多。
+  const modelsSec = (c.models || []).length
+    ? `<div style="font-weight:600;margin:12px 0 4px">各模型总览</div>`
+      + (c.models || []).map(m => `<div style="margin:6px 0;padding:9px 12px;background:var(--card2);border-radius:8px">
+          <div style="font-weight:600">${esc(m.model || "")}</div>
+          <div style="margin-top:3px">${esc(m.note || "")}</div></div>`).join("")
+    : "";
+  const cats = (c.categories || []).map(cat => `<div style="margin:14px 0;padding:10px 12px;background:var(--card2);border-radius:8px">
+      <div style="font-weight:600">${esc(cat.category || "")}</div>
+      ${cat.summary ? `<div style="margin:4px 0 6px">${esc(cat.summary)}</div>` : ""}
+      ${(cat.models || []).map(x => `<div style="margin:5px 0 5px 2px;font-size:13px">
+        <b>${esc(x.model || "")}</b> <span class="muted">${esc(x.note || "")}</span></div>`).join("")}
+      ${(cat.benchmarks || []).map(b => `<div style="margin:6px 0 6px 2px;font-size:13px">
+        <b>${esc(b.benchmark || "")}</b>
+        <div class="muted" style="margin-top:1px">${esc(stripLead(b.benchmark, b.note))}</div></div>`).join("")}
+      ${cat.insufficient ? `<div class="muted" style="margin-top:6px;font-size:12px">数据不足：${esc(cat.insufficient)}</div>` : ""}
+    </div>`).join("");
+  const diffs = (c.differences || []).map(d => `<div style="margin:6px 0;font-size:13px">
+      <b>${esc(d.a || "")}</b> 领先 <b>${esc(d.b || "")}</b>
+      <span class="muted"> · ${esc(d.benchmark || "")}</span>
+      <div class="muted" style="margin-top:1px">${esc(d.note || "")}</div></div>`).join("");
+  return `<details class="card" style="padding:0"${lastGenModelId === s.model_id ? " open" : ""}>
+    <summary style="cursor:pointer;padding:12px 16px">
+      <span class="tag">${esc(s.model_name || "?")}</span>
+      <span class="muted" style="font-size:12px"> ${esc(s.created_at || "")}</span>
+      ${s.stale ? `<span class="tag warn">基于旧数据</span>` : ""}
+      <div style="font-weight:550;margin-top:6px;line-height:1.5">${esc(c.headline || "")}</div>
+    </summary>
+    <div style="padding:0 16px 14px">
+      <div class="tags" style="margin-bottom:8px">
+        <span class="tag">${s.completion_tokens || 0} tokens / ${((s.latency_ms || 0) / 1000).toFixed(1)}s</span>
+        ${stats.confidence ? `<span class="tag">数据置信度 ${esc(stats.confidence)}</span>` : ""}
+      </div>
+      ${selfReport ? `<div class="muted" style="margin-bottom:8px">⚠ 本总结由 <b>${esc(s.model_name)}</b> 生成，而它自己也在被评测的模型之列，看的时候留意这一点。</div>` : ""}
+      ${c.overview ? `<div style="margin-bottom:4px">${esc(c.overview)}</div>` : ""}
+      ${modelsSec}
+      ${cats}
+      ${diffs ? `<div style="margin-top:12px">
+        <div style="font-weight:600;margin-bottom:4px">显著的模型间差异</div>${diffs}</div>` : ""}
+      ${(c.next_steps || []).length ? `<div style="margin-top:12px">
+        <div style="font-weight:600;margin-bottom:6px">建议下一步</div>
+        <ul style="margin:0;padding-left:20px">${c.next_steps.map(x =>
+          `<li style="margin:5px 0">${esc(x)}</li>`).join("")}</ul></div>` : ""}
+      ${(s.unverified || []).length ? `<div style="margin-top:12px">
+        <span class="tag warn">数字回查未通过</span>
+        <span class="muted"> 以下数字在给模型的数据里找不到对应，可能是它编的，请核对：
+        <b>${esc(s.unverified.join("、"))}</b></span></div>` : ""}
+    </div>
+  </details>`;
+}
+
+function renderSummary() {
+  const box = document.getElementById("summary-box");
+  if (!box) return;
+  const st = (summaryData && summaryData.state) || {};
+  const stats = summaryStats || {};
+  // 后端新版本返回 entries（每个模型一条）；旧版本返回单个 summary。
+  // 这里兼容一下：否则前端先更新、后端还没重启时，页面会假装「还没有总结」。
+  const entries = (summaryData
+    && (summaryData.entries || (summaryData.summary ? [summaryData.summary] : []))) || [];
+  let html = "";
+
+  if (st.status === "running") {
+    const pct = summaryProgressPct(st);
+    html += `<div class="card gen-card">
+      <div class="gen-head">
+        <span class="tag">生成中</span>
+        <span class="muted">${esc(st.model_name || "")} 正在写总结…</span>
+        <span class="gen-pct" id="s-pct">${pct}%</span>
+      </div>
+      <div class="gen-track"><i id="s-bar" class="gen-fill" style="width:${pct}%"></i></div>
+      <div class="muted gen-note" id="s-elapsed"></div>
+    </div>`;
+  } else if (st.status === "failed") {
+    html += `<div class="card"><span class="tag warn">生成失败</span>
+      <span class="muted"> ${esc(st.message || "")}</span></div>`;
+  } else if (st.status === "done" && st.message && st.message.indexOf("缓存") >= 0) {
+    html += `<div class="card"><span class="tag">${esc(st.message)}</span></div>`;
+  }
+
+  if (entries.length) {
+    html += entries.map(s => renderEntry(s, stats)).join("");
+  } else if (st.status !== "running" && st.status !== "failed") {
+    html += `<div class="card"><div class="empty">还没有总结。选一个模型，点「生成总结」。</div></div>`;
+  }
+
+  // 注：程序判定的「数据问题」（低于随机线、刷分假象、部分评测…）**刻意不在页面上展示**。
+  // 那是我们自己的质量检查，属于内部事务，不是给读者的结论 —— 这份总结是要能分享出去的。
+  // 需要看这些提示时跑终端脚本：python scripts/verify_summary.py
+
+  // 依据的数据：让人能核对总结，这是「可信」的前提
+  if ((stats.rankings || []).length) {
+    html += `<div class="card"><details><summary style="cursor:pointer;font-weight:600">
+      本次依据的数据（点开核对）</summary><div style="margin-top:10px">`
+      + stats.rankings.map(r => {
+          const ns = (r.comparisons || []).filter(x => !x.significant);
+          return `<div style="margin-bottom:14px">
+            <div style="font-weight:550">${esc(r.name)}</div>
+            <table style="width:100%;font-size:13px"><tbody>
+            ${r.rows.map((x, i) => `<tr>
+              <td class="muted" style="width:22px">${i + 1}</td>
+              <td>${esc(x.model)}</td>
+              <td class="acc" style="width:70px">${x.accuracy}%</td>
+              <td class="muted" style="width:110px">${x.n} 题${x.partial ? " ⚠部分" : ""}</td></tr>`).join("")}
+            </tbody></table>
+            ${ns.length ? `<div class="muted" style="font-size:12px;margin-top:2px">分差未达显著：
+              ${ns.map(x => `${esc(x.a)} vs ${esc(x.b)} 差 ${x.diff}（阈值 ${x.threshold}）`).join("；")}</div>` : ""}
+          </div>`;
+        }).join("") + `</div></details></div>`;
+  }
+
+  box.innerHTML = html;
+  if (st.status === "running") startSummaryTicker(); else stopSummaryTicker();
+}
+
+async function genSummary() {
+  const mid = +document.getElementById("s-model").value;
+  if (!mid) return alert("请先添加并选择一个模型");
+  try {
+    // 一律强制重新生成：数据没变时直接重跑就好，没必要给用户一个「要不要用缓存」的选择
+    await api("/api/summary", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model_id: mid, force: true }) });
+  } catch (e) { return alert("生成失败：" + e.message); }
+  lastGenModelId = mid;   // 完成后自动展开这个模型的条目
+  await fetchSummary();
+  renderSummary();
+  pollSummary();
+}
+
+// 只取数据、不渲染 —— 轮询时要在「渲染」和「等进度条跑满」之间做选择，所以拆开
+async function fetchSummary() {
+  try {
+    const [d, st] = await Promise.all([api("/api/summary"), api("/api/summary/stats")]);
+    summaryData = d; summaryStats = st;
+  } catch (e) {
+    summaryData = null; summaryStats = null;
+  }
+}
+
+function pollSummary() {
+  clearTimeout(summaryPoll);
+  summaryPoll = setTimeout(async () => {
+    const wasRunning = ((summaryData || {}).state || {}).status === "running";
+    await fetchSummary();
+    const nowRunning = ((summaryData || {}).state || {}).status === "running";
+    if (wasRunning && !nowRunning) {
+      // 先让进度条跑满、斜纹动一下，再切换到结果 —— 否则会「啪」地跳过去，看不到完成感
+      stopSummaryTicker();
+      const bar = document.getElementById("s-bar");
+      const num = document.getElementById("s-pct");
+      if (bar) bar.style.width = "100%";
+      if (num) num.textContent = "100%";
+      setTimeout(renderSummary, 450);
+      return;
+    }
+    renderSummary();
+    if (nowRunning) pollSummary();
+  }, 2500);
+}
+
 setAddModelOpen(false); loadModels(); loadBenchmarks(); refresh();
+// 沙箱探测是异步的（要调 docker 约 1 秒），拿到结果后重新渲染一次基准卡片，
+// 好让「需要 Docker」的标签能显示出「未就绪」
+probeSandbox().then(loadBenchmarks);
+loadSummary();
 setInterval(refresh, 2500);
 </script>
 </body>
