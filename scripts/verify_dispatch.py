@@ -41,11 +41,24 @@ sys.path.insert(0, str(ROOT))
 from app import db  # noqa: E402
 
 _tmp_root = None
-try:
-    _tmp_root = pathlib.Path(tempfile.mkdtemp(prefix="llmbench-dispatch-"))
-except OSError:                     # 受限环境下系统临时目录可能不可写
-    _tmp_root = ROOT / ".dispatch_tmp"
-    _tmp_root.mkdir(exist_ok=True)
+
+
+# 临时目录优先用系统 temp，但**文件沙箱可能禁止写工作区之外**（受限环境里往系统 temp
+# 写文件会 PermissionError，sqlite 也因此在那边报 "unable to open database file"）。
+# 所以不猜，写个探针文件试一下，不行就退回工作区内的目录（跑完会删）。
+def _pick_tmp() -> pathlib.Path:
+    try:
+        d = pathlib.Path(tempfile.mkdtemp(prefix="llmbench-dispatch-"))
+        (d / ".probe").write_text("x", encoding="utf-8")
+        return d
+    except OSError:
+        pass
+    d = ROOT / ".dispatch_tmp"
+    d.mkdir(exist_ok=True)
+    return d
+
+
+_tmp_root = _pick_tmp()
 db.DB_PATH = _tmp_root / "app.db"
 db._local.conn = None               # 清掉可能已绑定的连接
 db.init_db()
@@ -66,7 +79,17 @@ CASES = [
     ("humaneval", 2, "code_unit", "… · 通过全部单元测试", True),
     ("livecodebench", 2, "code_stdio", "… · 通过全部测试用例", True),
     ("BFCL_v4_simple_python", 3, "bfcl", "期望调用文本", False),
+    # Live 子集是真实用户提问（语言混杂、含中文），题目结构与 Non-Live 相同 ——
+    # 加进来是确认「真实文档里挑函数」这条路没被什么隐含假设卡住。
+    ("BFCL_v4_live_simple", 3, "bfcl", "期望调用文本", False),
+    # 无关拒绝子集没有 possible_answer 文件，标准答案就是「拒绝调用」：
+    # 这条专门盯住那个特例分支（漏了它会直接抛异常，而不是判错）。
+    ("BFCL_v4_live_irrelevance", 3, "bfcl", "「拒绝调用」", False),
     ("BFCL_v4_multi_turn_base", 2, "bfcl_multi_turn", "共 N 轮", False),
+    # ARC 里有 5 选 1 的题（A~E）、WinoGrande 全是 2 选 1：选择题 runner 是字母通用的，
+    # 这两条覆盖「选项数不是 4」的两个端点（题库没下载就跳过）。
+    ("arc_challenge", 3, "choice", "选项字母", False),
+    ("winogrande", 3, "choice", "选项字母", False),
 ]
 
 
@@ -139,15 +162,30 @@ def main():
         print("=" * 78)
         print(f"{'题型':<16}{'基准':<26}{'结果':<7}说明")
         print("-" * 78)
+        skipped = 0
         for benchmark, limit, kind, want, need_docker in CASES:
+            try:
+                datasets._dataset_path(benchmark)
+            except FileNotFoundError:
+                # 题库没下载不该算失败：data/ 不进版本库，clone 下来本来是空的
+                skipped += 1
+                print(f"{kind:<16}{benchmark:<26}{'SKIP':<7}题库未下载（python scripts/download.py {benchmark}）")
+                continue
             status, msg = run_case(benchmark, limit, kind, want, need_docker, mid, docker_ok)
             if status == "FAIL":
                 ok_all = False
             print(f"{kind:<16}{benchmark:<26}{status:<7}{msg}")
         print("=" * 78)
-        print("6 种题型的分派全部正确。" if ok_all else "有题型分派不正确，见上。")
+        tail = f"（{skipped} 项因题库未下载跳过）" if skipped else ""
+        print(f"{len(CASES)} 条用例的题型分派全部正确{tail}。" if ok_all else "有题型分派不正确，见上。")
         return 0 if ok_all else 1
     finally:
+        # Windows 上文件被连接占着就删不掉，先关连接再删目录
+        try:
+            db.get_conn().close()
+            db._local.conn = None
+        except Exception:  # noqa: BLE001
+            pass
         shutil.rmtree(_tmp_root, ignore_errors=True)
 
 
