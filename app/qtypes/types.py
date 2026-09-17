@@ -17,6 +17,10 @@ class Outcome:
     expected: str | None = None
     raw: str | None = None
     err: str | None = None
+    # 这一题是「**跑失败了**」还是「跑通了但答错」。
+    # 平时两者都不用区分（答错就是答错）；但安全类基准里「裁判判分失败」必须单独计数 ——
+    # 否则整场全是判分失败时，任务还会显示成「已完成」，把裁判故障伪装成正常结果。
+    failed: bool = False
     prompt_tokens: int = 0
     completion_tokens: int = 0
     latency_ms: int = 0
@@ -31,6 +35,9 @@ class RunCtx:
     is_bfcl: bool = False
     is_multi_turn: bool = False
     answers: dict = field(default_factory=dict)   # BFCL 标准答案：id -> ground_truth
+    # 裁判模型配置（models 表那一行，kind='judge'）——只有安全类基准才需要。
+    # 放在 ctx 里是因为它是**整场评测共用**的一件事，不该每道题重新查库。
+    judge_cfg: dict | None = None
 
 
 @dataclass(frozen=True)

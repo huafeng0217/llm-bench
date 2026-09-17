@@ -10,8 +10,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from . import benchmarks as bm
-from . import db, engine, sandbox, summary
-from .benchmarks import CATEGORIES, META, get_meta
+from . import datasets, db, engine, sandbox, scoring, summary
+from .benchmarks import CATEGORIES, FAMILIES, FAMILY_GROUPS, META, get_meta
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 MODELS_FILE = Path(__file__).resolve().parent.parent / "data" / "models.json"
@@ -21,7 +21,10 @@ DOWNLOAD_STATE: dict[str, dict] = {}
 
 
 def import_models_file():
-    """启动时从本地文档 data/models.json 导入模型配置（含 key，仅存本机）。"""
+    """启动时从本地文档 data/models.json 导入模型配置（含 key，仅存本机）。
+
+    老文件里没有 ``kind`` 字段，一律按「被测模型」导入 —— 不给谁凭空安一个判别器的身份。
+    """
     if not MODELS_FILE.exists():
         return
     try:
@@ -33,18 +36,23 @@ def import_models_file():
         base_url = str(it.get("base_url", "")).strip().rstrip("/")
         if not name or not base_url:
             continue
+        kind = it.get("kind") if it.get("kind") in MODEL_KINDS else "test"
         if not db.query_one(
             "SELECT id FROM models WHERE name=? AND base_url=?", (name, base_url)
         ):
+            try:
+                eb = valid_extra_body(str(it.get("extra_body") or ""))
+            except HTTPException:
+                eb = ""      # 文件里填错了就忽略这一项，不让启动挂掉
             db.execute(
-                "INSERT INTO models(name, base_url, api_key) VALUES(?,?,?)",
-                (name, base_url, str(it.get("api_key", "")).strip()),
+                "INSERT INTO models(name, base_url, api_key, kind, extra_body) VALUES(?,?,?,?,?)",
+                (name, base_url, str(it.get("api_key", "")).strip(), kind, eb),
             )
 
 
 def sync_models_file():
     """把模型配置同步到本地文档，方便用户查看/备份/手动编辑。"""
-    rows = db.query("SELECT name, base_url, api_key FROM models ORDER BY id")
+    rows = db.query("SELECT name, base_url, api_key, kind, extra_body FROM models ORDER BY id")
     MODELS_FILE.parent.mkdir(parents=True, exist_ok=True)
     MODELS_FILE.write_text(
         json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -76,16 +84,43 @@ async def lifespan(app: FastAPI):
     reaped = reap_stale_running()
     if reaped:
         print(f"[启动] 清理了 {reaped} 个上次遗留的僵尸任务（标记为已停止）")
+    # 预热题库行数缓存：第一次算它要把 data/ 里所有题库读一遍（约 0.3 秒，
+    # 其中 134MB 的 livecodebench 占大头）。放在后台线程里做，
+    # 这样「打开页面」这一下也不会撞上这笔开销。
+    # 存进全局变量是为了持住强引用 —— asyncio 只对任务持弱引用，
+    # 不保存的话这个任务可能在跑完之前就被 GC 掉。
+    global _PREWARM
+    _PREWARM = asyncio.create_task(asyncio.to_thread(datasets.list_datasets))
     yield
+    if _PREWARM and not _PREWARM.done():
+        _PREWARM.cancel()
+
+
+# 见 lifespan：持住预热任务的强引用，别让它被 GC
+_PREWARM = None
 
 
 app = FastAPI(title="LLM Bench", lifespan=lifespan)
+
+
+# 模型用途：被测 / 判别器。**互斥**，不是可叠加的角色 ——
+# 现在只解决「裁判不能被拿去被测」这一件事，等真出现「一个裁判复用到多个基准」
+# 或「裁判兼任总结生成器」再升级成多角色。
+MODEL_KINDS = {"test": "被测模型", "judge": "判别器"}
 
 
 class ModelIn(BaseModel):
     name: str
     base_url: str
     api_key: str = ""
+    kind: str = "test"
+    # 额外请求参数（JSON 对象字符串，可选）。例：关掉 Qwen3 的思考 {"enable_thinking": false}
+    extra_body: str = ""
+
+
+class KindIn(BaseModel):
+    kind: str
+    confirm: bool = False   # 该模型已有历史评测时，必须显式确认才允许改类型
 
 
 class EvalIn(BaseModel):
@@ -95,6 +130,7 @@ class EvalIn(BaseModel):
     max_tokens: int = 2048   # 输出 token 预算（思考型模型需含推理 token）
     timeout_s: int = 90      # 单题请求超时（秒）
     concurrency: int = 8     # 并发请求数
+    judge_model_id: int | None = None   # 裁判模型（只有安全类基准需要）
 
 
 @app.post("/api/models/test")
@@ -142,19 +178,72 @@ def list_models():
     rows = db.query("SELECT * FROM models ORDER BY id DESC")
     for r in rows:
         r["api_key"] = mask_key(r["api_key"])
+        # 顺带给出该模型有多少条历史评测：前端在「改成判别器」时要拿它做二次确认，
+        # 而改类型不会删掉历史成绩（数据是真的，出现在过就留着），所以要先让人知道。
+        r["evaluations"] = db.query_one(
+            "SELECT COUNT(*) AS n FROM evaluations WHERE model_id=?", (r["id"],))["n"]
     return rows
+
+
+def valid_extra_body(raw: str) -> str:
+    """校验 extra_body：必须是空、或一个 JSON 对象。返回规范化后的字符串。
+
+    在**入口处**校验而不是等到调用时：填错的 JSON 会让每一次请求都失败，而错误信息
+    要等跑起来才看到（甚至只表现为「任务全失败」）。这里直接拒绝，用户当场就知道。
+    """
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    try:
+        obj = json.loads(s)
+    except json.JSONDecodeError as e:
+        raise HTTPException(400, f"额外请求参数不是合法 JSON：{e}")
+    if not isinstance(obj, dict):
+        raise HTTPException(400, '额外请求参数必须是 JSON 对象，例如 {"enable_thinking": false}')
+    return json.dumps(obj, ensure_ascii=False)
 
 
 @app.post("/api/models", status_code=201)
 def create_model(m: ModelIn):
     if not m.name.strip() or not m.base_url.strip():
         raise HTTPException(400, "name 和 base_url 不能为空")
+    if m.kind not in MODEL_KINDS:
+        raise HTTPException(400, f"kind 只能是 {sorted(MODEL_KINDS)}")
     mid = db.execute(
-        "INSERT INTO models(name, base_url, api_key) VALUES(?,?,?)",
-        (m.name.strip(), m.base_url.strip().rstrip("/"), m.api_key.strip()),
+        "INSERT INTO models(name, base_url, api_key, kind, extra_body) VALUES(?,?,?,?,?)",
+        (m.name.strip(), m.base_url.strip().rstrip("/"), m.api_key.strip(), m.kind,
+         valid_extra_body(m.extra_body)),
     )
     sync_models_file()
-    return {"id": mid}
+    return {"id": mid, "kind": m.kind}
+
+
+@app.patch("/api/models/{mid}")
+def update_model_kind(mid: int, body: KindIn):
+    """改模型用途（被测 ⇄ 判别器）。
+
+    已有历史评测时要求 ``confirm=true`` 才放行 —— 不是禁止，而是**先让人看见**：
+    改成判别器之后它就不能再发起新评测了，但以前跑出来的成绩仍然留在榜上
+    （数据是真的，不该因为角色变了就消失）。
+    """
+    if body.kind not in MODEL_KINDS:
+        raise HTTPException(400, f"kind 只能是 {sorted(MODEL_KINDS)}")
+    row = db.query_one("SELECT id, name, kind FROM models WHERE id=?", (mid,))
+    if not row:
+        raise HTTPException(404, "模型不存在")
+    n = db.query_one("SELECT COUNT(*) AS n FROM evaluations WHERE model_id=?", (mid,))["n"]
+    if row["kind"] == body.kind:
+        return {"ok": True, "kind": body.kind, "evaluations": n, "changed": False}
+    # 只在**收窄用途**时打扰用户：改成判别器意味着以后不能再评测它，所以要确认；
+    # 改回被测是放开限制，没什么可确认的。
+    if body.kind == "judge" and n and not body.confirm:
+        raise HTTPException(
+            409,
+            f"{row['name']} 已有 {n} 条历史评测。改成「判别器」后不能再发起新评测，"
+            f"但已有的成绩仍然保留在排行榜上（数据是真的，不该因为角色变了就消失）。确认要改吗？",
+        )
+    db.execute("UPDATE models SET kind=? WHERE id=?", (body.kind, mid))
+    return {"ok": True, "kind": body.kind, "evaluations": n, "changed": True}
 
 
 @app.delete("/api/models/{mid}")
@@ -169,7 +258,11 @@ def delete_model(mid: int):
 @app.get("/api/benchmarks")
 def list_benchmarks():
     # 已下载题库（data 目录下实际存在，含 bfcl_v4 子目录）
-    existing = {d["id"]: d["count"] for d in engine.list_datasets()}
+    # 只调一次：list_datasets() 要扫整个 data/ 目录并数每份题库的行数（有大文件，代价不低），
+    # 之前这里调了两次（下面「自定义题库」那段又调一次），等于把这份开销翻倍 ——
+    # 而它正是「切换分类卡一下」的全部原因，所以行数也做了 mtime 缓存（见 datasets.count_lines）。
+    datasets_now = datasets.list_datasets()
+    existing = {d["id"]: d["count"] for d in datasets_now}
     out = []
     # 先列出所有配置了元数据的 benchmark（含未下载的，前端据此显示下载按钮）
     for bid in META:
@@ -179,7 +272,7 @@ def list_benchmarks():
         meta["downloadable"] = bid in bm.DOWNLOADERS
         out.append(meta)
     # 再加上 data 目录里存在、但 META 未收录的自定义题库
-    for d in engine.list_datasets():
+    for d in datasets_now:
         if d["id"] not in META:
             meta = get_meta(d["id"])
             meta["count"] = d["count"]
@@ -225,9 +318,43 @@ async def download_benchmark(benchmark_id: str):
     return {"ok": True, "status": "running", "message": "已开始下载"}
 
 
+@app.post("/api/families/{family_id}/download")
+async def download_family(family_id: str):
+    """下载一个家族的全部子集（如 BFCL v4 的 16 个）。
+
+    为什么需要：家族在界面上是一张卡，逐个点子集的下载按钮太笨；
+    子集之间是同一份数据源，串行下载还能共用同一份工具文档（multi_turn 需要）。
+    每个子集仍有自己的进度状态，前端按子集显示。
+    """
+    subsets = [e.id for e in bm.ENTRIES if e.family == family_id]
+    if not subsets:
+        raise HTTPException(404, f"没有这个家族: {family_id}")
+    todo = [s for s in subsets if s in bm.DOWNLOADERS
+            and not (DOWNLOAD_STATE.get(s) or {}).get("status") == "running"]
+    if not todo:
+        return {"ok": True, "status": "running", "message": "全部子集都在下载中或已开始"}
+    for s in todo:
+        DOWNLOAD_STATE[s] = {"status": "running", "message": "排队中…"}
+
+    async def _run():
+        for s in todo:
+            DOWNLOAD_STATE[s] = {"status": "running", "message": "下载中…"}
+            try:
+                ok, msg = await asyncio.to_thread(bm.download_one, s)
+                DOWNLOAD_STATE[s] = {"status": "done" if ok else "failed", "message": msg}
+            except Exception as e:  # noqa: BLE001
+                DOWNLOAD_STATE[s] = {"status": "failed", "message": str(e)[:300]}
+
+    asyncio.create_task(_run())
+    return {"ok": True, "status": "running", "count": len(todo),
+            "message": f"已开始下载 {len(todo)} 个子集"}
+
+
 @app.get("/api/benchmarks/downloads")
 def list_downloads():
-    existing = {d["id"] for d in engine.list_datasets()}
+    # 只要 id（下没下过），用 list_dataset_ids：它不数题量，
+    # 不会为了一份 id 列表去把几百 MB 题库整个读一遍。
+    existing = datasets.list_dataset_ids()
     out = {}
     for bid in bm.DOWNLOADERS:
         state = DOWNLOAD_STATE.get(bid, {"status": "idle", "message": ""})
@@ -243,19 +370,45 @@ def list_downloads():
 
 @app.post("/api/evaluations", status_code=201)
 async def create_evaluation(e: EvalIn):
-    if not db.query_one("SELECT id FROM models WHERE id=?", (e.model_id,)):
+    m = db.query_one("SELECT id, name, kind FROM models WHERE id=?", (e.model_id,))
+    if not m:
         raise HTTPException(404, "模型不存在")
+    # 判别器不能被评测：前端不会把它列进下拉，但直接调 API 也得拦住
+    # （不信任 UI 的约定，和后端沙箱自检是同一个思路）。
+    if m["kind"] == "judge":
+        raise HTTPException(
+            400,
+            f"{m['name']} 是「判别器」，不能作为被测模型。"
+            f"判别器只用于给安全类基准判分；如果确实要测它，请先在模型管理里把它改回「被测模型」。",
+        )
     try:
         items = engine.load_dataset(e.benchmark, e.limit or None)
     except FileNotFoundError:
         raise HTTPException(404, "题库不存在")
+
+    # 安全类基准要选裁判。三条约束都在这儿拦住（前端也会拦，但不信任 UI）：
+    #   ① 必须选；② 必须是 kind='judge' 的模型；③ 不能是被测模型自己（自偏袒）。
+    judge_id = None
+    if get_meta(e.benchmark).get("requires_judge"):
+        if not e.judge_model_id:
+            raise HTTPException(400, "这个基准由裁判模型判分，请先选择一个「判别器」再开始")
+        j = db.query_one("SELECT id, name, kind FROM models WHERE id=?", (e.judge_model_id,))
+        if not j:
+            raise HTTPException(404, "裁判模型不存在")
+        if j["kind"] != "judge":
+            raise HTTPException(
+                400, f"{j['name']} 的用途是「被测模型」，不能当裁判。"
+                     f"请先在模型管理里把要当裁判的模型设为「判别器」。")
+        if e.judge_model_id == e.model_id:
+            raise HTTPException(400, "裁判不能是被测模型自己 —— 自己判自己会让分数失去意义")
+        judge_id = e.judge_model_id
     max_tokens = min(max(e.max_tokens, 16), 32768)
     timeout_s = min(max(e.timeout_s, 5), 600)
     concurrency = min(max(e.concurrency, 1), 32)
     eid = db.execute(
-        "INSERT INTO evaluations(model_id, benchmark, total, max_tokens, timeout_s, concurrency)"
-        " VALUES(?,?,?,?,?,?)",
-        (e.model_id, e.benchmark, len(items), max_tokens, timeout_s, concurrency),
+        "INSERT INTO evaluations(model_id, benchmark, total, max_tokens, timeout_s, concurrency,"
+        " judge_model_id) VALUES(?,?,?,?,?,?,?)",
+        (e.model_id, e.benchmark, len(items), max_tokens, timeout_s, concurrency, judge_id),
     )
     asyncio.create_task(engine.run_evaluation(eid))
     return {"id": eid, "total": len(items)}
@@ -270,8 +423,11 @@ def list_evaluations(limit: int = 0, offset: int = 0):
     返回 {"items": [...], "total": N}
     """
     total = db.query_one("SELECT COUNT(*) AS c FROM evaluations")["c"]
-    sql = ("SELECT e.*, m.name AS model_name FROM evaluations e"
-           " JOIN models m ON m.id=e.model_id ORDER BY e.id DESC")
+    # LEFT JOIN 裁判模型：安全类基准的任务列表要显示「谁判的」（换了裁判分数不可比，
+    # 所以裁判名必须和分数一起出现在列表里，而不是藏进详情）。
+    sql = ("SELECT e.*, m.name AS model_name, j.name AS judge_name FROM evaluations e"
+           " JOIN models m ON m.id=e.model_id"
+           " LEFT JOIN models j ON j.id=e.judge_model_id ORDER BY e.id DESC")
     params: tuple = ()
     if limit and limit > 0:
         sql += " LIMIT ? OFFSET ?"
@@ -452,29 +608,48 @@ async def delete_evaluation(eid: int):
 def leaderboard():
     """排行榜：按分类分区，每区含「综合榜 + 各基准分项榜」。
 
-    综合分 = 该模型在本分类下**已评测**基准的正确率算术平均；
-    排序按「覆盖度优先，再按综合分」，避免只跑简单基准刷分。
+    综合分 = 该模型在本分类下**已评测**项目的正确率算术平均（家族算作**一项**，
+    用它的官方加权总分参与，而不是让 16 个子集各投一票）；
+    排序按「有效覆盖度优先，再按综合分」，避免只跑简单基准刷分。
+
+    家族（如 BFCL v4）额外返回 ``families``：官方加权总分 + 每组得分 + 权重覆盖率，
+    供前端折叠展示（见 app/benchmarks/bfcl.py 的 FAMILY_DEFS）。
     """
     rows = db.query(
         "SELECT e.*, m.name AS model_name FROM evaluations e"
         " JOIN models m ON m.id=e.model_id WHERE e.status='done' AND e.done>0"
     )
-    # 1) 每个 (模型, 基准) 取最高正确率
-    best = {}
+    # 1) 每个 (模型, 基准) 取「代表成绩」——
+    #    口径来自 app/scoring，与成绩总览、AI 总结共用：
+    #    **优先完整评测**，只有部分评测时才用它并标记 partial。
+    #    以前这里只比正确率、完全不看跑了多少题，于是「跑 6 题全对」会盖过
+    #    「跑 164 题 99.39%」而成为榜上成绩（实测踩过：HumanEval 的 6 题冒烟测试必须手动删）。
+    runs: dict = {}
     for r in rows:
-        acc = r["correct"] / r["done"] * 100
-        key = (r["model_name"], r["benchmark"])
-        if key not in best or acc > best[key]["accuracy"]:
-            best[key] = {
-                "model_name": r["model_name"],
-                "benchmark": r["benchmark"],
-                "benchmark_name": get_meta(r["benchmark"])["name"],
-                "accuracy": round(acc, 2),
-                "total": r["done"],
-                "avg_latency_ms": round(r["total_latency_ms"] / r["done"]),
-                "prompt_tokens": r["prompt_tokens"],
-                "completion_tokens": r["completion_tokens"],
-            }
+        runs.setdefault((r["model_name"], r["benchmark"]), []).append(r)
+    full_cache: dict = {}
+
+    def full_of(bid: str) -> int:
+        if bid not in full_cache:
+            full_cache[bid] = scoring.full_count(bid)
+        return full_cache[bid]
+
+    best = {}
+    for (mname, bid), rs in runs.items():
+        pick = scoring.pick_best(rs, full_of(bid))
+        b = pick.best
+        best[(mname, bid)] = {
+            "model_name": mname,
+            "benchmark": bid,
+            "benchmark_name": get_meta(bid)["name"],
+            "accuracy": round(scoring.accuracy_of(b), 2),
+            "total": b["done"],
+            "full_count": full_of(bid),
+            "partial": pick.partial,
+            "avg_latency_ms": round(b["total_latency_ms"] / b["done"]),
+            "prompt_tokens": b["prompt_tokens"],
+            "completion_tokens": b["completion_tokens"],
+        }
 
     # 2) 按分类归组
     grouped = {}   # category_id -> {benchmark: [item, ...]}
@@ -485,36 +660,114 @@ def leaderboard():
         grouped.setdefault(cid, {}).setdefault(item["benchmark"], []).append(item)
         cat_meta[cid] = {"name": meta["category"], "color": meta["category_color"]}
 
-    # 3) 逐分类组装：分项榜（各自按正确率排序）+ 综合榜
+    # 3) 逐分类组装：分项榜（各自按正确率排序）+ 家族块 + 综合榜
     out = []
     for c in CATEGORIES:  # 保持 CATEGORIES 的展示顺序
         cid = c["id"]
         if cid not in grouped:
             continue
         boards = []
-        model_scores = {}  # 模型 -> [该分类下各基准的正确率]
+        # 综合得分只平均**完整评测**：部分评测的分数不该和完整成绩等权地算进平均分，
+        # 但也不能把这项藏起来 —— 所以单独数出几项是部分评测（partial），交前端提示。
+        item_scores = {}    # 模型 -> [参与综合分的分数]（独立基准逐个计，家族算一项）
+        item_cover = {}     # 模型 -> 有效覆盖量（独立基准 1.0 / 家族 = 已跑组权重之和）
+        model_fams = {}     # 模型 -> [家族明细]（综合榜那行要显示「权重覆盖 60%」这类信息）
+        model_cov = {}      # 模型 -> 该分类下跑过的基准数（含部分，供显示）
+        model_partial = {}  # 模型 -> 其中「只有部分评测」的基准数
+        # 家族：先把每个模型在该家族各子集上的代表成绩收集起来，再按官方口径加权
+        fam_runs = {}       # family_id -> {model_name: {subset_id: item}}
+        fam_boards = []     # 家族的 boards（子集明细，折叠块里用）
         for bid, items in grouped[cid].items():
-            items.sort(key=lambda x: -x["accuracy"])
-            boards.append({
+            # 部分评测排在完整评测后面：它不该和完整成绩平起平坐（但不隐藏）
+            items.sort(key=lambda x: (x["partial"], -x["accuracy"]))
+            meta = get_meta(bid)
+            board = {
                 "benchmark": bid,
-                "benchmark_name": get_meta(bid)["name"],
+                "benchmark_name": meta["name"],
                 "rows": items,
-            })
-            for it in items:
-                model_scores.setdefault(it["model_name"], []).append(it["accuracy"])
-        n_bench = len(boards)
-        combined = [
-            {
-                "model_name": m,
-                "avg_accuracy": round(sum(s) / len(s), 2),
-                "covered": len(s),
-                "total": n_bench,
+                "family": meta.get("family", ""),
+                "group": meta.get("group", ""),
+                "group_name": meta.get("group_name", ""),
+                "group_weight": meta.get("group_weight"),
             }
-            for m, s in model_scores.items()
-        ]
-        combined.sort(key=lambda x: (-x["covered"], -x["avg_accuracy"]))
-        # 分项榜：按该基准的最高分降序（有亮点的基准排前面）
-        boards.sort(key=lambda b: -max(r["accuracy"] for r in b["rows"]))
+            if meta.get("family"):
+                fam_boards.append(board)
+                for it in items:
+                    fam_runs.setdefault(meta["family"], {}).setdefault(
+                        it["model_name"], {})[bid] = it
+            else:
+                boards.append(board)
+                for it in items:
+                    m = it["model_name"]
+                    model_cov[m] = model_cov.get(m, 0) + 1
+                    if it["partial"]:
+                        model_partial[m] = model_partial.get(m, 0) + 1
+                    else:
+                        item_scores.setdefault(m, []).append(it["accuracy"])
+                        item_cover[m] = item_cover.get(m, 0.0) + 1.0
+
+        # 家族折叠块：官方加权总分（缺组按已跑组归一化，并显式给出权重覆盖）
+        families = []
+        for fid, per_model in fam_runs.items():
+            groups_def = FAMILY_GROUPS.get(fid, [])
+            group_rank = {g["id"]: g["order"] for g in groups_def}
+            fam_rows = []
+            for m, by_subset in per_model.items():
+                comp = scoring.family_composite(
+                    {bid: it["accuracy"] for bid, it in by_subset.items()}, groups_def)
+                if not comp:
+                    continue
+                comp["model_name"] = m
+                fam_rows.append(comp)
+                # 家族在综合榜里算「一项」：分数用官方加权总分，
+                # 覆盖量用已跑组的官方权重之和（跑满 4 组 = 0.60；只跑 Non-Live = 0.10）
+                item_scores.setdefault(m, []).append(comp["score"])
+                item_cover[m] = item_cover.get(m, 0.0) + comp["weight_covered"]
+                model_cov[m] = model_cov.get(m, 0) + 1
+                model_fams.setdefault(m, []).append({
+                    "id": fid, "score": comp["score"],
+                    "weight_covered": comp["weight_covered"],
+                    "groups_covered": comp["groups_covered"],
+                    "groups_total": comp["groups_total"],
+                    "subsets_run": comp["subsets_run"],
+                    "subsets_total": comp["subsets_total"],
+                    "partial": comp["partial"] or comp["incomplete"],
+                })
+                if comp["partial"] or comp["incomplete"]:
+                    model_partial[m] = model_partial.get(m, 0) + 1
+            # 排序同综合榜：先看权重覆盖（跑得全的在前），再看分
+            fam_rows.sort(key=lambda x: (-x["weight_covered"], -x["score"]))
+            families.append({
+                "id": fid,
+                "name": fid,
+                "note": FAMILIES[fid].note if fid in FAMILIES else "",
+                "source": FAMILIES[fid].source if fid in FAMILIES else "",
+                "groups": groups_def,
+                "rows": fam_rows,
+                # 子集明细按官方分组顺序排（折叠块里就是按这个顺序列出来的）
+                "boards": sorted(fam_boards,
+                                 key=lambda b: (group_rank.get(b["group"], 0), b["benchmark"])),
+            })
+        n_bench = len(boards) + len(families)   # 家族算一项（不是 16 项）
+        combined = []
+        for m, cov in model_cov.items():
+            s = item_scores.get(m, [])
+            combined.append({
+                "model_name": m,
+                "avg_accuracy": round(sum(s) / len(s), 2) if s else 0,
+                "covered": cov,
+                "total": n_bench,
+                # 排序真正用的是「有效覆盖量」：独立基准 1.0，家族按官方权重覆盖率折算，
+                # 否则「只跑了一个 easy 子集」会和「跑满四组」被同等看待。
+                "coverage": round(item_cover.get(m, 0.0), 4),
+                "partial": model_partial.get(m, 0),
+                "families": model_fams.get(m, []),
+            })
+        combined.sort(key=lambda x: (-x["coverage"], -x["avg_accuracy"], -x["covered"]))
+        # 分项榜：按该基准的最高分降序（有亮点的基准排前面）。
+        # 算最高分时忽略部分评测 —— 否则「6 题满分」会把一个基准顶到最前面。
+        boards.sort(key=lambda b: -max((r["accuracy"] for r in b["rows"] if not r["partial"]),
+                                       default=max(r["accuracy"] for r in b["rows"])))
         out.append({
             "id": cid,
             "name": cat_meta[cid]["name"],
@@ -522,6 +775,7 @@ def leaderboard():
             "n_benchmarks": n_bench,
             "combined": combined,
             "boards": boards,
+            "families": families,
         })
     return out
 
@@ -534,7 +788,8 @@ def overview():
 
     与排行榜的分工：排行榜回答「每个分类里谁最强」，这里回答
     「全局看，谁在哪一块强」——行是基准（按分类分组），列是模型，
-    格子是该模型在该基准的最好成绩（多次测试取最高，与排行榜口径一致）。
+    格子是该模型在该基准的代表成绩：**优先完整评测**，多次完整评测取最高，
+    没有完整评测时才退回部分评测并标记 partial（口径见 app/scoring，与排行榜一致）。
 
     只把「有成绩的模型」作为列返回，避免出现整列空白；基准则全量返回
     （含暂无数据的，scores 为空 dict），是否隐藏空行交给前端过滤。
@@ -543,19 +798,29 @@ def overview():
         "SELECT e.*, m.name AS model_name FROM evaluations e"
         " JOIN models m ON m.id=e.model_id WHERE e.status='done' AND e.done>0"
     )
-    best: dict = {}         # (model_id, benchmark) -> 最优成绩
+    runs: dict = {}         # (model_id, benchmark) -> 该模型在该基准的所有 done 评测
     model_names: dict = {}  # model_id -> 模型名
     for r in rows:
-        acc = r["correct"] / r["done"] * 100
         model_names[r["model_id"]] = r["model_name"]
-        key = (r["model_id"], r["benchmark"])
-        if key not in best or acc > best[key]["accuracy"]:
-            best[key] = {
-                "accuracy": round(acc, 2),
-                "total": r["done"],
-                "eval_id": r["id"],
-                "avg_latency_ms": round(r["total_latency_ms"] / r["done"]),
-            }
+        runs.setdefault((r["model_id"], r["benchmark"]), []).append(r)
+
+    # 格子口径同样来自 app/scoring：优先完整评测，只有部分评测时标记 partial。
+    # 前端据此把部分评测排除在「该基准最高分」高亮之外，并单独打标。
+    full_cache: dict = {}
+    best: dict = {}         # (model_id, benchmark) -> 代表成绩
+    for (mid, bid), rs in runs.items():
+        if bid not in full_cache:
+            full_cache[bid] = scoring.full_count(bid)
+        pick = scoring.pick_best(rs, full_cache[bid])
+        b = pick.best
+        best[(mid, bid)] = {
+            "accuracy": round(scoring.accuracy_of(b), 2),
+            "total": b["done"],
+            "full_count": full_cache[bid],
+            "partial": pick.partial,
+            "eval_id": b["id"],
+            "avg_latency_ms": round(b["total_latency_ms"] / b["done"]),
+        }
 
     # 基准 -> {model_id: 成绩}
     by_bench: dict = {}
@@ -563,20 +828,34 @@ def overview():
         by_bench.setdefault(bid, {})[mid] = v
 
     groups = []
+    # 家族内的子集按**官方分组顺序**排，而不是按名字排 ——
+    # 否则「Live 单函数」会因为字母序跑到「多轮对话」后面，读起来毫无头绪。
+    # 顺带把组名与官方权重带出来（卡片/行标题上要显示），META 里没有这两项。
+    subset_group = {}
+    for fid, gs in FAMILY_GROUPS.items():
+        for g in gs:
+            for sid in g["subsets"]:
+                subset_group[sid] = {"order": g["order"], "name": g["name"],
+                                     "weight": g["weight"], "family": fid}
     for c in CATEGORIES:
         bms = []
         for bid, meta in META.items():
             if meta.get("category") != c["name"]:
                 continue
+            gi = subset_group.get(bid, {})
             bms.append({
                 "id": bid,
                 "name": meta["name"],
+                "family": gi.get("family", ""),
+                "group_name": gi.get("name", ""),
+                "group_weight": gi.get("weight"),
                 "scores": {str(mid): v for mid, v in by_bench.get(bid, {}).items()},
             })
         if not bms:
             continue
         # 有成绩的基准排前面：这样「只看有数据的」时不必跳过空行
-        bms.sort(key=lambda b: (not b["scores"], b["name"]))
+        bms.sort(key=lambda b: (not b["scores"], b["family"],
+                                subset_group.get(b["id"], {}).get("order", 0), b["name"]))
         groups.append({"id": c["id"], "name": c["name"],
                        "color": c["color"], "benchmarks": bms})
 

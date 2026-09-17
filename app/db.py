@@ -27,12 +27,26 @@ def init_db():
             name TEXT NOT NULL,
             base_url TEXT NOT NULL,
             api_key TEXT NOT NULL DEFAULT '',
+            -- 用途：test = 被测模型（可发起评测），judge = 判别器（只用来判分，不能被评测）。
+            -- 做成数据层的约束而不是 UI 约定：安全评测里「裁判自己也在被测之列」会带来自偏袒，
+            -- 而且裁判换了分数就不可比，所以必须能一路查到「这次是谁判的」。
+            kind TEXT NOT NULL DEFAULT 'test',
+            -- 额外请求参数（JSON 对象字符串，空 = 不带）。
+            -- 用途举例：DashScope 上的 Qwen3 思考模型传 {"enable_thinking": false} 可以关掉思考 ——
+            -- 当裁判时这很关键：实测思考型裁判每条要吐 ~700 个思考 token，
+            -- 而判分只需要一个词，白花的钱是判分成本的 3 倍。
+            -- 做成**模型级**配置而不是代码里写死 provider：不同厂商的参数名不一样，
+            -- 而且不能给不认识的 provider 乱发字段（严格校验的接口会直接 400）。
+            extra_body TEXT NOT NULL DEFAULT '',
             created_at TEXT DEFAULT (datetime('now','localtime'))
         );
         CREATE TABLE IF NOT EXISTS evaluations(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             model_id INTEGER NOT NULL,
             benchmark TEXT NOT NULL,
+            -- 裁判模型（只有安全类基准用得到）：哪一次评测是谁判的，必须能查回来 ——
+            -- 换了裁判分数就不可比，所以这个字段是结果的一部分，不是运行参数。
+            judge_model_id INTEGER,
             total INTEGER DEFAULT 0,
             done INTEGER DEFAULT 0,
             correct INTEGER DEFAULT 0,
@@ -85,6 +99,16 @@ def init_db():
     ]:
         if col not in cols:
             conn.execute(f"ALTER TABLE evaluations ADD COLUMN {col} {ddl}")
+    # 老库补列：模型用途（老库里的模型一律当被测模型，不给它们安判别器的身份）
+    mcols = {r["name"] for r in conn.execute("PRAGMA table_info(models)")}
+    if "kind" not in mcols:
+        conn.execute("ALTER TABLE models ADD COLUMN kind TEXT NOT NULL DEFAULT 'test'")
+    # 老库补列：裁判模型（老评测都是程序判分的，这一列留空即正确）
+    if "judge_model_id" not in cols:
+        conn.execute("ALTER TABLE evaluations ADD COLUMN judge_model_id INTEGER")
+    # 老库补列：模型级额外请求参数（老模型留空 = 行为和以前一样）
+    if "extra_body" not in mcols:
+        conn.execute("ALTER TABLE models ADD COLUMN extra_body TEXT NOT NULL DEFAULT ''")
     conn.commit()
 
 

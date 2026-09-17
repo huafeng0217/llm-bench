@@ -86,7 +86,19 @@ def main():
         return 0
 
     all_ok = True
+    current_fp = summary.fingerprint(stats)
+    stale = 0
     for r in rows:
+        # **过期 ≠ 不一致**：总结是「当时那份数据」的快照，指纹（summary.fingerprint）
+        # 就是用来判这件事的。数据一变（比如新增一个基准分类）它必然对不上 ——
+        # 判它失败等于要求历史总结预言未来，每加一个基准就会全线报红。
+        # 所以这里只对**指纹与当前一致**的总结做一致性检查，过期的如实标出来。
+        if (r["fingerprint"] or "") != current_fp:
+            stale += 1
+            print(f"[过期] 总结 #{r['id']} 由 {r['model_name']} 生成 —— "
+                  f"生成时的数据指纹 {r['fingerprint'] or '(空)'} ≠ 当前 {current_fp}，跳过比对"
+                  f"（点「生成总结」可刷新）")
+            continue
         try:
             content = json.loads(r["content"] or "{}")
         except ValueError:
@@ -103,7 +115,12 @@ def main():
         all_ok = all_ok and not problems
 
     print("=" * 74)
-    print("全部总结与统计事实一致。" if all_ok else "有总结与统计事实不一致，见上。")
+    if stale:
+        print(f"（{stale} 条总结是在旧数据上生成的，已跳过比对 —— 它们不代表现在的事实）")
+    if all_ok:
+        print("当前数据下的总结与统计事实一致。")
+    else:
+        print("有总结与统计事实不一致，见上。")
     return 0 if all_ok else 1
 
 

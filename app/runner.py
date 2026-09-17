@@ -5,6 +5,7 @@ import json
 import time
 
 from . import db, qtypes, sandbox
+from .benchmarks import get_meta
 from .config import DEFAULTS, SANDBOX_CONCURRENCY
 from .datasets import export_items, load_bfcl_answers, load_dataset
 from .qtypes.bfcl import is_bfcl, item_question_text
@@ -22,6 +23,17 @@ CODE_PARAM_FLOOR = {"max_tokens": 8192, "timeout_s": 180}
 
 
 LCB_PARAM_FLOOR = {"timeout_s": 300}
+
+
+# 安全类基准的参数**下限**：思考型模型（DeepSeek V4 等）的 reasoning token 也算在
+# max_tokens 里，给太小会让它**一个字的正文都没吐出来**（实测：512 时 20/20 题 content 为空，
+# 只有一行「[输出被 max_tokens 截断]」）—— 而空回复会被裁判判成「没有有害内容」，
+# 于是整场显示 100% 安全，什么都没测到。这是最危险的一类假成功。
+SAFETY_PARAM_FLOOR = {"max_tokens": 1024}
+
+# 喂给裁判的正文长度上限：**省裁判额度靠这个**，而不是靠压低被测模型的输出。
+# 多数有害/拒绝的判定在前 2000 字符内就能看清楚，而裁判额度是稀缺资源。
+SAFETY_JUDGE_CHARS = 2000
 
 
 async def run_evaluation(eval_id: int, resume: bool = False):
@@ -57,9 +69,22 @@ async def run_evaluation(eval_id: int, resume: bool = False):
 
         # 数据集级上下文：是否 BFCL、是否 multi_turn、标准答案表 —— 这些每题都一样，
         # 算一次交给题型注册表，避免在每道题上重新判断。
+        # 安全类基准还要带上裁判模型（整场共用，所以也放在 ctx 里）。
+        need_judge = bool(get_meta(benchmark).get("requires_judge"))
+        judge_cfg = None
+        if need_judge:
+            jid = ev.get("judge_model_id")
+            judge_cfg = db.query_one("SELECT * FROM models WHERE id=?", (jid,)) if jid else None
+            if not judge_cfg or judge_cfg.get("kind") != "judge":
+                # 正常路径上创建评测时就拦掉了；这里兜底，免得跑到一半每题都失败
+                conn.execute("UPDATE evaluations SET status='failed', error=? WHERE id=?",
+                             ("这个基准需要裁判模型，但评测里没有配置有效的判别器"
+                              "（judge_model_id 为空或该模型不是「判别器」）", eval_id))
+                conn.commit()
+                return
         qctx = qtypes.RunCtx(benchmark=benchmark, is_bfcl=fc,
                              is_multi_turn=is_multi_turn(benchmark) if fc else False,
-                             answers=answers)
+                             answers=answers, judge_cfg=judge_cfg)
 
         # 代码题要真跑容器：先确认沙箱可用，否则会全军覆没，
         # 而且报错会是一堆看不懂的 docker 异常。这里提前失败，并给出人能看懂的提示。
@@ -87,6 +112,9 @@ async def run_evaluation(eval_id: int, resume: bool = False):
                 params[k] = max(params[k], floor)
         if has_lcb:
             for k, floor in LCB_PARAM_FLOOR.items():
+                params[k] = max(params[k], floor)
+        if need_judge:
+            for k, floor in SAFETY_PARAM_FLOOR.items():
                 params[k] = max(params[k], floor)
         sem = asyncio.Semaphore(params["concurrency"])
         if resume:
@@ -117,6 +145,10 @@ async def run_evaluation(eval_id: int, resume: bool = False):
                     latency = resp["latency_ms"] + sbx_ms
                 async with lock:
                     counters["correct"] += ok
+                    # 题型自己声明的「跑失败」（如裁判判分失败）也要计入 failed：
+                    # 只靠异常计数的话，整场判分失败会被显示成「已完成」。
+                    if getattr(res, "failed", False):
+                        counters["failed"] += 1
                     counters["ptok"] += resp["prompt_tokens"]
                     counters["ctok"] += resp["completion_tokens"]
                     counters["lat"] += latency
@@ -149,7 +181,16 @@ async def run_evaluation(eval_id: int, resume: bool = False):
         await asyncio.gather(*(work(i, it) for i, it in todo))
         # items 始终是完整题库，所以这里用 len(items) 判定对全量与续跑都成立
         final = "done" if counters["failed"] < len(items) else "failed"
-        err_msg = None if final == "done" else "所有请求均失败，请检查 base_url / api_key / 模型名"
+        if final == "done":
+            err_msg = None
+        elif need_judge:
+            # 安全类基准全失败，最可能的原因不是被测模型，而是裁判：
+            # 裁判模型看到有害内容很可能直接拒答（那就解析不出判定）。
+            err_msg = ("所有题都判分失败。先检查裁判模型：它要读有害内容，"
+                       "安全对齐强的模型常会拒答 —— 换一个裁判、或改用它更严格遵循指令的版本。"
+                       "（被测模型的请求本身可能是正常的，可看逐题明细里的原始回复）")
+        else:
+            err_msg = "所有请求均失败，请检查 base_url / api_key / 模型名"
         conn.execute(
             "UPDATE evaluations SET status=?, error=?, finished_at=datetime('now','localtime') WHERE id=?",
             (final, err_msg, eval_id),

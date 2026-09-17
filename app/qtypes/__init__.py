@@ -37,7 +37,7 @@
 
 本文件只做「注册 + 把各模块的判分接成统一签名」，不含判分逻辑。
 """
-from . import bfcl, bfcl_multi_turn, choice, code_stdio, code_unit, numeric
+from . import bfcl, bfcl_multi_turn, choice, code_stdio, code_unit, numeric, safety
 from .types import Outcome, QuestionType, RunCtx
 
 __all__ = ["Outcome", "QuestionType", "RunCtx", "TYPES", "BY_ID", "detect"]
@@ -104,8 +104,13 @@ async def _run_bfcl_multi_turn(model_cfg, item, params, ctx) -> Outcome:
                    latency_ms=mr["latency_ms"])
 
 
+async def _run_safety(model_cfg, item, params, ctx) -> Outcome:
+    return Outcome(**await safety.run_safety_item(model_cfg, item, params, ctx))
+
+
 # ---------- 注册表（顺序即匹配优先级）----------
 # 数值题是**兜底**，必须放最后 —— 它的 detect 恒为真。
+# 安全题必须排在数值题之前（它也只有 question 字段，否则会被兜底吃掉）。
 
 TYPES: list[QuestionType] = [
     QuestionType(id="bfcl_multi_turn", label="多轮工具调用",
@@ -123,6 +128,9 @@ TYPES: list[QuestionType] = [
     QuestionType(id="choice", label="选择题",
                  detect=lambda ctx, it: choice.is_choice_item(it),
                  runner=_run_choice),
+    QuestionType(id="safety", label="安全 / 对齐（裁判判分）",
+                 detect=lambda ctx, it: safety.is_safety_item(it),
+                 runner=_run_safety),
     QuestionType(id="numeric", label="数值/表达式题",
                  detect=lambda ctx, it: True,          # 兜底
                  runner=_run_numeric),

@@ -5,11 +5,38 @@ import hashlib
 import json
 import random
 import re
+import sys
 import time
 
 from openai import AsyncOpenAI
 
 from .config import CHOICES, MAX_RETRIES
+
+
+def model_extra_body(model_cfg: dict):
+    """取模型级「额外请求参数」（models.extra_body，JSON 对象字符串）。
+
+    为什么要有它：不同厂商控制「关掉思考」的参数名不一样（DashScope 是
+    ``enable_thinking``），而**不能给不认识的 provider 乱发字段**（严格校验的接口会 400）。
+    所以做成模型级配置：谁需要谁自己填，没填就跟以前完全一样。
+    JSON 非法或不是对象时返回 None 并打印一行提示 —— 配置错误不该把整场评测打断。
+    """
+    raw = (model_cfg or {}).get("extra_body") or ""
+    if isinstance(raw, dict):
+        return raw or None
+    raw = str(raw).strip()
+    if not raw:
+        return None
+    try:
+        obj = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        print(f"  警告：模型 {model_cfg.get('name')} 的 extra_body 不是合法 JSON，已忽略：{raw[:80]}",
+              file=sys.stderr)
+        return None
+    if not isinstance(obj, dict):
+        print(f"  警告：模型 {model_cfg.get('name')} 的 extra_body 必须是 JSON 对象，已忽略", file=sys.stderr)
+        return None
+    return obj or None
 
 
 def parse_tool_calls(msg) -> list[dict]:
@@ -94,11 +121,13 @@ async def chat_once(model_cfg: dict, prompt: str, expected: str, params: dict):
         max_retries=0,
     )
     t0 = time.time()
+    extra = model_extra_body(model_cfg)
     r = await client.chat.completions.create(
         model=model_cfg["name"],
         messages=[{"role": "user", "content": prompt}],
         temperature=0,
         max_tokens=params["max_tokens"],  # 思考型模型的 reasoning tokens 也占额度，预算要给足
+        **({"extra_body": extra} if extra else {}),
     )
     latency = int((time.time() - t0) * 1000)
     usage = r.usage
@@ -125,12 +154,14 @@ async def chat_once_bfcl(model_cfg: dict, messages: list, tools: list, ground_tr
         max_retries=0,
     )
     t0 = time.time()
+    extra = model_extra_body(model_cfg)
     r = await client.chat.completions.create(
         model=model_cfg["name"],
         messages=messages,
         tools=tools,
         temperature=0,
         max_tokens=params["max_tokens"],
+        **({"extra_body": extra} if extra else {}),
     )
     latency = int((time.time() - t0) * 1000)
     usage = r.usage
