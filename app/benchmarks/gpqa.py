@@ -69,6 +69,7 @@ def download_gpqa():
 
 ENTRIES = [
     Benchmark(order=7, id='gpqa',
+        summary='研究生级理科四选一，Google-Proof：难到搜不到答案，前沿模型也就六七十分',
         name='GPQA Diamond',
         category='科学推理',
         lang='英文',

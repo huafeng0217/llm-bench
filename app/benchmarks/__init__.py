@@ -24,16 +24,18 @@
 import importlib
 import pkgutil
 
-from .types import Benchmark
+from .types import Benchmark, Family, Group  # noqa: F401  (Family/Group 供各基准模块声明)
 
 # 统一分类体系（前端按此分组展示；顺序即展示顺序）
 CATEGORIES = [
     {"id": "knowledge", "name": "通用知识", "color": "#4a7de0"},
     {"id": "chinese", "name": "中文能力", "color": "#e05a4a"},
     {"id": "science", "name": "科学推理", "color": "#7a5ae0"},
+    {"id": "commonsense", "name": "常识推理", "color": "#0f9b9b"},
     {"id": "math", "name": "数学推理", "color": "#2fa36b"},
     {"id": "agent", "name": "Agent / 工具调用", "color": "#e0952f"},
     {"id": "code", "name": "代码工程", "color": "#2f9be0"},
+    {"id": "safety", "name": "安全 / 对齐", "color": "#c44b8a"},
     {"id": "custom", "name": "自定义", "color": "#8a94a6"},
 ]
 
@@ -41,6 +43,10 @@ FALLBACK = {
     "category": "自定义",
     "lang": "-",
     "status": "自定义题库",
+    # 自定义题库（data/ 里存在但 META 未收录）没有官方口径可写，卡片上要**如实说明这一点**，
+    # 而不是显示一段和所有自定义题库都一样的格式说明 —— 那对区分它们毫无帮助。
+    # 摘要写「这是什么」，完整说明留给「怎么写一个」（选中后展开）。
+    "summary": "自己放进 data/ 的题库：没有官方口径说明，卡片只按文件名与题量显示",
     "description": "用户自定义或下载的题库（jsonl 格式：question/A/B/C/D/answer 字段）。",
     "source": "",
 }
@@ -65,14 +71,59 @@ def _discover() -> list:
     return sorted(found.values(), key=lambda e: (e.order, e.id))
 
 
+def _discover_families() -> dict:
+    """收集各模块声明的 FAMILY_DEFS（家族 = 同一数据源的多个子集 + 官方分组权重）。"""
+    found: dict = {}
+    for info in pkgutil.iter_modules(__path__):
+        if info.name.startswith("_") or info.name == "types":
+            continue
+        mod = importlib.import_module(f"{__name__}.{info.name}")
+        for f in getattr(mod, "FAMILY_DEFS", []) or []:
+            if f.id in found:
+                raise RuntimeError(f"家族 id 重复: {f.id}（{info.name} 与其它模块）")
+            found[f.id] = f
+    return found
+
+
 ENTRIES: list = _discover()
+FAMILIES: dict = _discover_families()
+
+# 家族的合法性检查放在这里一次性做完：条目写错 group、家族忘了声明、权重没配平，
+# 都直接在 import 时炸掉 —— 而不是等界面上少一块、或者加权总分悄悄算错才发现。
+for _e in ENTRIES:
+    if _e.family:
+        _f = FAMILIES.get(_e.family)
+        if _f is None:
+            raise RuntimeError(f"{_e.id} 声明了未定义的家族: {_e.family}")
+        if _e.group not in {g.id for g in _f.groups}:
+            raise RuntimeError(f"{_e.id} 的 group={_e.group!r} 不在家族 {_e.family} 的分组里")
+    elif _e.group:
+        raise RuntimeError(f"{_e.id} 没有 family 却声明了 group={_e.group!r}")
+for _f in FAMILIES.values():
+    if abs(sum(g.weight for g in _f.groups) - 1.0) > 1e-9:
+        raise RuntimeError(f"家族 {_f.id} 的官方权重之和不是 1.0")
+    if len({g.order for g in _f.groups}) != len(_f.groups):
+        raise RuntimeError(f"家族 {_f.id} 的分组 order 有重复")
+
+# 家族 -> [分组 dict]（按官方顺序），每个分组带自己的子集 id。
+# 这是**唯一**一处算「哪个子集属于哪个组」的地方：UI 折叠与加权总分都用它。
+FAMILY_GROUPS: dict = {}
+for _f in FAMILIES.values():
+    _groups = []
+    for _g in sorted(_f.groups, key=lambda g: g.order):
+        _subs = [e.id for e in ENTRIES if e.family == _f.id and e.group == _g.id]
+        _groups.append({"id": _g.id, "name": _g.name, "weight": _g.weight,
+                        "order": _g.order, "subsets": _subs})
+    FAMILY_GROUPS[_f.id] = _groups
 
 # 派生视图：保持既有调用方（main.py / 前端）用的形态不变
 META = {
     e.id: {
         "name": e.name, "category": e.category, "lang": e.lang, "status": e.status,
-        "description": e.description, "source": e.source,
+        "summary": e.summary, "description": e.description, "source": e.source,
         **({"requires_docker": True} if e.requires_docker else {}),
+        **({"requires_judge": True} if e.requires_judge else {}),
+        **({"family": e.family, "group": e.group} if e.family else {}),
     }
     for e in ENTRIES
 }
@@ -95,6 +146,17 @@ def get_meta(benchmark_id: str) -> dict:
     else:
         meta["category_id"] = "custom"
         meta["category_color"] = "#8a94a6"
+    # 家族成员的标签信息一并给前端：卡片上要标出组别与官方权重
+    fam = FAMILIES.get(meta.get("family") or "")
+    if fam:
+        meta["family_note"] = fam.note
+        meta["family_source"] = fam.source
+        for g in FAMILY_GROUPS.get(fam.id, []):
+            if g["id"] == meta.get("group"):
+                meta["group_name"] = g["name"]
+                meta["group_weight"] = g["weight"]
+                meta["group_subsets"] = len(g["subsets"])
+                break
     return meta
 
 

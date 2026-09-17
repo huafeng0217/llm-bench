@@ -3,7 +3,7 @@
 from .types import Benchmark
 import sys
 import time
-from ._util import DATA_DIR, LETTERS, REQUEST_GAP, fetch_rows, list_configs
+from ._util import DATA_DIR, LETTERS, REQUEST_GAP, fetch_rows, list_configs, write_jsonl
 
 
 
@@ -62,9 +62,7 @@ def ds_download_rows(name: str, src: dict, n: int):
     print()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     final = out[:n] if n > 0 else out
-    with open(path, "w", encoding="utf-8") as f:
-        for item in final:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+    write_jsonl(path, final)     # 原子写：中断不会留下「看起来完整的截断题库」
     print(f"完成：{path}（{len(final)} 题）")
 
 
@@ -78,6 +76,7 @@ def download_ceval():
 
 ENTRIES = [
     Benchmark(order=1, id='ceval_sample',
+        summary='12 题中文演示样例：不下载完整题库，也能先跑通流程',
         name='C-Eval 演示样例',
         category='中文能力',
         lang='中文',
@@ -85,6 +84,7 @@ ENTRIES = [
         description='内置 12 道 C-Eval 风格中文选择题，用于快速跑通流程。正式评测请用下载脚本拉取完整 C-Eval。',
         source='https://arxiv.org/abs/2305.08322'),
     Benchmark(order=5, id='ceval',
+        summary='中文 52 学科考试题，中文能力基线；与 CMMLU 搭配看中文知识广度',
         name='C-Eval',
         category='中文能力',
         lang='中文',

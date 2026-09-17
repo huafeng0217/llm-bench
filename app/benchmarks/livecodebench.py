@@ -84,6 +84,7 @@ def download_livecodebench():
 
 ENTRIES = [
     Benchmark(order=24, id='livecodebench',
+        summary='2025 年竞赛新题、防污染；模型代码真跑官方测试用例来判分',
         name='LiveCodeBench v6',
         category='代码工程',
         lang='Python',

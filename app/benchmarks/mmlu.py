@@ -3,7 +3,7 @@
 from .types import Benchmark
 import sys
 import time
-from ._util import DATA_DIR, LETTERS, REQUEST_GAP, fetch_rows, list_configs
+from ._util import DATA_DIR, LETTERS, REQUEST_GAP, fetch_rows, list_configs, write_jsonl
 
 
 
@@ -65,9 +65,7 @@ def ds_download_rows(name: str, src: dict, n: int):
     print()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     final = out[:n] if n > 0 else out
-    with open(path, "w", encoding="utf-8") as f:
-        for item in final:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+    write_jsonl(path, final)     # 原子写：中断不会留下「看起来完整的截断题库」
     print(f"完成：{path}（{len(final)} 题）")
 
 
@@ -81,6 +79,7 @@ def download_mmlu():
 
 ENTRIES = [
     Benchmark(order=0, id='mmlu_sample',
+        summary='12 题演示样例：不下载任何题库，也能把整条评测流程先跑通',
         name='MMLU 演示样例',
         category='通用知识',
         lang='英文',
@@ -88,6 +87,7 @@ ENTRIES = [
         description='内置 12 道 MMLU 风格选择题，用于快速跑通流程。正式评测请用下载脚本拉取完整 MMLU。',
         source='https://arxiv.org/abs/2009.03300'),
     Benchmark(order=2, id='mmlu',
+        summary='57 学科 4 选 1 的通识基线；前沿模型已 88%+，适合筛查、不适合拉开差距',
         name='MMLU',
         category='通用知识',
         lang='英文',

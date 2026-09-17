@@ -91,6 +91,7 @@ def download_cmmlu():
 
 ENTRIES = [
     Benchmark(order=6, id='cmmlu',
+        summary='中文多学科知识，题型比 C-Eval 更贴中文语境；看中文知识是否偏科',
         name='CMMLU',
         category='中文能力',
         lang='中文',

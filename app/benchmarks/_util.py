@@ -8,6 +8,7 @@ http_json（带 hf-mirror 回退）区分开 —— 两者打的是不同服务�
 
 import io
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -90,10 +91,32 @@ def decode_text(b: bytes) -> str:
 
 
 def write_jsonl(path: Path, items: list):
+    """写一份题库 jsonl。**先写 .part 再改名** —— 不这么做有两个真实后果：
+
+    1. 下载中断（Ctrl+C、网络断、磁盘满）会留下一个**被截断但看起来正常**的
+       ``data/xxx.jsonl``。它会被当成一份完整题库：页面上显示成「N 题 已就绪」，
+       而且 ``count_lines`` 会把它当作题库总量去算覆盖率 ——
+       于是「14042 题的 MMLU 只下到 5000 题」会让跑满 5000 题的评测显示成 100% 覆盖。
+    2. 写到一半时行数一直在变，行数缓存（见 ``datasets.count_lines``）每轮询一次就失效重算。
+
+    ``os.replace`` 在同一目录内是原子的：要么旧文件、要么完整新文件，不会有中间态。
+    livecodebench 那份 134MB 的题库一直是这么写的，这里统一成同一套。
+    """
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        for it in items:
-            f.write(json.dumps(it, ensure_ascii=False) + "\n")
+    tmp = path.with_suffix(path.suffix + ".part")
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            for it in items:
+                f.write(json.dumps(it, ensure_ascii=False) + "\n")
+        os.replace(tmp, path)
+    except BaseException:
+        # 失败就把半成品删掉：留着一个「看起来像完整题库」的截断文件比没有更糟
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
 
 
 def _ensure_pyarrow():
@@ -248,11 +271,15 @@ def list_configs(dataset: str):
 
 
 def fetch_ds_rows(dataset: str, config: str, split: str) -> list:
-    """从 datasets-server rows API 分页拉取全部行，返回 list[dict]。"""
+    """从 datasets-server rows API 分页拉取指定 config/split 的全部行。
+
+    用**整个数据集**的行数当循环上界也可以：某一份 config/split 往往只占数据集的一小部分
+    （HellaSwag 数据集 6 万行、validation 只有 1 万行），翻到没有数据的那一页就 break。
+    """
     ds_q = urllib.parse.quote(dataset, safe="")
     size = http_json(f"https://datasets-server.huggingface.co/size?dataset={ds_q}")
     total = size["size"]["dataset"]["num_rows"]
-    print(f"{dataset}：共 {total} 行")
+    print(f"{dataset}：整个数据集 {total} 行（本次只取 {config}/{split}，取到没有数据为止）")
     out = []
     offset = 0
     length = 100  # datasets-server 单次 rows 上限

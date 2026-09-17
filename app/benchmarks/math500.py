@@ -24,6 +24,7 @@ def download_math500():
 
 ENTRIES = [
     Benchmark(order=9, id='math500',
+        summary='竞赛数学 500 题，答案多为表达式；比 GSM8K 难一档，考多步推理与符号运算',
         name='MATH-500',
         category='数学推理',
         lang='英文',

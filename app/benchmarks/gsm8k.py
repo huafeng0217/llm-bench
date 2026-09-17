@@ -23,6 +23,7 @@ def download_gsm8k():
 
 ENTRIES = [
     Benchmark(order=8, id='gsm8k',
+        summary='小学数学应用题：看基础推理过不过关，前沿模型已接近饱和，适合当烟雾测试',
         name='GSM8K',
         category='数学推理',
         lang='英文',

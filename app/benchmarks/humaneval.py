@@ -49,6 +49,7 @@ def download_humaneval():
 
 ENTRIES = [
     Benchmark(order=23, id='humaneval',
+        summary='给函数签名与 docstring 让模型补全函数体，官方单测真跑一遍，糊不过去',
         name='HumanEval',
         category='代码工程',
         lang='Python',

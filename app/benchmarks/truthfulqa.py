@@ -43,6 +43,7 @@ def download_truthfulqa():
 
 ENTRIES = [
     Benchmark(order=4, id='truthfulqa',
+        summary='判断常见说法是真是假，选项数不固定；专测会不会复述网上的流行误解',
         name='TruthfulQA',
         category='通用知识',
         lang='英文',

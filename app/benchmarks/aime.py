@@ -45,6 +45,7 @@ def download_aime(only: str | None = None):
 
 ENTRIES = [
     Benchmark(order=10, id='aime',
+        summary='美国数学邀请赛真题、答案都是整数；难度高，但年份早、可能已进训练数据',
         name='AIME 2022-2024',
         category='数学推理',
         lang='英文',
@@ -54,6 +55,7 @@ ENTRIES = [
         label='AIME 2022-2024（数学竞赛真题，90 题）',
         download=partial(download_aime, "aime")),
     Benchmark(order=11, id='aime2025',
+        summary='2025 年 AIME 新题，几乎不可能在训练数据里；最能反映真实数学水平',
         name='AIME 2025',
         category='数学推理',
         lang='英文',

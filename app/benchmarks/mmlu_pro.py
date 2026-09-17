@@ -37,6 +37,7 @@ def download_mmlu_pro():
 
 ENTRIES = [
     Benchmark(order=3, id='mmlu_pro',
+        summary='MMLU 的加难版：10 选 1、推理链更长，用来区分「已饱和」之后还差多少',
         name='MMLU-Pro',
         category='通用知识',
         lang='英文',
