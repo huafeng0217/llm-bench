@@ -61,6 +61,9 @@
   button.ghost:hover { color:var(--text); border-color:var(--accent); filter:none; }
   button.ghost:disabled { opacity:.45; cursor:default; }
   button.ghost:disabled:hover { color:var(--muted); border-color:var(--border2); }
+  /* 小号主按钮：弹层页脚的主操作要用**实心**主题色，才能和描边的次要操作（关闭/来源）分出主次；
+     高度跟旁边的小胶囊一致（5px 内边距），否则一行里一高一矮。 */
+  button.sm { padding:5px 14px; font-size:12.5px; border-radius:9px; }
 
   /* 更多操作（⋯）下拉菜单 */
   .menu-wrap { position:relative; display:inline-block; }
@@ -82,6 +85,10 @@
   .row > * { flex:1; min-width:140px; }
 
   /* 基准卡片 */
+  /* 卡片高度不均的问题：网格用默认的 stretch（不加 align-items:start），
+     同行卡片高度一致、底部对齐。但这样「点开一张卡看详情」又会把整行撑高 ——
+     所以详情做成**绝对定位的浮层**（不参与布局），任何卡片的高度都不会变。
+     两件事必须一起做：只做浮层不 stretch → 底部参差；只 stretch 不浮层 → 一行被一起撑高。 */
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; }
   .catbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
   .catchip { font-size:12px; padding:5px 14px; border-radius:20px; cursor:pointer;
@@ -93,17 +100,54 @@
               font-size:13px; font-weight:600; }
   .cat-head .dot { width:9px; height:9px; border-radius:3px; }
   .cat-head .cnt { color:var(--faint); font-weight:500; font-size:12px; }
-  .bm { cursor:pointer; position:relative; transition:border-color .15s, background .15s; }
+  .bm { cursor:pointer; position:relative; transition:border-color .15s, background .15s;
+        /* 竖排布局 + 页脚 margin-top:auto：把「下载/来源」那一行压到卡片底部，
+           这样同行卡片即使简介行数不同，按钮也在同一条水平线上。 */
+        display:flex; flex-direction:column; }
+  .bm .foot { margin-top:auto; padding-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  /* 卡片页脚 / 弹层页脚：同一行里的控件统一成**同款小胶囊**。
+     以前按钮是描边小按钮、来源是 12px 裸链接（无边框无内边距），字号和外形都不一样，
+     一行里高矮胖瘦不齐，看着像没做完。现在链接和 ghost 按钮同字号/同内边距/同圆角/同边框，
+     hover 也都是边框+文字变主题色 —— 一行里不管几个控件，只差文字。 */
+  .bm .foot a, .modal .foot a { border:1px solid var(--border2); border-radius:9px; padding:5px 12px;
+                                font-size:12.5px; color:var(--muted); text-decoration:none; white-space:nowrap;
+                                transition:color .15s, border-color .15s; }
+  .bm .foot a:hover, .modal .foot a:hover { color:var(--text); border-color:var(--accent); text-decoration:none; }
+  .foot .ghost { font-size:12.5px; }
   .bm::before { content:""; position:absolute; left:0; top:14px; bottom:14px; width:3px; border-radius:3px;
                 background:transparent; transition:background .15s; }
   .bm:hover { border-color:var(--border2); background:var(--card2); }
   .bm.sel { border-color:var(--accent); background:var(--card2); }
   .bm.sel::before { background:var(--accent); }
   .bm .nm { font-weight:600; font-size:14px; }
+  /* 卡片上放两行以内的 summary；完整的 description 在**选中后**展开。
+     以前是把长说明硬截成两行，30 个基准里 80% 看不全（最长的只显示 23%）——
+     问题不在「文字太长」，而在同一段文字被要求既当速览又当说明书。 */
   .bm .desc { color:var(--muted); font-size:12.5px; margin:8px 0 2px;
               display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  /* 完整简介走**居中弹层**，不再在卡片里就地展开。
+     试过两种「就地展开」都不行：① 直接展开会把同行卡片一起撑高（看起来像一起展开了）；
+     ② 做成绝对定位浮层虽然不撑高，但会**盖住下面的卡片或评测栏**，而且看着像页面的一部分，
+     让人分不清是浮层还是页面元素。弹层有背景遮罩、可关闭，就不存在这个歧义。 */
+  .modal { position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center;
+           padding:24px; background:rgba(16,24,40,.45); }
+  .modal[hidden] { display:none; }
+  .modal .box { background:var(--card); border-radius:14px; width:100%; max-width:660px; max-height:82vh;
+                overflow:auto; padding:18px 20px; box-shadow:0 18px 44px rgba(16,24,40,.28); cursor:default; }
+  .modal .box h3 { margin:0; font-size:15.5px; }
+  .modal .box .body { color:var(--text); font-size:13px; line-height:1.8; margin-top:10px;
+                      white-space:pre-wrap; }
+  /* 弹层页脚也是「一行控件」：必须 flex，否则 margin-left:auto 在块容器里是空操作，
+     主按钮不会靠右，链接和按钮的基线也对不齐。 */
+  .modal .foot { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .bm a { color:var(--accent2); font-size:12px; text-decoration:none; }
   .bm a:hover { text-decoration:underline; }
+  /* 家族（如 BFCL v4）卡片里的子集切换器 */
+  .bm select.famsel { width:100%; margin:8px 0 2px; padding:6px 8px; font-size:12.5px;
+                      border:1px solid var(--border2); border-radius:8px; background:var(--card);
+                      color:var(--text); cursor:pointer; }
+  .bm select.famsel:hover { border-color:var(--accent); }
+  .bm .famnote { color:var(--faint); font-size:11.5px; margin-top:6px; line-height:1.6; }
   .tags { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
   .tag { font-size:11px; padding:2px 9px; border-radius:20px; border:1px solid var(--border2); color:var(--muted); }
   .tag.ok { color:var(--green); border-color:rgba(34,153,92,.4); background:rgba(34,153,92,.07); }
@@ -111,7 +155,11 @@
 
   /* 表格 */
   table { width:100%; border-collapse:collapse; font-size:13px; }
-  th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--border); }
+  /* 表格对齐：**表头必须和它那一列的数据对齐**，否则每一列都错位半格。
+     默认居中（数值、进度条、状态、按钮这类紧凑内容是居中最稳），
+     文本列用 .tl 显式左对齐（名字、长文本）—— 表头也跟着左对齐。 */
+  th,td { text-align:center; padding:9px 12px; border-bottom:1px solid var(--border); }
+  th.tl, td.tl { text-align:left; }
   th { color:var(--muted); font-weight:500; font-size:12px; letter-spacing:.3px; }
   tbody tr { transition:background .12s; }
   tbody tr:hover { background:rgba(74,125,224,.05); }
@@ -179,6 +227,12 @@
      不再用深浅色阶：色阶要盯着比深浅才看得出差别，而"谁在这一项上最好"是一眼就该看到的。 */
   .ov-table td.ov-top { background:var(--accent); color:#fff; }
   .ov-table td.ov-plain { background:var(--bg2); color:var(--text); }
+  /* 部分评测（没跑完整题库）：虚线框 + 小标记，且**不参与**最高分评选 ——
+     否则「跑 6 题全对」会把一项基准的最高分占掉，看起来像真实水平 */
+  .ov-table td.ov-partial { background:var(--bg2); color:var(--text); box-shadow:inset 0 0 0 1px var(--border2); }
+  .ov-table .ov-part { display:block; font-size:9px; line-height:1; color:var(--faint); font-weight:500; margin-top:2px; }
+  /* 家族子集（如 BFCL v4 的 16 个）在行标题下角标出官方分组与权重 */
+  .ov-table td.ov-bench .ov-grp { display:block; font-size:10px; color:var(--faint); font-weight:500; }
 </style>
 </head>
 <body>
@@ -221,14 +275,18 @@
         <input id="m-name" placeholder="模型名（API 调用的名字，如 deepseek-v4-flash）">
         <input id="m-url" placeholder="base_url（必填），如 https://api.deepseek.com">
         <input id="m-key" placeholder="API Key" type="password">
+        <select id="m-kind" style="flex:0 0 150px" title="判别器只用于给安全类基准判分，不会出现在被测模型里">
+          <option value="test">被测模型</option>
+          <option value="judge">判别器</option>
+        </select>
         <button style="flex:0 0 auto" class="ghost" onclick="testConn()">测试连接</button>
         <button style="flex:0 0 auto" onclick="addModel()">添加</button>
       </div>
       <div class="muted" id="m-test-result" style="margin-top:8px"></div>
     </div>
   </div>
-  <div class="card" style="padding:6px 18px"><table><thead><tr><th>模型</th><th>base_url</th><th>Key</th><th style="width:70px"></th></tr></thead>
-    <tbody id="models"><tr><td colspan="4" class="empty">暂无模型</td></tr></tbody></table></div>
+  <div class="card" style="padding:6px 18px"><table><thead><tr><th class="tl">模型</th><th style="width:110px">用途</th><th class="tl">base_url</th><th class="tl">Key</th><th style="width:150px"></th></tr></thead>
+    <tbody id="models"><tr><td colspan="5" class="empty">暂无模型</td></tr></tbody></table></div>
 
   <h2><span class="no">2</span>选择基准并发起评测</h2>
   <div id="cat-filter" class="catbar"></div>
@@ -237,6 +295,7 @@
     <div class="row">
       <select id="e-model" onchange="updateEvalHint()"></select>
       <input id="e-limit" type="number" min="0" placeholder="题目数（0 或留空 = 全部）">
+      <select id="e-judge" onchange="updateEvalHint()" style="display:none"></select>
       <button id="start-btn" style="flex:0 0 auto" onclick="startEval()">开始评测</button>
     </div>
     <details style="margin-top:12px">
@@ -254,7 +313,7 @@
   <h2><span class="no">3</span>评测任务<span id="batch-toggle" style="margin-left:auto"></span></h2>
   <div class="card" style="padding:6px 18px"><table><thead><tr>
     <th id="th-check" style="width:32px; display:none"><input type="checkbox" id="task-check-all" onclick="toggleAllTasks(this)" title="全选本页"></th>
-    <th style="width:40px">#</th><th>模型</th><th>基准</th><th>进度</th><th>正确率</th><th>状态</th><th style="width:130px"></th>
+    <th style="width:40px">#</th><th class="tl">模型</th><th class="tl">基准</th><th>进度</th><th>正确率</th><th>状态</th><th style="width:130px"></th>
   </tr></thead><tbody id="evals"><tr><td colspan="7" class="empty">暂无任务</td></tr></tbody></table>
     <div id="batch-bar" style="padding:4px 0"></div>
     <div id="task-controls" style="padding:8px 0"></div></div>
@@ -279,6 +338,20 @@
     </div>
   </div>
   <div id="summary-box"></div>
+</div>
+
+<!-- 基准简介弹层：点卡片上的简介文字或「简介」按钮打开；点背景 / ✕ / Esc 关闭。
+     用弹层而不是就地展开，是为了不遮挡下面的卡片与评测栏，也不改变任何卡片的高度。 -->
+<div id="bm-modal" class="modal" hidden onclick="hideBmDetail()">
+  <div class="box" onclick="event.stopPropagation()">
+    <div style="display:flex;align-items:flex-start;gap:10px">
+      <h3 id="bm-modal-title"></h3>
+      <button class="ghost" style="margin-left:auto" onclick="hideBmDetail()">关闭</button>
+    </div>
+    <div class="tags" id="bm-modal-tags"></div>
+    <div class="body" id="bm-modal-body"></div>
+    <div class="foot" style="margin-top:12px" id="bm-modal-foot"></div>
+  </div>
 </div>
 
 <script>
@@ -339,9 +412,11 @@ function bmCard(b) {
         ${statusTag(b.status)}
         ${dockerTag}
       </div>
-      <div class="desc" title="${esc(b.description)}">${esc(b.description)}</div>
-      <div style="display:flex; align-items:center; gap:8px; margin-top:8px">
+      <div class="desc" title="点击查看完整简介"
+           onclick="event.stopPropagation(); showBmDetail('${esc(b.id)}')">${esc(b.summary || b.description)}</div>
+      <div class="foot">
         ${dlHtml}
+        <button class="ghost" onclick="event.stopPropagation(); showBmDetail('${esc(b.id)}')">简介</button>
         ${b.source ? `<a href="${esc(b.source)}" target="_blank" onclick="event.stopPropagation()">论文/来源 ↗</a>` : ""}
       </div>
     </div>`;
@@ -349,12 +424,101 @@ function bmCard(b) {
 
 function setCat(id) {
   catFilter = id;
-  loadBenchmarks();
+  // 只重渲染：切分类只是换筛选条件，数据一模一样，没必要再问一次服务器。
+  // （后端那次请求曾经很贵 —— 它要把 data/ 里所有题库数一遍行数，
+  //   134MB 的 livecodebench 也在其中，见 datasets.count_lines 的说明。）
+  renderBenchmarks();
 }
+
+// 最近一次的题库列表：切分类时直接复用，避免多余的往返与白屏
+let benchList = null;
+// 最近一次的模型列表（含 kind / evaluations）：评测提示里要按 id 查裁判名字
+let modelList = null;
+// 家族卡片里当前选中的子集：family -> 子集 id
+let familySel = {};
+
+const pct = w => (w == null ? "" : Math.round(w * 100) + "%");
 
 async function loadBenchmarks() {
   const [bs, dl] = await Promise.all([api("/api/benchmarks"), api("/api/benchmarks/downloads")]);
   downloadStates = dl;
+  benchList = bs;
+  renderBenchmarks();
+}
+
+// 家族卡片：把同一数据源的多个子集（如 BFCL v4 的 16 个）折叠成一张卡，
+// 里面用下拉切换子集。为什么要折叠：16 个子集平铺会把整个分类占满，
+// 而它们本来就是同一份数据源、同一套判分，选哪个只是换个切片看。
+function familyCard(fid, bms) {
+  const keep = familySel[fid];
+  const sel = (selBenchmark && bms.some(b => b.id === selBenchmark)) ? selBenchmark
+            : (keep && bms.some(b => b.id === keep)) ? keep : bms[0].id;
+  familySel[fid] = sel;
+  const cur = bms.find(b => b.id === sel) || bms[0];
+  const ready = bms.filter(b => b.count > 0).length;
+  const nGroups = new Set(bms.map(b => b.group_name).filter(Boolean)).size;
+  const opts = bms.map(b => `<option value="${esc(b.id)}"${b.id === sel ? " selected" : ""}>`
+    + `${b.group_name ? esc(b.group_name) + " · " : ""}${esc(b.name.replace(fid + " · ", ""))}`
+    // 带上那一行简介：16 个子集里挑的时候，「缺函数 vs 缺参数」这种差别就靠它一眼分开
+    + `${b.summary ? " — " + esc(b.summary) : ""}`
+    + `${b.count > 0 ? "（" + b.count + " 题）" : "（未下载）"}</option>`).join("");
+
+  const dl = downloadStates[sel] || {};
+  let dlHtml;
+  if (cur.count > 0) dlHtml = `<span class="tag ok">已就绪</span>`;
+  else if (dl.status === "running") dlHtml = `<button class="ghost" style="cursor:default" disabled onclick="event.stopPropagation()">下载中…</button>`;
+  else if (cur.downloadable) dlHtml = `<button class="ghost" onclick="event.stopPropagation(); downloadBm('${esc(cur.id)}')">下载本子集</button>`;
+  else dlHtml = `<span class="tag warn">暂未提供下载</span>`;
+
+  const anyMissing = bms.some(b => b.downloadable && b.count === 0);
+  const allBtn = anyMissing
+    ? `<button class="ghost" onclick="event.stopPropagation(); downloadFamily('${esc(fid)}')">下载全部 ${bms.length} 个子集</button>`
+    : "";
+
+  return `
+    <div class="card bm${sel === selBenchmark ? " sel" : ""}" data-id="${esc(sel)}"
+         onclick="pickBenchmark('${esc(sel)}', this)">
+      <div class="nm">${esc(fid)} <span class="tag">${bms.length} 个子集 · ${nGroups} 个官方分组</span></div>
+      <div class="tags">
+        <span class="tag">${esc(cur.category)}</span>
+        <span class="tag ${cur.group_name ? "ok" : ""}">${esc(cur.group_name || "-")} 组 · 官方权重 ${pct(cur.group_weight)}</span>
+        <span class="tag">已就绪 ${ready}/${bms.length}</span>
+      </div>
+      <select class="famsel" onclick="event.stopPropagation()"
+              onchange="event.stopPropagation(); pickFamilySubset('${esc(fid)}', this.value)">${opts}</select>
+      <div class="tags">
+        <span class="tag">${cur.count > 0 ? cur.count + " 题" : "未下载"}</span>
+        <span class="tag">${esc(cur.lang)}</span>
+        ${statusTag(cur.status)}
+      </div>
+      <div class="desc" title="点击查看完整简介"
+           onclick="event.stopPropagation(); showBmDetail('${esc(cur.id)}')">${esc(cur.summary || cur.description)}</div>
+      <div class="famnote" title="${esc(cur.family_note || "")}">官方总分口径：${esc(cur.family_note || "")}</div>
+      <div class="foot">
+        ${dlHtml}${allBtn}
+        <button class="ghost" onclick="event.stopPropagation(); showBmDetail('${esc(cur.id)}')">简介</button>
+        ${cur.source ? `<a href="${esc(cur.source)}" target="_blank" onclick="event.stopPropagation()">论文/来源 ↗</a>` : ""}
+      </div>
+    </div>`;
+}
+
+function pickFamilySubset(fid, sid) {
+  familySel[fid] = sid;
+  selBenchmark = sid;
+  renderBenchmarks();
+  updateEvalHint();
+}
+
+async function downloadFamily(fid) {
+  try {
+    await api("/api/families/" + encodeURIComponent(fid) + "/download", { method:"POST" });
+  } catch (e) { return alert("下载失败：" + e.message); }
+  loadBenchmarks();          // 立即刷新为「下载中…」
+  pollDownloadUntilDone();
+}
+
+function renderBenchmarks() {
+  const bs = benchList || [];
   benchMeta = Object.fromEntries(bs.map(b => [b.id, b]));
   document.getElementById("stat-bms").textContent = bs.length;
   // 收集分类（保持服务端 CATEGORIES 顺序）
@@ -373,15 +537,27 @@ async function loadBenchmarks() {
     `<span class="catchip ${catFilter === "" ? "on" : ""}" style="${catFilter === "" ? "background:var(--accent)" : ""}" onclick="setCat('')">全部 · ${bs.length}</span>` +
     cats.map(chip).join("");
 
-  // 按分类分组渲染
+  // 按分类分组渲染。家族（同名 family 的多个子集）在其中折叠成一张卡，
+  // 位置取它第一个子集的位置，这样卡片顺序仍由服务端的 order 决定。
   const shown = catFilter ? bs.filter(b => (b.category_id || "custom") === catFilter) : bs;
   const groups = [];
   cats.forEach(c => {
     const list = shown.filter(b => (b.category_id || "custom") === c.id);
     if (!list.length) return;
+    const cards = [];
+    const doneFam = new Set();
+    list.forEach(b => {
+      if (b.family) {
+        if (doneFam.has(b.family)) return;
+        doneFam.add(b.family);
+        cards.push(familyCard(b.family, list.filter(x => x.family === b.family)));
+      } else {
+        cards.push(bmCard(b));
+      }
+    });
     groups.push(
       `<div class="cat-head"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}<span class="cnt">${list.length} 个</span></div>` +
-      list.map(bmCard).join(""));
+      cards.join(""));
   });
   document.getElementById("benchmarks").innerHTML =
     groups.join("") || `<div class="empty" style="grid-column:1/-1">该分类下暂无基准</div>`;
@@ -421,13 +597,59 @@ async function loadModels() {
     if (keep && ms.some(m => String(m.id) === keep)) ssel.value = keep;
   }
   const tb = document.getElementById("models");
-  tb.innerHTML = ms.length ? ms.map(m =>
-    `<tr><td style="font-weight:550">${esc(m.name)}</td><td class="muted">${esc(m.base_url)}</td><td class="muted">${esc(m.api_key)}</td>
-     <td><button class="ghost" onclick="delModel(${m.id})">删除</button></td></tr>`).join("")
-    : `<tr><td colspan="4" class="empty">暂无模型</td></tr>`;
-  document.getElementById("e-model").innerHTML =
-    ms.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("") || `<option value="">（先添加模型）</option>`;
+  tb.innerHTML = ms.length ? ms.map(m => {
+    const judge = m.kind === "judge";
+    // 判分用途与「有多少历史评测」都摆在明面上：改成判别器不会删历史成绩，
+    // 所以得让用户看得见它以前被测过几次。
+    const kindCell = judge
+      ? `<span class="tag warn" title="判别器：只用于给安全类基准判分，不能作为被测模型">判别器</span>`
+      : `<span class="tag ok">被测模型</span>`;
+    const hist = m.evaluations ? `<div class="muted" style="font-size:11px;margin-top:3px">${m.evaluations} 条历史评测</div>` : "";
+    const btn = judge ? "改回被测" : "设为判别器";
+    return `<tr><td class="tl" style="font-weight:550">${esc(m.name)}</td>
+     <td>${kindCell}${hist}</td>
+     <td class="tl muted">${esc(m.base_url)}</td><td class="tl muted">${esc(m.api_key)}</td>
+     <td style="white-space:nowrap">
+       <button class="ghost" onclick="toggleKind(${m.id}, '${judge ? "test" : "judge"}')">${btn}</button>
+       <button class="ghost" onclick="delModel(${m.id})">删除</button></td></tr>`;
+  }).join("")
+    : `<tr><td colspan="5" class="empty">暂无模型</td></tr>`;
+  // 评测的模型下拉**排除判别器**：判别器不能被测（后端也会拦，这里只是别让人白选一场）
+  const testable = ms.filter(m => m.kind !== "judge");
+  const esel = document.getElementById("e-model");
+  const keepEval = esel.value;
+  esel.innerHTML = testable.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("")
+    || `<option value="">（先添加被测模型）</option>`;
+  if (keepEval && testable.some(m => String(m.id) === keepEval)) esel.value = keepEval;
+  // 裁判下拉只列 kind=judge 的模型；整页共用一份 modelList 供 updateEvalHint 查名字
+  modelList = ms;
+  const judges = ms.filter(m => m.kind === "judge");
+  const jsel = document.getElementById("e-judge");
+  if (jsel) {
+    const keepJudge = jsel.value;
+    jsel.innerHTML = judges.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("")
+      || `<option value="">（先在模型管理里添加一个判别器）</option>`;
+    if (keepJudge && judges.some(m => String(m.id) === keepJudge)) jsel.value = keepJudge;
+  }
   updateEvalHint();
+}
+
+// 切换模型用途。已有历史评测时后端会回 409 + 说明，这里再问一次：
+// 不是禁止改，而是让人知道「改成判别器后不能再发起新评测，但历史成绩会留着」。
+async function toggleKind(id, kind) {
+  const post = confirmMsg => api("/api/models/" + id, { method:"PATCH",
+    headers:{"Content-Type":"application/json"}, body: JSON.stringify({ kind, confirm: !!confirmMsg }) });
+  try {
+    await post(false);
+  } catch (e) {
+    const msg = String(e.message || "");
+    // 409 的响应体是后端写好的说明（含历史评测条数），直接拿它问用户
+    let text = msg;
+    try { text = JSON.parse(msg).detail || msg; } catch (_) { /* 不是 JSON 就原文显示 */ }
+    if (!confirm(text + "\n\n确定要改吗？")) return;
+    try { await post(true); } catch (e2) { return alert("修改失败：" + e2.message); }
+  }
+  loadModels();
 }
 
 function applyPreset() {
@@ -442,6 +664,7 @@ function modelForm() {
     name: document.getElementById("m-name").value.trim(),
     base_url: document.getElementById("m-url").value.trim(),
     api_key: document.getElementById("m-key").value.trim(),
+    kind: document.getElementById("m-kind").value,
   };
 }
 
@@ -465,6 +688,7 @@ async function addModel() {
     await api("/api/models", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(m) });
   } catch (e) { return alert("添加失败：" + e.message); }
   document.getElementById("m-name").value = document.getElementById("m-url").value = document.getElementById("m-key").value = "";
+  document.getElementById("m-kind").value = "test";
   document.getElementById("m-test-result").textContent = "";
   setAddModelOpen(false);   // 添加成功后自动收起表单
   loadModels();
@@ -493,6 +717,63 @@ function statusTag(s) {
   return `<span class="tag ${cls}">${esc(s)}</span>`;
 }
 
+// 取消基准选择：清掉选中态，并把评测提示复位。
+// 没有它就只能「换选另一个」，选错了没法取消。
+function clearBenchmarkSel() {
+  selBenchmark = null;
+  document.querySelectorAll(".bm.sel").forEach(x => x.classList.remove("sel"));
+  updateEvalHint();
+}
+
+// 基准简介弹层。内容比卡片上多：分类/语言/题量/状态、官方分组与权重、是否需要裁判/沙箱、
+// 完整说明、来源链接 —— 这些在卡片上放不下，而就地展开又会遮挡别的内容（试过，不行）。
+function showBmDetail(id) {
+  const m = benchMeta[id];
+  const box = document.getElementById("bm-modal");
+  if (!m || !box) return;
+  document.getElementById("bm-modal-title").textContent = m.name;
+  const tags = [m.category, m.lang, m.count > 0 ? m.count + " 题" : "未下载", m.status];
+  if (m.group_name) tags.push(`${m.group_name} 组 · 官方权重 ${pct(m.group_weight)}`);
+  if (m.requires_judge) tags.push("需裁判模型");
+  if (m.requires_docker) tags.push("需 Docker 沙箱");
+  document.getElementById("bm-modal-tags").innerHTML =
+    tags.filter(Boolean).map(t => `<span class="tag">${esc(t)}</span>`).join("");
+  document.getElementById("bm-modal-body").textContent = m.description || m.summary || "";
+  document.getElementById("bm-modal-foot").innerHTML =
+    (m.source ? `<a href="${esc(m.source)}" target="_blank">论文/来源 ↗</a>` : "")
+    + `<button class="sm" style="margin-left:auto"
+         onclick="hideBmDetail(); pickBenchmarkById('${esc(id)}')">选中这个基准</button>`;
+  box.hidden = false;
+}
+
+function hideBmDetail() {
+  const box = document.getElementById("bm-modal");
+  if (box) box.hidden = true;
+}
+
+// 从弹层里选中基准：卡片可能不在当前筛选/视口里，所以按 data-id 找到它再走正常选中流程
+function pickBenchmarkById(id) {
+  const el = document.querySelector(`.bm[data-id="${id}"]`);
+  if (el) pickBenchmark(id, el);
+  else { selBenchmark = id; updateEvalHint(); }
+}
+
+// 点空白处 / 按 Esc 取消基准选择。**只在真的点在空白处时取消**：
+// 卡片本身、卡片里的控件、以及任何一张 card 容器都算「有内容」——
+// 否则点一下模型下拉、翻一下排行榜，刚选好的基准就没了。
+document.addEventListener("click", ev => {
+  if (!selBenchmark) return;
+  if (ev.target.closest(".bm, .card, button, select, input, a, label, summary, details")) return;
+  clearBenchmarkSel();
+});
+document.addEventListener("keydown", ev => {
+  if (ev.key !== "Escape") return;
+  // Esc 先关弹层，再退一步才取消选择（一次一个动作，别一下全清掉）
+  const box = document.getElementById("bm-modal");
+  if (box && !box.hidden) { hideBmDetail(); return; }
+  clearBenchmarkSel();
+});
+
 function pickBenchmark(id, el) {
   selBenchmark = id;
   document.querySelectorAll(".bm").forEach(x => x.classList.remove("sel"));
@@ -512,10 +793,36 @@ async function probeSandbox(force) {
 async function updateEvalHint(force) {
   const sel = document.getElementById("e-model");
   const mn = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : "";
-  let html = `将评测：模型【${esc(mn || "未选择")}】 × 基准【${esc(selBenchmark || "未选择")}】`;
   const m = benchMeta[selBenchmark];
+  // 基准写名字而不是 id：家族的子集 id（BFCL_v4_live_parallel）对人没有意义。
+  // 完整说明放在这里（而不是卡片上硬截两行）—— 这是真要花钱跑之前最后一眼看的地方。
+  const bmLabel = m ? m.name : selBenchmark;
+  const groupTag = m && m.group_name
+    ? ` <span class="tag">${esc(m.group_name)} 组 · 官方权重 ${pct(m.group_weight)}</span>` : "";
+  let html = `将评测：模型【${esc(mn || "未选择")}】 × 基准【${esc(bmLabel || "未选择")}】${groupTag}`;
+  if (m) {
+    html += `<br><span style="color:var(--text)">${esc(m.description)}</span>`;
+    if (m.summary) html += `<br><span class="muted">${esc(m.summary)}</span>`;
+  }
   const btn = document.getElementById("start-btn");
   let blocked = null;
+
+  // 安全类基准：必须选裁判，且不能拿被测模型自己当裁判（后端也会拦，这里只是别让人白点）
+  const jsel = document.getElementById("e-judge");
+  const needJudge = !!(m && m.requires_judge);
+  if (jsel) jsel.style.display = needJudge ? "" : "none";
+  if (needJudge && jsel) {
+    const jn = jsel.options[jsel.selectedIndex] ? jsel.options[jsel.selectedIndex].text : "";
+    if (!jsel.value) {
+      html += `<br><span class="tag warn">需要裁判模型</span> <span class="muted">这个基准由裁判判分，请先选一个「判别器」</span>`;
+      blocked = "需要先选择裁判模型";
+    } else if (String(jsel.value) === String(sel.value)) {
+      html += `<br><span class="tag warn">裁判不能是被测模型自己</span> <span class="muted">自己判自己会让分数失去意义，请换一个判别器</span>`;
+      blocked = "裁判不能是被测模型自己";
+    } else {
+      html += `<br><span class="tag">裁判：${esc(jn)}</span> <span class="muted">用官方提示词判定；换裁判分数不可比，结果里会写明这次是谁判的</span>`;
+    }
+  }
   if (m && (m.requires_docker || m.category_id === "code")) {
     // 代码类基准要真跑容器：先把沙箱能不能用摆出来，别让用户点了「开始评测」才发现
     if (force) { sbxState = null; loadBenchmarks(); }  // 顺带刷新卡片上的标签
@@ -533,7 +840,7 @@ async function updateEvalHint(force) {
   }
   if (btn) {
     btn.disabled = !!blocked;
-    btn.title = blocked ? "代码沙箱不可用，该基准无法评测：" + blocked : "";
+    btn.title = blocked ? "无法开始：" + blocked : "";
   }
   document.getElementById("e-hint").innerHTML = html;
 }
@@ -549,9 +856,17 @@ async function startEval() {
     const s = await probeSandbox();
     if (!s.available) return alert("代码沙箱不可用，无法评测该基准：\n\n" + s.message);
   }
+  // 安全类基准必须带裁判（后端也会校验，这里给出人话提示，省一次失败的请求）
+  let judge_model_id = null;
+  if (bm && bm.requires_judge) {
+    const jv = document.getElementById("e-judge").value;
+    if (!jv) return alert("这个基准由裁判模型判分，请先在模型管理里添加一个「判别器」，再在评测区选它");
+    if (String(jv) === String(model_id)) return alert("裁判不能是被测模型自己 —— 自己判自己会让分数失去意义");
+    judge_model_id = +jv;
+  }
   try {
     const r = await api("/api/evaluations", { method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ model_id, benchmark: selBenchmark, limit,
+      body: JSON.stringify({ model_id, benchmark: selBenchmark, limit, judge_model_id,
         max_tokens: +document.getElementById("e-maxtokens").value || 2048,
         timeout_s: +document.getElementById("e-timeout").value || 90,
         concurrency: +document.getElementById("e-conc").value || 8 }) });
@@ -608,8 +923,8 @@ async function refresh() {
     }
     return `<tr>
       ${batchMode ? `<td><input type="checkbox" ${selectedTasks.has(e.id) ? "checked" : ""} onclick="toggleTaskSel(${e.id}, this)"></td>` : ""}
-      <td class="muted">${e.id}</td><td style="font-weight:550">${esc(e.model_name)}</td>
-      <td title="输出上限 ${e.max_tokens ?? 2048} tokens · 单题超时 ${e.timeout_s ?? 90}s · 并发 ${e.concurrency ?? 8}"><span style="font-weight:550">${esc(e.benchmark)}</span></td>
+      <td class="muted">${e.id}</td><td class="tl" style="font-weight:550">${esc(e.model_name)}</td>
+      <td class="tl" title="输出上限 ${e.max_tokens ?? 2048} tokens · 单题超时 ${e.timeout_s ?? 90}s · 并发 ${e.concurrency ?? 8}"><span style="font-weight:550">${esc(e.benchmark)}</span></td>
       <td><div class="score-cell"><div class="bar"><i style="width:${pct}%"></i></div><span class="muted" style="min-width:64px;text-align:right">${e.done}/${e.total}</span></div>${liveHtml}</td>
       <td class="acc">${e.accuracy == null ? "-" : e.accuracy + "%"}</td>
       <td class="${stCls}">${ST_TEXT[e.status] || e.status}${e.failed ? ` <span class="muted">(失败${e.failed})</span>` : ""}</td>
@@ -647,49 +962,108 @@ async function refresh() {
   await renderOverviewBlock();
 
   const bds = await api("/api/leaderboard");
-  // 顶部统计：最佳正确率取所有分项里的最高值
+  // 顶部统计：最佳正确率取所有分项里的最高值。
+  // **只统计完整评测** —— 部分评测（没跑完题库）不该出现在这个门面数字里。
+  // 家族的「加权总分」不参与这个数字：它是组间加权的结果，跟单题正确率不是一个东西。
   let bestAcc = null;
-  bds.forEach(c => c.boards.forEach(b => b.rows.forEach(r => {
+  const eachBoard = c => c.boards.concat(...(c.families || []).map(f => f.boards));
+  bds.forEach(c => eachBoard(c).forEach(b => b.rows.forEach(r => {
+    if (r.partial) return;
     if (bestAcc === null || r.accuracy > bestAcc) bestAcc = r.accuracy;
   })));
   document.getElementById("stat-best").textContent = bestAcc !== null ? bestAcc + "%" : "-";
+  // 家族在综合榜里算「一项」，覆盖一栏要顺带显示它的官方权重覆盖率 ——
+  // 否则「只跑了一个子集」和「跑满四个组」在表里看起来一样。
+  const famCover = m => (m.families || []).map(f =>
+    `<br><span class="tag" title="官方加权总分 ${f.score}% · 已跑 ${f.subsets_run}/${f.subsets_total} 个子集">${esc(f.id)} 权重 ${pct(f.weight_covered)}</span>`).join("");
   // 总览：各分类冠军一览。每行本身即开关，点击展开/收起该分类详情（可同时展开多个）
   const overview = `
     <div class="card" style="padding:14px 18px">
       <div class="cat-head" style="margin:0"><span class="dot" style="background:var(--accent)"></span>总览<span class="cnt">点击分类查看详情，可同时展开多个</span></div>
-      <table style="margin-top:10px"><thead><tr><th style="width:190px">分类</th><th>冠军模型</th><th style="width:200px">综合得分</th><th style="width:80px">覆盖</th></tr></thead>
+      <table style="margin-top:10px"><thead><tr><th class="tl" style="width:190px">分类</th><th class="tl">冠军模型</th><th style="width:200px">综合得分</th><th style="width:150px">覆盖</th></tr></thead>
       <tbody>${bds.map(c => {
         const champ = c.combined[0];
         const open = !!expandedCats[c.id];
         return `<tr style="cursor:pointer" onclick="toggleCat('${esc(c.id)}')">
-          <td><span style="display:inline-block;width:12px;color:var(--faint)">${open ? "▾" : "▸"}</span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:3px;background:${c.color};margin-right:6px"></span>${esc(c.name)}</td>
-          <td style="font-weight:550">${esc(champ.model_name)}</td>
+          <td class="tl"><span style="display:inline-block;width:12px;color:var(--faint)">${open ? "▾" : "▸"}</span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:3px;background:${c.color};margin-right:6px"></span>${esc(c.name)}</td>
+          <td class="tl" style="font-weight:550">${esc(champ.model_name)}</td>
           <td><div class="score-cell"><span class="acc">${champ.avg_accuracy}%</span><div class="bar"><i style="width:${Math.min(champ.avg_accuracy, 100)}%"></i></div></div></td>
-          <td class="muted">${champ.covered}/${champ.total}</td>
+          <td class="muted">${champ.covered}/${champ.total}${famCover(champ)}</td>
         </tr>`;
       }).join("")}</tbody></table>
     </div>`;
+  // 家族折叠块：官方加权总分 + 每组得分 + 权重覆盖率；子集明细默认收起
+  const famBlock = (cat, f) => {
+    const activeGroups = f.groups.filter(g => g.subsets.length);
+    const official = activeGroups.reduce((s, g) => s + g.weight, 0);
+    // f.boards 只是「有成绩的子集」，家族总数要从分组定义里数出来（16 个，不是 4 个）
+    const totalSubsets = f.groups.reduce((n, g) => n + g.subsets.length, 0);
+    return `
+    <div style="margin-top:14px;border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--card2)">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <b style="font-size:13px">${esc(f.name)}</b>
+        <span class="tag">${activeGroups.length} 个官方分组 · ${totalSubsets} 个子集</span>
+        <span class="tag warn" title="本项目没有提供 Web Search / Memory 那两组">官方权重覆盖 ${pct(official)}</span>
+      </div>
+      <div class="muted" style="font-size:11.5px;line-height:1.7;margin:6px 0 8px">
+        官方总分口径：${esc(f.note)}。本表按此口径**重新加权**（组内先取子集平均，再按组权重加权）；
+        缺组时按已跑组的权重归一化，所以「加权总分」不是完整 BFCL 成绩 —— 每行的权重覆盖都标出来了。
+      </div>
+      <table><thead><tr>
+        <th style="width:56px">名次</th><th class="tl">模型</th><th style="width:150px">官方加权总分</th><th style="width:130px">权重覆盖</th>
+        ${activeGroups.map(g => `<th style="width:96px" title="${esc(g.name)} · 官方权重 ${pct(g.weight)}">${esc(g.name.split("（")[0])}</th>`).join("")}
+      </tr></thead>
+      <tbody>${f.rows.map((r, i) => {
+        // 组定义（f.groups）只有权重与子集清单，分数在每行的 r.groups 里 ——
+        // 直接对 f.groups 取 g.score 会永远拿到 undefined（渲染出来全是「—」）。
+        const rg = Object.fromEntries((r.groups || []).map(g => [g.id, g]));
+        return `<tr>
+        <td><span class="rank r${i+1}">${i+1}</span></td>
+        <td class="tl" style="font-weight:550">${esc(r.model_name)}</td>
+        <td><div class="score-cell"><span class="acc">${r.score}%</span><div class="bar"><i style="width:${Math.min(r.score, 100)}%"></i></div></div></td>
+        <td class="muted"><b>${pct(r.weight_covered)}</b> <span style="font-size:11px">· ${r.groups_covered}/${r.groups_total} 组 · ${r.subsets_run}/${r.subsets_total} 子集</span></td>
+        ${activeGroups.map(g => {
+          const s = rg[g.id] || {};
+          return s.score == null
+            ? `<td class="muted" title="${s.total ? `未跑（共 ${s.total} 个子集）` : "本项目未提供该分组"}">—</td>`
+            : `<td title="${esc(g.name)}：已跑 ${s.run}/${s.total} 个子集 · 官方权重 ${pct(g.weight)}">${s.score}%${s.run < s.total ? `<span class="muted" style="font-size:10px"> (${s.run}/${s.total})</span>` : ""}</td>`;
+        }).join("")}
+      </tr>`; }).join("")}</tbody></table>
+      <details style="margin-top:10px">
+        <summary class="muted" style="cursor:pointer;font-size:12.5px">子集明细（有成绩的 ${f.boards.length} 个，按官方分组排列）</summary>
+        <table style="margin-top:8px"><thead><tr><th class="tl" style="width:110px">官方分组</th><th class="tl" style="width:170px">子集</th><th class="tl">模型</th><th style="width:160px">正确率</th><th style="width:60px">题数</th></tr></thead>
+        <tbody>${f.boards.map(b => b.rows.map((r, i) => `<tr>
+          ${i === 0 ? `<td class="tl muted" rowspan="${b.rows.length}" style="vertical-align:top;font-size:12px">${esc(b.group_name)}<br><span style="font-size:10.5px">权重 ${pct(b.group_weight)}</span></td>` : ""}
+          ${i === 0 ? `<td class="tl" rowspan="${b.rows.length}" style="font-weight:600;vertical-align:top">${esc(b.benchmark_name.replace(f.name + " · ", ""))}</td>` : ""}
+          <td class="tl">${r.partial ? '<span class="muted" title="只跑了部分题库，不排名次">—</span>' : `<span class="rank r${i+1}">${i+1}</span>`} ${esc(r.model_name)}${r.partial ? ` <span class="tag warn">部分 ${r.total}/${r.full_count}</span>` : ""}</td>
+          <td><div class="score-cell"><span class="acc">${r.accuracy}%</span><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div></div></td>
+          <td class="muted">${r.total}</td>
+        </tr>`).join("")).join("")}</tbody></table>
+      </details>
+    </div>`;
+  };
   // 详情区：只渲染已展开的分类卡片
   const details = bds.filter(c => expandedCats[c.id]).map(cat => `
     <div class="card" style="padding:14px 18px">
       <div class="cat-head" style="margin:0"><span class="dot" style="background:${cat.color}"></span>${esc(cat.name)}<span class="cnt">${cat.n_benchmarks} 个基准</span></div>
-      <div style="font-weight:600;font-size:13px;margin:12px 0 6px">综合排行 <span class="muted" style="font-weight:400">（分类内各基准平均分 · 每项取多次测试最高分）</span></div>
-      <table><thead><tr><th style="width:64px">名次</th><th>模型</th><th style="width:200px">综合得分</th><th style="width:120px">覆盖</th></tr></thead>
+      <div style="font-weight:600;font-size:13px;margin:12px 0 6px">综合排行 <span class="muted" style="font-weight:400">（分类内各项的平均分 · 每项取完整评测中的最高分；家族按**官方加权总分**算一项）</span></div>
+      <table><thead><tr><th style="width:64px">名次</th><th class="tl">模型</th><th style="width:200px">综合得分</th><th style="width:150px">覆盖</th></tr></thead>
       <tbody>${cat.combined.map((m, i) => `<tr>
         <td><span class="rank r${i+1}">${i+1}</span></td>
-        <td style="font-weight:550">${esc(m.model_name)}</td>
+        <td class="tl" style="font-weight:550">${esc(m.model_name)}</td>
         <td><div class="score-cell"><span class="acc">${m.avg_accuracy}%</span><div class="bar"><i style="width:${Math.min(m.avg_accuracy, 100)}%"></i></div></div></td>
-        <td class="muted">${m.covered}/${m.total}${m.covered < m.total ? ' <span class="tag warn">未跑全</span>' : ''}</td>
+        <td class="muted">${m.covered}/${m.total}${m.covered < m.total ? ' <span class="tag warn">未跑全</span>' : ''}${m.partial ? ` <span class="tag warn" title="这些项只有部分评测，分数不计入综合得分">${m.partial} 项为部分</span>` : ''}${famCover(m)}</td>
       </tr>`).join("")}</tbody></table>
-      <div style="font-weight:600;font-size:13px;margin:16px 0 6px">分项</div>
-      <table><thead><tr><th style="width:190px">基准</th><th>模型</th><th style="width:180px">正确率</th><th style="width:70px">题数</th><th style="width:110px">平均延迟</th><th style="width:90px">Token</th></tr></thead>
+      <div style="font-weight:600;font-size:13px;margin:16px 0 6px">分项${(cat.families || []).length ? ` <span class="muted" style="font-weight:400">（家族子集已折叠，见下方「${cat.families.map(f => f.name).join("、")}」块）</span>` : ""}</div>
+      <table><thead><tr><th class="tl" style="width:190px">基准</th><th class="tl">模型</th><th style="width:180px">正确率</th><th style="width:70px">题数</th><th style="width:110px">平均延迟</th><th style="width:90px">Token</th></tr></thead>
       <tbody>${cat.boards.map(b => b.rows.map((r, i) => `<tr>
-        ${i === 0 ? `<td rowspan="${b.rows.length}" style="font-weight:600;vertical-align:top">${esc(b.benchmark_name)}</td>` : ""}
-        <td><span class="rank r${i+1}">${i+1}</span> ${esc(r.model_name)}</td>
+        ${i === 0 ? `<td class="tl" rowspan="${b.rows.length}" style="font-weight:600;vertical-align:top">${esc(b.benchmark_name)}</td>` : ""}
+        <td class="tl">${r.partial ? '<span class="muted" title="只跑了部分题库，不排名次">—</span>' : `<span class="rank r${i+1}">${i+1}</span>`} ${esc(r.model_name)}${r.partial ? ` <span class="tag warn" title="只跑了 ${r.total}/${r.full_count} 题，分数仅供参考">部分 ${r.total}/${r.full_count}</span>` : ''}</td>
         <td><div class="score-cell"><span class="acc">${r.accuracy}%</span><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div></div></td><td>${r.total}</td>
         <td class="muted">${r.avg_latency_ms} ms</td>
         <td class="muted">${r.prompt_tokens + r.completion_tokens}</td>
       </tr>`).join("")).join("")}</tbody></table>
+      ${(cat.families || []).map(f => famBlock(cat, f)).join("")}
     </div>`).join("");
   document.getElementById("board").innerHTML = bds.length ? overview + details
     : `<div class="card"><div class="empty">完成一次评测后生成</div></div>`;
@@ -741,19 +1115,28 @@ function drawOverview() {
     const gRow = `<tr><td class="ov-group" colspan="${models.length + 1}">
         <span class="dot" style="background:${g.color}"></span>${esc(g.name)}</td></tr>`;
     return gRow + g.benchmarks.map(b => {
-      const vals = Object.values(b.scores).map(s => s.accuracy);
-      const max = vals.length ? Math.max(...vals) : 0;
+      // 最高分只在**完整评测**里评：部分评测（没跑完题库）不参与，
+      // 否则「跑 6 题全对」会把整项的最高分占掉。若这一行全是部分评测，
+      // 就没有可比的完整成绩，此时不高亮任何格子（而不是硬挑一个）。
+      const complete = Object.values(b.scores).filter(s => !s.partial).map(s => s.accuracy);
+      const max = complete.length ? Math.max(...complete) : null;
       const cells = models.map(m => {
         const s = b.scores[m.id];
         if (!s) return `<td class="ov-empty">—</td>`;
         // 只把该基准的最高分挑出来，其余格子统一底色。
         // 并列最高时**每个都标** —— 它们确实并列，挑一个既武断又会误导。
-        const top = s.accuracy === max;
+        const top = max !== null && !s.partial && s.accuracy === max;
+        if (s.partial) {
+          return `<td class="ov-cell ov-partial"
+                      title="${esc(b.name)} · ${esc(m.name)}：${s.accuracy}%（只跑了 ${s.total}/${s.full_count} 题，属部分评测，不参与最高分评选 · 任务 #${s.eval_id}）"
+                      >${s.accuracy}%<span class="ov-part">部分 ${s.total}/${s.full_count}</span></td>`;
+        }
         return `<td class="ov-cell ${top ? "ov-top" : "ov-plain"}"
                     title="${esc(b.name)} · ${esc(m.name)}：${s.accuracy}%（${s.total} 题 · 任务 #${s.eval_id}）${top ? " —— 该基准最高" : ""}"
                     >${s.accuracy}%</td>`;
       }).join("");
-      return `<tr><td class="ov-bench" title="${esc(b.id)}">${esc(b.name)}</td>${cells}</tr>`;
+      return `<tr><td class="ov-bench" title="${esc(b.id)}">${esc(b.name)}${b.group_name
+        ? `<span class="ov-grp" title="官方分组 ${esc(b.group_name)} · 官方权重 ${pct(b.group_weight)}">${esc(b.group_name)} · ${pct(b.group_weight)}</span>` : ""}</td>${cells}</tr>`;
     }).join("");
   }).join("");
 
@@ -764,7 +1147,8 @@ function drawOverview() {
         <span class="muted" style="font-size:12.5px;line-height:1.75">
           行 = 基准，列 = 模型。<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle">
           <i style="display:inline-block;width:26px;height:11px;border-radius:3px;background:var(--accent)"></i></span>
-          <b>蓝色 = 该基准上参与评测的模型中的最高分</b>，并列最高会同时标出；其余格子统一底色。
+          <b>蓝色 = 该基准上参与评测的模型中的最高分</b>（仅在完整评测之间评），并列最高会同时标出；其余格子统一底色。
+          <br>带「部分 x/y」的格子表示这次只跑了部分题库，分数仅供参考、<b>不参与最高分评选</b>。
           <br>悬停任一格子可以看到题量与任务号。
         </span>
         <span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -788,8 +1172,8 @@ function renderOvProfile(m) {
   if (!list.length) return "";
   list.sort((a, b) => b.acc - a.acc);
   const rows = list.map(x => `<tr>
-      <td class="muted" style="width:110px;font-size:12px">${esc(x.group)}</td>
-      <td style="width:190px">${esc(x.bench)}</td>
+      <td class="tl muted" style="width:110px;font-size:12px">${esc(x.group)}</td>
+      <td class="tl" style="width:190px">${esc(x.bench)}</td>
       <td><div class="score-cell"><span class="acc">${x.acc}%</span>
           <div class="bar"><i style="width:${Math.min(x.acc, 100)}%"></i></div></div></td>
     </tr>`).join("");
@@ -935,7 +1319,7 @@ function renderCompareView() {
       <b>${esc(e.model_name)}</b>
       <span class="muted">正确率 ${e.accuracy}%（${e.done}/${e.total}）</span></div>`;
 
-  const cell = x => `<td style="${x.correct ? "" : "background:rgba(214,79,88,.06)"}">${esc(x.predicted ?? "—")}</td>`;
+  const cell = x => `<td class="tl" style="${x.correct ? "" : "background:rgba(214,79,88,.06)"}">${esc(x.predicted ?? "—")}</td>`;
 
   const rows = items.length ? items.map(it => {
     const diff = it.a.correct !== it.b.correct;
@@ -946,8 +1330,8 @@ function renderCompareView() {
     const q = it.question || "";
     return `<tr style="${diff ? "background:rgba(185,126,30,.07)" : ""}">
         <td>${it.idx}</td>
-        <td style="max-width:360px" title="${esc(q)}">${esc(q.slice(0, 100))}${q.length > 100 ? "…" : ""}</td>
-        <td>${esc(String(it.expected ?? "—"))}</td>
+        <td class="tl" style="max-width:360px" title="${esc(q)}">${esc(q.slice(0, 100))}${q.length > 100 ? "…" : ""}</td>
+        <td class="tl">${esc(String(it.expected ?? "—"))}</td>
         ${cell(it.a)}${cell(it.b)}
         <td>${mark}</td></tr>`;
   }).join("") : `<tr><td colspan="6" class="empty">${compareOnlyDiff ? "两个模型没有分歧题（要么都对、要么都错）" : "没有可对比的题目"}</td></tr>`;
@@ -982,8 +1366,8 @@ function renderCompareView() {
                onclick="toggleCompareDiff(this)"> 只看分歧题（${diffN} 题）
       </label>
       <table><thead><tr>
-        <th style="width:44px">#</th><th>题目</th><th style="width:90px">期望</th>
-        <th style="width:110px">A 回答</th><th style="width:110px">B 回答</th><th style="width:84px">结果</th>
+        <th style="width:44px">#</th><th class="tl">题目</th><th class="tl" style="width:90px">期望</th>
+        <th class="tl" style="width:110px">A 回答</th><th class="tl" style="width:110px">B 回答</th><th style="width:84px">结果</th>
       </tr></thead><tbody>${rows}</tbody></table>
     </div>`;
 }
@@ -1039,11 +1423,11 @@ async function showItems(id) {
         </div>
         <button class="ghost" onclick="closeItems()">关闭</button>
       </div>
-      <table style="margin-top:10px"><thead><tr><th>#</th><th>题目</th><th>期望</th><th>模型答</th><th>判定</th><th>延迟</th><th style="width:90px">原始输出</th></tr></thead>
+      <table style="margin-top:10px"><thead><tr><th>#</th><th class="tl">题目</th><th class="tl">期望</th><th class="tl">模型答</th><th>判定</th><th>延迟</th><th style="width:90px">原始输出</th></tr></thead>
       <tbody>${items.map(it => `<tr>
         <td class="muted">${it.idx}</td>
-        <td style="max-width:300px">${esc((it.question||"").slice(0,60))}${(it.question||"").length>60?"…":""}</td>
-        <td>${esc(it.expected)}</td><td>${esc(it.predicted ?? "-")}</td>
+        <td class="tl" style="max-width:300px">${esc((it.question||"").slice(0,60))}${(it.question||"").length>60?"…":""}</td>
+        <td class="tl">${esc(it.expected)}</td><td class="tl">${esc(it.predicted ?? "-")}</td>
         <td>${it.error ? '<span class="st-failed">错误</span>' : it.correct ? '<span class="st-done">✓</span>' : '<span class="st-failed">✗</span>'}</td>
         <td class="muted">${it.latency_ms}ms</td>
         <td><button class="ghost" onclick="toggleRaw(${it.idx}, this)">查看</button></td>
