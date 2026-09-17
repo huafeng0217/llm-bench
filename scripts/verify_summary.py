@@ -5,7 +5,8 @@
 所以统计层必须能单独验证，而且要在接模型之前验证（这一步不烧 token）。
 
 覆盖四类检查：
-  1. 刷分假象护栏 `_pick_best`：最高分来自部分评测时必须能识别出来
+  1. 刷分假象护栏（取数规则 `scoring.pick_best`）：最高分来自部分评测时必须能识别出来
+     —— 更完整的行为测试在 `scripts/verify_scoring.py`
   2. 显著性判定：真实分数代入，看结论符不符合常识
   3. 数据清理：mock 模型与演示样例题库不能进入总结
   4. 一致性：每个格子的正确率必须和数据库里的 correct/done 对得上
@@ -19,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app import db, summary  # noqa: E402
+from app import db, scoring, summary  # noqa: E402
 
 
 def run(correct, done, eid=1):
@@ -29,7 +30,7 @@ def run(correct, done, eid=1):
 
 def check_pick_best():
     """刷分假象护栏：界面上显示的「最高分」是不是靠只跑几题刷出来的。"""
-    print("刷分假象护栏（_pick_best）\n" + "=" * 74)
+    print("刷分假象护栏（pick_best）\n" + "=" * 74)
     fc = 164  # 用 HumanEval 的真实题量
     cases = [
         ("只有一次完整评测", [run(163, 164)], False, 164),
@@ -40,7 +41,9 @@ def check_pick_best():
     ]
     ok = True
     for name, runs, want_art, want_bc in cases:
-        _, bc, art = summary._pick_best(runs, fc)
+        pick = scoring.pick_best(runs, fc)
+        bc = pick.best_complete
+        art = pick.artifact
         got_bc = bc["done"] if bc else None
         good = (art == want_art) and (got_bc == want_bc)
         ok = ok and good

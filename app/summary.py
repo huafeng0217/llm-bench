@@ -26,102 +26,20 @@ import math
 import re
 import time
 
-from . import db, engine
+from . import db, engine, scoring
 from .benchmarks import CATEGORIES, META, get_meta
 
-# 覆盖率低于这个比例就算「部分评测」，不与其他完整评测直接比较
-COVERAGE_OK = 0.9
+# 覆盖率与「挑哪一次成绩」的口径统一放在 app/scoring.py ——
+# 排行榜、成绩总览、AI 总结三处必须一致，各写一份必然会漂移。
+# 本模块只保留**总结特有**的阈值。
 # 题量低于这个数就提示「差距很容易被噪声吃掉」
 SMALL_SAMPLE = 100
-# 采样多少条题目来估算随机基线（不读全量，MMLU 有 1.2 万行）
-BASELINE_SAMPLE = 200
 Z95 = 1.96  # 95% 置信
 
 # 演示样例题库（mmlu_sample / ceval_sample）不该进总结：只有 12 题，
 # 混进来会把「覆盖度分母」撑大，还会产生「39 个百分点以内差距无法区分」这种
 # 技术上正确但毫无意义的提示。
 DEMO_BENCHMARKS = {b for b, m in META.items() if m.get("status") == "演示样例"}
-
-# 题库文件派生值的缓存：(用途, 路径) -> (mtime_ns, 文件大小, 计算结果)
-#
-# 为什么必须缓存：这两个值（题量、随机基线）来自题库文件、几乎不变，但 collect() 每次都要用，
-# 而 collect() 会被 /api/summary 与 /api/summary/stats 各调一次、前端生成期间每 2.5 秒轮询一轮。
-# 实测不缓存时单次 collect() 要 238ms（重读 10 个题库的全部行数 + 每个采样 200 行），
-# 折合生成期间约 **11 秒/分钟** 的纯 CPU 空转。
-# 用 mtime+size 做 key：重新下载题库后会自动失效，不需要手工清缓存。
-# key 里必须带「用途」—— 两个函数读的是同一个文件，混用 key 会让随机基线拿到题量的值。
-_FILE_CACHE: dict = {}
-
-
-def _cached_by_file(kind: str, path, producer):
-    """按文件的 mtime+size 缓存 producer() 的结果。kind 用来区分同一文件的不同派生值。"""
-    try:
-        st = path.stat()
-        key = (st.st_mtime_ns, st.st_size)
-    except OSError:
-        return producer()          # 文件不可用就不缓存，免得把失败结果钉死
-    ck = (kind, str(path))
-    hit = _FILE_CACHE.get(ck)
-    if hit and hit[0] == key:
-        return hit[1]
-    val = producer()
-    _FILE_CACHE[ck] = (key, val)
-    return val
-
-
-def _full_count(benchmark: str) -> int:
-    """题库总题量（按文件行数）。"""
-    try:
-        path = engine._dataset_path(benchmark)
-    except (FileNotFoundError, OSError):
-        return 0
-
-    def count():
-        try:
-            with open(path, encoding="utf-8") as f:
-                return sum(1 for line in f if line.strip())
-        except OSError:
-            return 0
-    return _cached_by_file("full_count", path, count)
-
-
-def _random_baseline(benchmark: str):
-    """估算选择题基准的「随机猜」正确率，非选择题返回 None。
-
-    做法是采样前若干题、算 1/选项数的平均，而不是写死一张表 —— 这样
-    MMLU（4 选 1 = 25%）、MMLU-Pro（10 选 1 = 10%）、TruthfulQA（选项数不固定）
-    都能自动得到合理基线，以后加新基准也不用维护。
-    """
-    try:
-        path = engine._dataset_path(benchmark)
-    except (FileNotFoundError, OSError):
-        return None
-
-    def compute():
-        if engine.is_bfcl(benchmark):
-            return None  # 函数调用题没有「猜中」的概念
-        ks = []
-        try:
-            with open(path, encoding="utf-8") as f:
-                for i, line in enumerate(f):
-                    if i >= BASELINE_SAMPLE:
-                        break
-                    line = line.strip()
-                    if not line:
-                        continue
-                    item = json.loads(line)
-                    if engine.is_code_item(item) or engine.is_lcb_item(item):
-                        return None
-                    k = sum(1 for c in engine.CHOICES if item.get(c))
-                    if k:
-                        ks.append(k)
-        except OSError:
-            return None
-        if not ks:
-            return None
-        return sum(1.0 / k for k in ks) / len(ks)
-
-    return _cached_by_file("random_baseline", path, compute)
 
 
 def _interval(pct: float, n: int) -> float:
@@ -139,27 +57,6 @@ def _interval(pct: float, n: int) -> float:
     z2 = Z95 ** 2
     half = (Z95 / (1 + z2 / n)) * math.sqrt(p * (1 - p) / n + z2 / (4 * n * n))
     return half * 100
-
-
-def _pick_best(runs: list, full_count: int) -> tuple:
-    """从同一个 (模型, 基准) 的所有评测里挑「代表成绩」。
-
-    口径沿用成绩总览：取正确率最高的那次。但如果这个最高分来自**部分评测**，
-    而同一模型其实有完整跑过的成绩，就要能识别出来 —— 否则界面上会显示一个
-    靠「只跑了 6 题」刷出来的高分（实测踩过：HumanEval 6/6 = 100% 会盖过
-    164 题的 99.39%）。
-
-    返回 (代表成绩, 完整评测里的最好成绩, 是否属于刷分假象)。
-    """
-    def acc(r):
-        return r["correct"] / r["done"] * 100
-
-    best = max(runs, key=acc)
-    complete = [r for r in runs if full_count and r["done"] >= full_count * COVERAGE_OK]
-    best_complete = max(complete, key=acc) if complete else None
-    artifact = bool(best_complete is not None and best not in complete
-                    and acc(best) > acc(best_complete))
-    return best, best_complete, artifact
 
 
 def collect() -> dict:
@@ -192,30 +89,33 @@ def collect() -> dict:
     for r in rows:
         bid = r["benchmark"]
         if bid not in full_counts:
-            full_counts[bid] = _full_count(bid)
-            baselines[bid] = _random_baseline(bid)
+            full_counts[bid] = scoring.full_count(bid)
+            baselines[bid] = scoring.random_baseline(bid)
         model_names[r["model_id"]] = r["model_name"]
         runs.setdefault((r["model_id"], bid), []).append(r)
 
     def acc(r):
         return r["correct"] / r["done"] * 100
 
-    # 2) 每个 (模型, 基准) 选一个「代表成绩」：沿用总览的口径（取最高），
-    #    但同时记住它是不是部分评测，以及有没有完整评测被它压过去
+    # 2) 每个 (模型, 基准) 选一个「代表成绩」。口径来自 app/scoring（与排行榜、总览共用）：
+    #    优先完整评测；只有部分评测时才用它，并记下「部分成绩其实更高」这种情况。
     cells: dict = {}   # benchmark -> model_id -> cell
     caveats: list = []
     for (mid, bid), rs in runs.items():
         fc = full_counts.get(bid) or 0
-        best, best_complete, artifact = _pick_best(rs, fc)
+        pick = scoring.pick_best(rs, fc)
+        best = pick.best
         cov = (best["done"] / fc) if fc else None
-        if artifact:
+        if pick.artifact:
+            # 更高的那个分只跑了几题（实测：HumanEval 6/6 = 100% 压过 164 题的 99.39%）
+            hi = pick.best_any
             caveats.append({
                 "kind": "partial_artifact",
-                "detail": (f"{model_names[mid]} 在 {get_meta(bid)['name']} 上的最高分 "
-                           f"{acc(best):.1f}% 只跑了 {best['done']}/{fc} 题；"
-                           f"它完整跑过的最好成绩是 {acc(best_complete):.1f}%（{best_complete['done']} 题）"),
+                "detail": (f"{model_names[mid]} 在 {get_meta(bid)['name']} 上有个更高的分 "
+                           f"{acc(hi):.1f}% 只跑了 {hi['done']}/{fc} 题；"
+                           f"它完整跑过的最好成绩是 {acc(best):.1f}%（{best['done']} 题）"),
             })
-        elif cov is not None and cov < COVERAGE_OK and best_complete is None:
+        elif pick.partial:
             # 只有部分评测、没有完整成绩可比：这个分数**不能**和别人的完整成绩并列比较，
             # 否则「跑 2 题全对」就会以 100% 的身份混进排名（实测见过）。
             caveats.append({
@@ -233,7 +133,7 @@ def collect() -> dict:
             "n": best["done"],
             "full_count": fc,
             "coverage": round(cov, 3) if cov is not None else None,
-            "partial": bool(cov is not None and cov < COVERAGE_OK),
+            "partial": pick.partial,
             "eval_id": best["id"],
             "avg_latency_ms": round(best["total_latency_ms"] / best["done"]),
             "ci95": round(_interval(acc(best), best["done"]), 2),
