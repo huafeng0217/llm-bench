@@ -506,6 +506,29 @@ check("i18n：静态骨架里每个 data-i18n 键都有英文（防漏译）",
 check("i18n：英文表里没有中文（漏成中文等于没翻）",
   Object.entries(EN).filter(([, v]) => /[\u4e00-\u9fff]/.test(v)).map(([k]) => k).length === 0,
   `值是中文：${Object.entries(EN).filter(([, v]) => /[\u4e00-\u9fff]/.test(v)).map(([k]) => k)}`);
+// 「是不是中文」不能只认汉字：`Agentic（Web Search + Memory）` 一个汉字都没有，只有全角括号
+// —— 英文文案里混进全角标点同样是"没翻干净"（中文的括号、逗号、冒号都不该出现在英文里）。
+// 与 scripts/verify_i18n.py 的 CJK_ANY 用同一套判据。
+// 例外只有两个**版式字符**：`　`（全角空格，当间隔用）和 `＋`（当图标用）—— 中英两边都在用，
+// 是排版不是文案（实测只有「　★ 冠军」「　注意：」「＋ 添加模型」三条），其余一律算漏译。
+const CJK_ANY_RE = /[\u3000-\u303f\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]/;
+const EN_TYPO_OK = /[\u3000\uff0b]/g;
+const cjkAnyKeys = Object.entries(EN)
+  .filter(([, v]) => CJK_ANY_RE.test(v.replace(EN_TYPO_OK, ""))).map(([k]) => k);
+check("i18n：英文表里没有全角标点（汉字之外的中文标点也要算）", cjkAnyKeys.length === 0,
+  `含全角/中文标点：${cjkAnyKeys}`);
+// 模型表「用途」列只有 110px、按钮列 150px（里面还挤着「删除」），基准详情弹层的按钮在页脚，
+// 第 2 节标题用户也要求短 —— 这些地方英文一长就把版式撑变形。用户报过一次
+// （Make it a model under test / Select this benchmark），所以把这 6 条钉住上限。
+// 上限 12 = 当前最长的那条（Pick and Run）；一旦翻回长句子立刻红。
+const SHORT_LABELS = ["改回被测", "设为判别器", "被测模型", "判别器", "选中这个基准", "选择基准并发起评测"];
+const longLabels = SHORT_LABELS.map(k => [k, EN[k] || ""]).filter(([, v]) => !v.length || v.length > 12);
+check("i18n：窄控件与短标题的英文标签要短（用户报过太长）", longLabels.length === 0,
+  `超长/缺失：${longLabels.map(([k, v]) => `${k} → ${JSON.stringify(v)}（${v.length} 字符）`).join("；")}`);
+// 空值也要拦：`t()` 里空串是假值，会**静默回落中文**（英文界面冒中文）或把 key 原样显示出来。
+// 实测抓到过一条死条目 `"评测任务2": ""`（codemod 的残留，没有调用点）。
+const emptyEn = Object.entries(EN).filter(([, v]) => !String(v).length).map(([k]) => k);
+check("i18n：英文表里没有空值（空值 = 静默回落中文）", emptyEn.length === 0, `空值：${emptyEn}`);
 check("i18n：顶栏有语言开关，且切换会写 localStorage 并重载",
   /id="langsw"/.test(src) && /data-lang="zh"/.test(src) && /data-lang="en"/.test(src)
   && /function setLang\(lang\)[\s\S]{0,200}localStorage\.setItem\("lang"/.test(script)
@@ -646,14 +669,23 @@ await enSmoke("评测提示", () => {
     async () => ({ available: true, message: "" }), () => {});
 });
 // 模型管理表
+let enModelHtml = "";
 await enSmoke("模型管理表", async () => {
   const els2 = {};
   await new Function("api", "document", "esc", "updateEvalHint", modelsSrc + "\nreturn loadModels();")(
     async () => asciify(modelList),
     { getElementById: id => els2[id] || (els2[id] = { innerHTML: "", value: "", style: {} }) },
     s2 => String(s2 ?? ""), () => {});
-  return els2["models"].innerHTML;
+  enModelHtml = els2["models"].innerHTML;   // 留着给下面那条"短标签"断言用（不再渲染一遍）
+  return enModelHtml;
 });
+// 光断言 EN 表里的值够短还不够：还得确认渲染出来的就是这几个键（键写错了长度断言照样绿）。
+// 「用途」列 110px、按钮列 150px，里面还挤着「删除」——英文一长这行就变形（用户报过）。
+check("模型管理表：英文模式的用途标签与切换按钮用短文案（Test / Judge / To Judge / To Test）",
+  enModelHtml.includes(">Test</span>") && enModelHtml.includes(">Judge</span>")
+  && enModelHtml.includes(">To Judge</button>") && enModelHtml.includes(">To Test</button>"),
+  `实测：Test=${enModelHtml.includes(">Test</span>")} Judge=${enModelHtml.includes(">Judge</span>")} `
+  + `To Judge=${enModelHtml.includes(">To Judge</button>")} To Test=${enModelHtml.includes(">To Test</button>")}`);
 
 // ---------------- i18n 的两条硬不变量 ----------------
 // ① 代码里每个 t()/tf() 键都必须在英文表里 —— 少一条，英文模式下那一处就露出中文。

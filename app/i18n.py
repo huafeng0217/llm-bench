@@ -78,7 +78,7 @@ EN: dict[str, str] = {
     "评测任务": "Runs",
     "最佳正确率": "Best accuracy",
     "模型管理": "Models",
-    "选择基准并发起评测": "Pick a benchmark and run",
+    "选择基准并发起评测": "Pick and Run",
     "成绩总览": "Overview",
     "排行榜": "Leaderboard",
     "AI 总结": "AI summary",
