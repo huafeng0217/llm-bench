@@ -170,19 +170,31 @@ check("排行榜：部分评测不排名次", boardHtml.includes('title="只跑�
 check("排行榜：完整评测仍有名次徽章", boardHtml.includes('class="rank r1"'));
 check("排行榜：综合排行提示部分评测不计入平均", boardHtml.includes("1 项为部分"));
 check("排行榜：措辞已改成「完整评测中的最高分」", boardHtml.includes("完整评测中的最高分"));
-// 总览行的「分数分布」：哑铃图，两端是同一口径下的冠军与亚军，中间是差距。
-// 为什么不画全部模型：多数分类只有 1~4 个模型，灰轨道信息密度太低、还和右边的得分条撞形状。
-check("排行榜总览：哑铃图只画冠军与亚军，1 个模型时写「无对比」",
-  (boardHtml.match(/class="ov-dumbbell"/g) || []).length === bds.length
-  && (boardHtml.match(/i class="champ"/g) || []).length === bds.length
-  && (boardHtml.match(/i class="runner"/g) || []).length === bds.length - 1
-  && boardHtml.includes(">无对比<"),
-  "分类数、冠军点、亚军点（少一个）、单模型分类的文案都要对上");
-// 位置 = 3% + 分数×0.94%（两端留边，否则 0 分/100 分的点被切一半）；
-// 连线跨度 = 两点的距离（模型乙 0% → 3.00%，模型甲 99.39% → 96.43%）
-check("排行榜总览：两端留边、连线跨度等于两人的分数差",
-  boardHtml.includes('style="left:96.43%"') && boardHtml.includes('style="left:3.00%;width:93.43%"'));
-check("排行榜总览：给出与第 2 名的差距", boardHtml.includes(">差 99.4 点<"));
+// 总览行的「分数分布」：一条轨道 + 每个模型一个**彩色**点（颜色 = 模型身份）。
+// 为什么每行都要有轨道：只有 >0 的行才有的话，就成了用户最反感的「有的有有的没」。
+check("排行榜总览：每个分类一条轨道，点数 = 该分类模型数，冠军点单独标记",
+  (boardHtml.match(/class="ov-dist"/g) || []).length === bds.length
+  && (boardHtml.match(/<i class="(?:champ)?" style="left:/g) || []).length === 5
+  && (boardHtml.match(/<i class="champ" style="left:/g) || []).length === bds.length,
+  "分类数 3、模型总数 2+1+2=5、每行一个冠军点");
+// 位置 = 3% + 分数×0.94%（两端留边，否则 0 分/100 分的点会被轨道边缘切掉一半）；
+// 轨道上给一条 50% 刻度，位置才有参照
+check("排行榜总览：两端留边 + 有 50% 刻度",
+  // 注意别写成 style="left:96.43%"：点的 style 后面还跟着 background，引号不在这儿
+  boardHtml.includes("left:96.43%") && boardHtml.includes("left:3.00%")
+  && (boardHtml.match(/class="tick" style="left:50%"/g) || []).length === bds.length);
+// 颜色必须真的是「模型身份」：同一模型在冠军名前的点、轨道上的点、展开后的两张表里同色；
+// 不同模型不同色。只断言"有颜色"是不够的 —— 那样颜色就只是装饰。
+const colorOf = name => [...boardHtml.matchAll(
+  new RegExp(`class="mdot" style="background:(#[0-9a-f]{6})"></span>${name}`, "g"))].map(m => m[1]);
+const cJia = colorOf("模型甲"), cYi = colorOf("模型乙");
+const champDots = [...boardHtml.matchAll(/<i class="champ" style="left:[\d.]+%;background:(#[0-9a-f]{6})"/g)]
+  .map(m => m[1]);
+check("排行榜总览：同一模型到处同色、不同模型不同色（颜色 = 模型身份）",
+  cJia.length >= 2 && new Set(cJia).size === 1
+  && cYi.length >= 1 && cJia[0] !== cYi[0]
+  && champDots.length === bds.length && new Set(champDots).size === 1 && champDots[0] === cJia[0],
+  `模型甲 ${cJia}、模型乙 ${cYi}、冠军点 ${champDots}`);
 // 冠军口径必须写出来：冠军是「跑得最全的一批里分数最高」，不一定是分数最高的那个。
 // 要求**表头和哑铃悬停都说**：只写一处时，另一处看起来仍然像高亮错了。
 // （第一版只断言「出现过」，结果去掉悬停那份照样绿 —— 反向验证才发现是弱断言。）

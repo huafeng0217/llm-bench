@@ -193,17 +193,19 @@
   .score-cell { display:flex; align-items:center; gap:10px; }
   .score-cell .bar { flex:1; min-width:56px; }
   .score-cell .acc { min-width:50px; text-align:right; }
-  /* 排行榜总览里的「分数分布」：哑铃图 —— 左端亚军、右端冠军、中间连线，右边给差距。
-     为什么不用整条轨道把每个模型都画上：多数分类只有 1~4 个模型（中文能力 1 个、
-     通用知识 3 个），信息密度撑不起一整列；而且灰色轨道和右边的得分进度条形状一样，
-     会被读成「另一根空进度条」（用户报「有点丑」）。只留两个点，噪音最小。 */
-  .ov-dumbbell { position:relative; height:14px; min-width:86px; }
-  .ov-dumbbell .line { position:absolute; top:50%; height:2px; margin-top:-1px;
-                       background:var(--border2); border-radius:2px; }
-  .ov-dumbbell i { position:absolute; top:50%; width:9px; height:9px; margin:-4.5px 0 0 -4.5px;
-                   border-radius:50%; background:var(--border2); border:2px solid var(--card);
-                   box-sizing:border-box; }
-  .ov-dumbbell i.champ { width:13px; height:13px; margin:-6.5px 0 0 -6.5px; background:var(--accent); }
+  /* 排行榜总览的「分数分布」：一条浅色轨道 + 每个模型一个**彩色**点。
+     颜色 = 模型身份（同一模型在轨道上、冠军名前面、展开后的两张表里颜色一致），
+     所以颜色不是装饰：配合悬停就能看出「这个分类里谁在哪、彼此差多远」。
+     轨道刻意做得比右边的得分条**更细、且不带填充** —— 上一版用等高的灰条，
+     被读成「另一根空进度条」，和得分条撞形状（用户两次都报这里）。 */
+  .ov-dist { position:relative; height:6px; border-radius:4px; background:var(--bg2); }
+  .ov-dist .tick { position:absolute; top:-3px; width:1px; height:12px; background:var(--border); }
+  .ov-dist i { position:absolute; top:50%; width:10px; height:10px; margin:-5px 0 0 -5px;
+               border-radius:50%; border:2px solid var(--card); box-sizing:border-box; }
+  .ov-dist i.champ { width:14px; height:14px; margin:-7px 0 0 -7px; }
+  /* 模型色点：总览行、展开后的综合排行/分项表都用它，所以同一个模型到处同色 */
+  .mdot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px;
+          vertical-align:middle; }
   .bar i { display:block; height:100%; border-radius:4px; transition:width .35s;
            background:linear-gradient(90deg,#3d6fe0,#6f9bf5); }
   .st-running { color:var(--accent2); } .st-done { color:var(--green); } .st-failed { color:var(--red); } .st-stopped { color:var(--amber); }
@@ -1003,50 +1005,50 @@ async function refresh() {
   // 否则「只跑了一个子集」和「跑满四个组」在表里看起来一样。
   const famCover = m => (m.families || []).map(f =>
     `<br><span class="tag" title="官方加权总分 ${f.score}% · 已跑 ${f.subsets_run}/${f.subsets_total} 个子集">${esc(f.id)} 权重 ${pct(f.weight_covered)}</span>`).join("");
-  // 分数分布（哑铃图）：两端是**同一口径下的**冠军与亚军，中间是差距。
-  // 冠军口径 = 先比覆盖、再比分数（防止只挑好跑的那项），所以**冠军不一定是分数最高的**
-  // —— 这一点必须说出来，否则图上看起来像高亮错了。跑分更高但没跑全的模型，写进悬停。
-  // 位置映射 3% + 分数×0.94%：两端各留 3%，不然 0 分/100 分的点会被切掉一半。
+  // 模型配色：同一个模型在排行榜各处用同一个颜色（轨道上的点、冠军名前的点、
+  // 展开后的两张表）。按**名字排序**定色 —— 同一份数据每次渲染都一样，
+  // 也不会因为某个分类里顺序变了就换色；模型数不超过调色板长度时颜色互不重复。
+  const MODEL_COLORS = ["#4a7de0", "#e0952f", "#22995c", "#c44b8a", "#8b5cf6", "#0f9b9b", "#d9534f", "#6b7a90"];
+  const modelColorMap = Object.fromEntries(
+    [...new Set(bds.flatMap(c => c.combined.map(m => m.model_name)))].sort()
+      .map((n, i) => [n, MODEL_COLORS[i % MODEL_COLORS.length]]));
+  const mcolor = n => modelColorMap[n] || "var(--border2)";
+  // 分数分布：一条浅色轨道 + 每个模型一个**彩色**点，点的位置 = 综合得分。
+  // 颜色就是模型身份（同一模型在轨道上、冠军名前面、展开后的两张表里都同色），
+  // 所以配合悬停能看出「谁在哪、彼此差多远」；冠军点画得更大，且永远画在最上层。
+  // 位置 3% + 分数×0.94%：两端各留 3%，否则 0 分/100 分的点会被轨道边缘切掉一半。
+  // 冠军口径 = 先比覆盖、再比分数（防止只挑好跑的那项），所以**冠军不一定在最右边** ——
+  // 悬停里说明口径，并点名"分数更高但没跑全"的模型（否则图上看着像高亮错了）。
   const CHAMP_RULE = "冠军 = 跑得最全的一批里分数最高（防止只挑好跑的那项），所以冠军不一定是分数最高的那个";
   const distBar = c => {
     const ms = c.combined;
-    const champ = ms[0], second = ms[1];
+    const champ = ms[0];
     const x = a => 3 + Math.max(0, Math.min(100, a)) * 0.94;
-    const dot = (m, cls) => `<i class="${cls}" style="left:${x(m.avg_accuracy).toFixed(2)}%"
-      title="${esc(m.model_name)} · ${m.avg_accuracy}%（覆盖 ${m.covered}/${m.total}）"></i>`;
-    // 分数比冠军高、但没跑全的模型：冠军口径下它不参选，但读者有权知道它存在
+    const label = m => `${m.model_name} ${m.avg_accuracy}%（覆盖 ${m.covered}/${m.total}${m.partial ? `，含 ${m.partial} 项部分` : ""}）`;
+    const dot = (m, cls) => `<i class="${cls}" style="left:${x(m.avg_accuracy).toFixed(2)}%;background:${mcolor(m.model_name)}"
+      title="${esc(label(m))}${m === champ ? "　★ 冠军" : ""}"></i>`;
+    // 分数升序画，分高的后画（叠在上面）；冠军最后画，保证它在最上层
+    const others = ms.slice(1).sort((p, q) => p.avg_accuracy - q.avg_accuracy);
+    const dots = others.map(m => dot(m, "")).join("") + dot(champ, "champ");
+    const byScore = [...ms].sort((p, q) => q.avg_accuracy - p.avg_accuracy);
     const higher = ms.slice(1).filter(m => m.avg_accuracy > champ.avg_accuracy);
     const note = higher.length
-      ? "　另外：" + higher.map(m => `${m.model_name} ${m.avg_accuracy}% 更高，但只跑了 ${m.covered}/${m.total} 项`).join("；")
+      ? "　注意：" + higher.map(m => `${m.model_name} ${m.avg_accuracy}% 更高，但只跑了 ${m.covered}/${m.total} 项`).join("；")
       : "";
-    if (!second) {
-      return `<div style="display:flex;align-items:center;gap:8px">
-        <div class="ov-dumbbell" title="本分类只有 1 个模型：${esc(champ.model_name)} ${champ.avg_accuracy}%">${dot(champ, "champ")}</div>
-        <span class="muted" style="font-size:11px;white-space:nowrap">无对比</span></div>`;
-    }
-    const a = x(champ.avg_accuracy), b = x(second.avg_accuracy);
-    const lo = Math.min(a, b), hi = Math.max(a, b);
-    const gap = Math.round((champ.avg_accuracy - second.avg_accuracy) * 10) / 10;
-    const gapText = gap > 0 ? `差 ${gap} 点` : gap < 0 ? `落后 ${-gap} 点` : "持平";
-    return `<div style="display:flex;align-items:center;gap:8px">
-      <div class="ov-dumbbell" style="flex:1"
-           title="${CHAMP_RULE}。这里是 ${esc(champ.model_name)} ${champ.avg_accuracy}% 与第 2 名 ${esc(second.model_name)} ${second.avg_accuracy}%（覆盖 ${second.covered}/${second.total}）。${note}">
-        <span class="line" style="left:${lo.toFixed(2)}%;width:${(hi - lo).toFixed(2)}%"></span>
-        ${dot(second, "runner")}${dot(champ, "champ")}
-      </div>
-      <span class="muted" style="font-size:11px;white-space:nowrap">${gapText}</span></div>`;
+    return `<div class="ov-dist" title="${CHAMP_RULE}。本分类 ${ms.length} 个模型（按分数）：${esc(byScore.map(label).join("；"))}。${note}">
+      <span class="tick" style="left:50%"></span>${dots}</div>`;
   };
   // 总览：各分类冠军一览。每行本身即开关，点击展开/收起该分类详情（可同时展开多个）
   const overview = `
     <div class="card" style="padding:14px 18px">
       <div class="cat-head" style="margin:0"><span class="dot" style="background:var(--accent)"></span>总览<span class="cnt">点击分类查看详情，可同时展开多个</span></div>
-      <table style="margin-top:10px"><thead><tr><th class="tl" style="width:190px">分类</th><th class="tl">冠军模型</th><th style="width:190px" title="哑铃两端是冠军与亚军（同一口径），中间连线，右侧是差距。冠军 = 跑得最全的一批里分数最高，所以不一定是分数最高的那个">分数分布</th><th style="width:200px">综合得分</th><th style="width:150px">覆盖</th></tr></thead>
+      <table style="margin-top:10px"><thead><tr><th class="tl" style="width:190px">分类</th><th class="tl">冠军模型</th><th style="width:200px" title="轨道上一个点 = 一个模型，颜色区分模型（和冠军名前的点、展开后的表里同色）。冠军 = 跑得最全的一批里分数最高，所以不一定是分数最高的那个 —— 悬停里会说明，并点名分数更高但没跑全的模型">分数分布</th><th style="width:200px">综合得分</th><th style="width:150px">覆盖</th></tr></thead>
       <tbody>${bds.map(c => {
         const champ = c.combined[0];
         const open = !!expandedCats[c.id];
         return `<tr style="cursor:pointer" onclick="toggleCat('${esc(c.id)}')">
           <td class="tl"><span style="display:inline-block;width:12px;color:var(--faint)">${open ? "▾" : "▸"}</span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:3px;background:${c.color};margin-right:6px"></span>${esc(c.name)}</td>
-          <td class="tl" style="font-weight:550">${esc(champ.model_name)}</td>
+          <td class="tl" style="font-weight:550"><span class="mdot" style="background:${mcolor(champ.model_name)}"></span>${esc(champ.model_name)}</td>
           <td>${distBar(c)}</td>
           <td><div class="score-cell"><span class="acc">${champ.avg_accuracy}%</span><div class="bar"><i style="width:${Math.min(champ.avg_accuracy, 100)}%"></i></div></div></td>
           <td class="muted">${champ.covered}/${champ.total}${famCover(champ)}</td>
@@ -1111,7 +1113,7 @@ async function refresh() {
       <table><thead><tr><th style="width:64px">名次</th><th class="tl">模型</th><th style="width:200px">综合得分</th><th style="width:150px">覆盖</th></tr></thead>
       <tbody>${cat.combined.map((m, i) => `<tr>
         <td><span class="rank r${i+1}">${i+1}</span></td>
-        <td class="tl" style="font-weight:550">${esc(m.model_name)}</td>
+        <td class="tl" style="font-weight:550"><span class="mdot" style="background:${mcolor(m.model_name)}"></span>${esc(m.model_name)}</td>
         <td><div class="score-cell"><span class="acc">${m.avg_accuracy}%</span><div class="bar"><i style="width:${Math.min(m.avg_accuracy, 100)}%"></i></div></div></td>
         <td class="muted">${m.covered}/${m.total}${m.covered < m.total ? ' <span class="tag warn">未跑全</span>' : ''}${m.partial ? ` <span class="tag warn" title="这些项只有部分评测，分数不计入综合得分">${m.partial} 项为部分</span>` : ''}${famCover(m)}</td>
       </tr>`).join("")}</tbody></table>
@@ -1119,7 +1121,7 @@ async function refresh() {
       <table><thead><tr><th class="tl" style="width:190px">基准</th><th class="tl">模型</th><th style="width:180px">正确率</th><th style="width:70px">题数</th><th style="width:110px">平均延迟</th><th style="width:90px">Token</th></tr></thead>
       <tbody>${cat.boards.map(b => b.rows.map((r, i) => `<tr>
         ${i === 0 ? `<td class="tl" rowspan="${b.rows.length}" style="font-weight:600;vertical-align:top">${esc(b.benchmark_name)}</td>` : ""}
-        <td class="tl">${r.partial ? '<span class="muted" title="只跑了部分题库，不排名次">—</span>' : `<span class="rank r${i+1}">${i+1}</span>`} ${esc(r.model_name)}${r.partial ? ` <span class="tag warn" title="只跑了 ${r.total}/${r.full_count} 题，分数仅供参考">部分 ${r.total}/${r.full_count}</span>` : ''}</td>
+        <td class="tl">${r.partial ? '<span class="muted" title="只跑了部分题库，不排名次">—</span>' : `<span class="rank r${i+1}">${i+1}</span>`} <span class="mdot" style="background:${mcolor(r.model_name)}"></span>${esc(r.model_name)}${r.partial ? ` <span class="tag warn" title="只跑了 ${r.total}/${r.full_count} 题，分数仅供参考">部分 ${r.total}/${r.full_count}</span>` : ''}</td>
         <td><div class="score-cell"><span class="acc">${r.accuracy}%</span><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div></div></td><td>${r.total}</td>
         <td class="muted">${r.avg_latency_ms} ms</td>
         <td class="muted">${r.prompt_tokens + r.completion_tokens}</td>
