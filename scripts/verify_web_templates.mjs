@@ -390,25 +390,15 @@ check("任务列表：失败列每行都有值（0 灰 / N 红），不再有的
   /failed \? `<span class="st-failed"[^>]*>\$\{failed\}<\/span>`\s*:\s*`<span class="muted">0<\/span>`/.test(src));
 check("任务列表：状态列只放状态（失败数不再挤进来）",
   /class="\$\{stCls\}">\$\{ST_TEXT\[e\.status\] \|\| e\.status\}<\/td>/.test(src));
-check("任务列表：主数字保持保守口径，「有效题 X%」默认隐藏、点正确率才出来",
-  /有效题 \$\{validAcc\}%/.test(src)
-  && /id="vacc-\$\{e\.id\}"/.test(src)
-  && /onclick="toggleValidAcc\(event, \$\{e\.id\}\)"/.test(src)
-  // 默认必须带 hidden：用户要的是「点击正确率显示就行了」，不能一上来就挤在表上
-  && /\$\{validAccOpen\.has\(e\.id\) \? "" : " hidden"\}/.test(src)
+check("任务列表：正确率只显示主数字，有效题率写在悬停说明里（不占格子、不用点）",
+  /只看跑成的 \$\{e\.done - failed\} 题是 \$\{validAcc\}%/.test(src)
   && /validAcc = failed && e\.done \? Math\.round\(e\.correct \/ \(e\.done - failed\) \* 1000\) \/ 10 : null/.test(src),
   "未跑成的题不能从主数字里消失，但也不能让主数字独占解释权");
-// 展开状态必须存在 DOM 之外：任务列表每 2.5 秒重渲染一次，放 DOM 上会被刷掉
-check("任务列表：「有效题」的展开状态存在模块级 Set 里（表格重渲染不会丢）",
-  /let validAccOpen = new Set\(\)/.test(src)
-  && /el\.hidden = !el\.hidden;/.test(src)
-  && /if \(el\.hidden\) validAccOpen\.delete\(id\); else validAccOpen\.add\(id\);/.test(src));
-// 点表格里的正确率不能被当成「点空白处」——否则已选中的基准会被清掉
-check("任务列表：点正确率时不让全局点击处理清掉已选基准",
-  /function toggleValidAcc\(ev, id\) \{\s*ev\.stopPropagation\(\);/.test(src));
-// 「有效题」必须是**行内**的：块级会把这些行撑高，又变成有的高有的矮（用户报过同类问题）
-check("任务列表：「有效题」用行内元素（块级会把那几行撑高）",
-  !/有效题 \$\{validAcc\}%<\/div>/.test(src));
+// 用户否掉了「点一下再展开」：信息本来就该在悬停里，多一层点击只多一个要记的状态
+// （还要防止被 2.5 秒一次的重渲染刷掉）。所以那套东西不许回来。
+check("任务列表：不再有点击展开那套（没有 toggleValidAcc / validAccOpen / 隐藏 span）",
+  !/toggleValidAcc/.test(src) && !/validAccOpen/.test(src)
+  && !/id="vacc-/.test(src) && !/accExtra/.test(src));
  // 整个页面脚本必须能解析。上面所有断言都是把**某几个**渲染函数抠出来跑的 ——
 // 别处的语法错误（比如 refresh 里拼模板时少个反引号）它们一个都发现不了，
 // 只会在浏览器里白屏。这里补一条兜底。
