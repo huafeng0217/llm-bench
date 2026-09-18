@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from . import benchmarks as bm
-from . import datasets, db, engine, sandbox, scoring, summary
+from . import datasets, db, engine, i18n, sandbox, scoring, summary
 from .benchmarks import CATEGORIES, FAMILIES, FAMILY_GROUPS, META, get_meta
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -101,6 +101,18 @@ _PREWARM = None
 
 
 app = FastAPI(title="LLM Bench", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def _lang_middleware(request, call_next):
+    """每次请求先定语言：X-Lang（前端切换后带的）→ Accept-Language（首次访问）→ 中文。
+
+    放在中间件里而不是每个路由上加参数：语言要能被**很深**的代码用到
+    （runner 的进度消息、题型的判定文案、判分错误），一路传参下去会污染所有签名。
+    """
+    i18n.set_lang(i18n.detect(request.headers.get("accept-language", ""),
+                              request.headers.get("x-lang", "")))
+    return await call_next(request)
 
 
 # 模型用途：被测 / 判别器。**互斥**，不是可叠加的角色 ——

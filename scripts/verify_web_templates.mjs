@@ -418,7 +418,7 @@ check("表头与正文默认居中（数值/进度/状态/按钮列）",
   /th,td\s*\{[^}]*text-align:\s*center/.test(src));
 check("文本列用 .tl 左对齐（表头跟着左对齐）", /th\.tl,\s*td\.tl\s*\{[^}]*text-align:\s*left/.test(src));
 check("评测任务的「模型/基准」列标了 tl（文本列左对齐）",
-  /<th class="tl">模型<\/th><th class="tl">基准<\/th>/.test(src));
+  /<th class="tl"[^>]*>模型<\/th><th class="tl"[^>]*>基准<\/th>/.test(src));
 
 // 两张表的行是在别的函数里拼的（不在 <table> 块内），所以单独精确断言正文单元格 ——
 // 全局数量检查太松，少标一格它发现不了（反向验证过）。
@@ -457,8 +457,8 @@ check("任务列表：正确率的说明里写明分母含失败题、会因此�
 // 只给 >0 的行追加一截字，就会出现「有的标有的没标」的不协调（用户报过）——
 // 所以失败数独立成一列：每行都有值（0 灰 / N 红），状态列只放状态。
 check("任务列表：失败数独立成列（表头 + 空表 colspan 跟着加一）",
-  /<th>进度<\/th><th>正确率<\/th><th style="width:56px">失败<\/th><th>状态<\/th>/.test(src)
-  && /<tbody id="evals"><tr><td colspan="8" class="empty">/.test(src)
+  /<th[^>]*>进度<\/th><th[^>]*>正确率<\/th><th style="width:56px"[^>]*>失败<\/th><th[^>]*>状态<\/th>/.test(src)
+  && /<tbody id="evals"><tr><td colspan="8" class="empty"[^>]*>/.test(src)
   && /colspan="\$\{batchMode \? 9 : 8\}"/.test(src));
 check("任务列表：失败列每行都有值（0 灰 / N 红），不再有的标有的没标",
   /failed \? `<span class="st-failed"[^>]*>\$\{failed\}<\/span>`\s*:\s*`<span class="muted">0<\/span>`/.test(src));
@@ -473,7 +473,44 @@ check("任务列表：正确率只显示主数字，有效题率写在悬停说�
 check("任务列表：不再有点击展开那套（没有 toggleValidAcc / validAccOpen / 隐藏 span）",
   !/toggleValidAcc/.test(src) && !/validAccOpen/.test(src)
   && !/id="vacc-/.test(src) && !/accExtra/.test(src));
- // 整个页面脚本必须能解析。上面所有断言都是把**某几个**渲染函数抠出来跑的 ——
+ // ---------------- 中英切换（i18n）----------------
+// 机制：中文原文即 key，英文在 EN 表里查；查不到就回落中文。
+// 所以「有没有漏译」是可以自动测的 —— 见下面两条：静态骨架的每个 data-i18n 键都必须在 EN 表里，
+// 而且 EN 表的值里不许出现中文（漏成中文等于没翻，界面上还看不出来）。
+const staticSrc = src.slice(0, src.indexOf("<script>"));
+const staticKeys = [...staticSrc.matchAll(/data-i18n(?:-html|-ph|-title)?="([^"]+)"/g)].map(m => m[1]);
+const enSrc = script.slice(script.indexOf("const EN = {"),
+                           script.indexOf("};", script.indexOf("const EN = {")) + 2);
+const EN = new Function(enSrc + "\nreturn EN;")();
+check("i18n：静态骨架里每个 data-i18n 键都有英文（防漏译）",
+  staticKeys.every(k => Object.prototype.hasOwnProperty.call(EN, k)),
+  `缺英文：${staticKeys.filter(k => !(k in EN))}`);
+check("i18n：英文表里没有中文（漏成中文等于没翻）",
+  Object.entries(EN).filter(([, v]) => /[\u4e00-\u9fff]/.test(v)).map(([k]) => k).length === 0,
+  `值是中文：${Object.entries(EN).filter(([, v]) => /[\u4e00-\u9fff]/.test(v)).map(([k]) => k)}`);
+check("i18n：顶栏有语言开关，且切换会写 localStorage 并重载",
+  /id="langsw"/.test(src) && /data-lang="zh"/.test(src) && /data-lang="en"/.test(src)
+  && /function setLang\(lang\)[\s\S]{0,200}localStorage\.setItem\("lang"/.test(script)
+  && /location\.reload\(\)/.test(script));
+check("i18n：每条请求都带 X-Lang（服务端据此返回对应语言的文案）",
+  /"X-Lang": LANG/.test(script));
+// 静态骨架里**不该有漏标记的中文**：每个中文文本节点都得挂 data-i18n*（否则切英文时会留下中文）。
+// 两个例外：① 语言开关自己的「中文」按钮（那是语言自己的名字，永远不翻）；
+// ② data-i18n-html 容器**内部**的标签（整段是一起翻的，如 summary-hint 里的 <b>）。
+const shellNoHtml = staticSrc
+  .replace(/<style[\s\S]*?<\/style>/g, "")
+  .replace(/<!--[\s\S]*?-->/g, "")
+  .replace(/<(\w+)[^>]*data-i18n-html[^>]*>[\s\S]*?<\/\1>/g, "");
+const unmarked = [...shellNoHtml.matchAll(/<([a-zA-Z][^>]*)>([^<>]*[\u4e00-\u9fff][^<>]*)/g)]
+  .filter(m => !m[1].includes("data-i18n") && !m[1].includes('data-lang="zh"'))
+  .map(m => m[2].trim().slice(0, 30));
+check("i18n：静态骨架里没有漏标记的中文（切英文不会留下中文）", unmarked.length === 0,
+  `未标记：${unmarked}`);
+// 默认语言跟浏览器：localStorage 里选过就用它，否则 navigator.language 以 zh 开头 → 中文
+check("i18n：默认语言跟浏览器、可被 localStorage 覆盖",
+  /localStorage\.getItem\("lang"\)/.test(script) && /navigator\.language/.test(script)
+  && /startsWith\("zh"\) \? "zh" : "en"/.test(script));
+// 整个页面脚本必须能解析。上面所有断言都是把**某几个**渲染函数抠出来跑的 ——
 // 别处的语法错误（比如 refresh 里拼模板时少个反引号）它们一个都发现不了，
 // 只会在浏览器里白屏。这里补一条兜底。
 let parseOk = true, parseErr = "";

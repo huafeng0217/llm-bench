@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LLM Bench - 大模型基准测评</title>
+<title data-i18n="LLM Bench - 大模型基准测评">LLM Bench - 大模型基准测评</title>
 <style>
   :root {
     --bg:#f3f5f9; --bg2:#eef1f6; --card:#ffffff; --card2:#f7f9fc; --border:#e3e7ef; --border2:#ccd4e2;
@@ -25,6 +25,13 @@
                  border-left-color:transparent; transform:rotate(45deg) translate(-1px,-1px); }
   h1 { font-size:19px; font-weight:650; letter-spacing:.2px; }
   .tagline { color:var(--muted); font-size:12.5px; }
+  /* 语言开关：贴右上角，和顶栏同一行 */
+  .langsw { margin-left:auto; display:flex; gap:0; border:1px solid var(--border2);
+            border-radius:9px; overflow:hidden; flex:0 0 auto; }
+  .langsw button { background:transparent; border:none; border-radius:0; color:var(--muted);
+                   padding:5px 11px; font-size:12px; font-weight:500; cursor:pointer; }
+  .langsw button:hover { color:var(--text); background:var(--card2); filter:none; }
+  .langsw button.on { background:var(--accent); color:#fff; }
   .stats { display:flex; gap:10px; margin:16px 0 6px; }
   .stat { position:relative; overflow:hidden; flex:1; background:var(--card); border:1px solid var(--border);
           border-radius:12px; padding:12px 16px 12px 19px; }
@@ -256,97 +263,103 @@
     <div class="logo"></div>
     <div>
       <h1>LLM Bench</h1>
-      <div class="tagline">填入任意 OpenAI 兼容接口（base_url + API Key + 模型名），自动跑基准测试并对比排名</div>
+      <div class="tagline" data-i18n="填入任意 OpenAI 兼容接口（base_url + API Key + 模型名），自动跑基准测试并对比排名">填入任意 OpenAI 兼容接口（base_url + API Key + 模型名），自动跑基准测试并对比排名</div>
+    </div>
+    <!-- 语言开关：切换后写 localStorage 并整页重载 —— 服务端返回的文案（基准简介、
+         报错、判定）跟着变，重载是唯一能保证两边一致的做法，比局部重渲染可靠。 -->
+    <div class="langsw" id="langsw" role="group" aria-label="Language">
+      <button type="button" data-lang="zh" onclick="setLang('zh')">中文</button>
+      <button type="button" data-lang="en" onclick="setLang('en')">EN</button>
     </div>
   </header>
 
   <div class="stats">
-    <div class="stat" style="--c:#4a7de0"><b id="stat-models">0</b><span>已接入模型</span></div>
-    <div class="stat" style="--c:#7a5ae0"><b id="stat-bms">0</b><span>可用基准</span></div>
-    <div class="stat" style="--c:#2fa36b"><b id="stat-evals">0</b><span>评测任务</span></div>
-    <div class="stat" style="--c:#b97e1e"><b id="stat-best">-</b><span>最佳正确率</span></div>
+    <div class="stat" style="--c:#4a7de0"><b id="stat-models">0</b><span data-i18n="已接入模型">已接入模型</span></div>
+    <div class="stat" style="--c:#7a5ae0"><b id="stat-bms">0</b><span data-i18n="可用基准">可用基准</span></div>
+    <div class="stat" style="--c:#2fa36b"><b id="stat-evals">0</b><span data-i18n="评测任务">评测任务</span></div>
+    <div class="stat" style="--c:#b97e1e"><b id="stat-best">-</b><span data-i18n="最佳正确率">最佳正确率</span></div>
   </div>
 
-  <h2><span class="no">1</span>模型管理<span id="add-model-toggle" style="margin-left:auto"></span></h2>
+  <h2><span class="no">1</span><span data-i18n="模型管理">模型管理</span><span id="add-model-toggle" style="margin-left:auto"></span></h2>
   <div class="muted" style="font-size:12.5px; margin:-4px 0 10px">
-    没有 key 也能体验：模型名填 <code>demo</code>、base_url 填 <code>mock://local</code>。所有 API Key 只保存在本地 <code>data/</code> 目录，不会上传到任何服务器。
+    <span data-i18n-html="demo-hint">没有 key 也能体验：模型名填 <code>demo</code>、base_url 填 <code>mock://local</code>。所有 API Key 只保存在本地 <code>data/</code> 目录，不会上传到任何服务器。</span>
   </div>
   <div id="add-model-box" style="display:none">
     <div class="card">
       <div class="row" style="margin-bottom:10px">
         <select id="m-preset" onchange="applyPreset()" style="flex:0 0 220px">
-          <option value="">选择服务商（自动填 base_url）…</option>
+          <option value="" data-i18n="选择服务商（自动填 base_url）…">选择服务商（自动填 base_url）…</option>
           <option value="https://api.deepseek.com">DeepSeek</option>
-          <option value="https://dashscope.aliyuncs.com/compatible-mode/v1">通义千问（阿里）</option>
-          <option value="https://api.moonshot.cn/v1">Kimi（月之暗面）</option>
-          <option value="https://open.bigmodel.cn/api/paas/v4/">智谱 GLM</option>
+          <option value="https://dashscope.aliyuncs.com/compatible-mode/v1" data-i18n="通义千问（阿里）">通义千问（阿里）</option>
+          <option value="https://api.moonshot.cn/v1" data-i18n="Kimi（月之暗面）">Kimi（月之暗面）</option>
+          <option value="https://open.bigmodel.cn/api/paas/v4/" data-i18n="智谱 GLM">智谱 GLM</option>
           <option value="https://api.openai.com/v1">OpenAI</option>
           <option value="https://openrouter.ai/api/v1">OpenRouter</option>
-          <option value="http://localhost:11434/v1">本地 Ollama</option>
-          <option value="custom">自定义（手动填写）</option>
+          <option value="http://localhost:11434/v1" data-i18n="本地 Ollama">本地 Ollama</option>
+          <option value="custom" data-i18n="自定义（手动填写）">自定义（手动填写）</option>
         </select>
       </div>
       <div class="row">
-        <input id="m-name" placeholder="模型名（API 调用的名字，如 deepseek-v4-flash）">
-        <input id="m-url" placeholder="base_url（必填），如 https://api.deepseek.com">
+        <input id="m-name" placeholder="模型名（API 调用的名字，如 deepseek-v4-flash）" data-i18n-ph="模型名（API 调用的名字，如 deepseek-v4-flash）">
+        <input id="m-url" placeholder="base_url（必填），如 https://api.deepseek.com" data-i18n-ph="base_url（必填），如 https://api.deepseek.com">
         <input id="m-key" placeholder="API Key" type="password">
-        <select id="m-kind" style="flex:0 0 150px" title="判别器只用于给安全类基准判分，不会出现在被测模型里">
-          <option value="test">被测模型</option>
-          <option value="judge">判别器</option>
+        <select id="m-kind" style="flex:0 0 150px" title="判别器只用于给安全类基准判分，不会出现在被测模型里" data-i18n-title="判别器只用于给安全类基准判分，不会出现在被测模型里">
+          <option value="test" data-i18n="被测模型">被测模型</option>
+          <option value="judge" data-i18n="判别器">判别器</option>
         </select>
-        <button style="flex:0 0 auto" class="ghost" onclick="testConn()">测试连接</button>
-        <button style="flex:0 0 auto" onclick="addModel()">添加</button>
+        <button style="flex:0 0 auto" class="ghost" onclick="testConn()" data-i18n="测试连接">测试连接</button>
+        <button style="flex:0 0 auto" onclick="addModel()" data-i18n="添加">添加</button>
       </div>
       <div class="muted" id="m-test-result" style="margin-top:8px"></div>
     </div>
   </div>
-  <div class="card" style="padding:6px 18px"><table><thead><tr><th class="tl">模型</th><th style="width:110px">用途</th><th class="tl">base_url</th><th class="tl">Key</th><th style="width:150px"></th></tr></thead>
-    <tbody id="models"><tr><td colspan="5" class="empty">暂无模型</td></tr></tbody></table></div>
+  <div class="card" style="padding:6px 18px"><table><thead><tr><th class="tl" data-i18n="模型">模型</th><th style="width:110px" data-i18n="用途">用途</th><th class="tl" data-i18n="base_url">base_url</th><th class="tl" data-i18n="Key">Key</th><th style="width:150px"></th></tr></thead>
+    <tbody id="models"><tr><td colspan="5" class="empty" data-i18n="暂无模型">暂无模型</td></tr></tbody></table></div>
 
-  <h2><span class="no">2</span>选择基准并发起评测</h2>
+  <h2><span class="no">2</span><span data-i18n="选择基准并发起评测">选择基准并发起评测</span></h2>
   <div id="cat-filter" class="catbar"></div>
   <div id="benchmarks" class="grid"></div>
   <div class="card" style="margin-top:12px">
     <div class="row">
       <select id="e-model" onchange="updateEvalHint()"></select>
-      <input id="e-limit" type="number" min="0" placeholder="题目数（0 或留空 = 全部）">
+      <input id="e-limit" type="number" min="0" placeholder="题目数（0 或留空 = 全部）" data-i18n-ph="题目数（0 或留空 = 全部）">
       <select id="e-judge" onchange="updateEvalHint()" style="display:none"></select>
-      <button id="start-btn" style="flex:0 0 auto" onclick="startEval()">开始评测</button>
+      <button id="start-btn" style="flex:0 0 auto" onclick="startEval()" data-i18n="开始评测">开始评测</button>
     </div>
     <details style="margin-top:12px">
-      <summary>高级参数（可选，不填用默认值）</summary>
+      <summary data-i18n="高级参数（可选，不填用默认值）">高级参数（可选，不填用默认值）</summary>
       <div class="row" style="margin-top:10px">
-        <label class="muted">输出 token 上限<input id="e-maxtokens" type="number" value="2048" min="16" max="32768"></label>
-        <label class="muted">单题超时（秒）<input id="e-timeout" type="number" value="90" min="5" max="600"></label>
-        <label class="muted">并发数<input id="e-conc" type="number" value="8" min="1" max="32"></label>
+        <label class="muted"><span data-i18n="输出 token 上限">输出 token 上限</span><input id="e-maxtokens" type="number" value="2048" min="16" max="32768"></label>
+        <label class="muted"><span data-i18n="单题超时（秒）">单题超时（秒）</span><input id="e-timeout" type="number" value="90" min="5" max="600"></label>
+        <label class="muted"><span data-i18n="并发数">并发数</span><input id="e-conc" type="number" value="8" min="1" max="32"></label>
       </div>
-      <div class="muted" style="margin-top:6px">思考型模型（DeepSeek V4、R1、o 系列等）的输出上限要包含思考 token，2048 是安全值；并发调高速度快但可能触发服务商限流。</div>
+      <div class="muted" style="margin-top:6px" data-i18n="思考型模型（DeepSeek V4、R1、o 系列等）的输出上限要包含思考 token，2048 是安全值；并发调高速度快但可能触发服务商限流。">思考型模型（DeepSeek V4、R1、o 系列等）的输出上限要包含思考 token，2048 是安全值；并发调高速度快但可能触发服务商限流。</div>
     </details>
-    <div class="muted" id="e-hint" style="margin-top:10px">请先选择一个基准（点击上方卡片）和模型。</div>
+    <div class="muted" id="e-hint" style="margin-top:10px" data-i18n="请先选择一个基准（点击上方卡片）和模型。">请先选择一个基准（点击上方卡片）和模型。</div>
   </div>
 
-  <h2><span class="no">3</span>评测任务<span id="batch-toggle" style="margin-left:auto"></span></h2>
+  <h2><span class="no">3</span><span data-i18n="评测任务">评测任务</span><span id="batch-toggle" style="margin-left:auto"></span></h2>
   <div class="card" style="padding:6px 18px"><table><thead><tr>
-    <th id="th-check" style="width:32px; display:none"><input type="checkbox" id="task-check-all" onclick="toggleAllTasks(this)" title="全选本页"></th>
-    <th style="width:40px">#</th><th class="tl">模型</th><th class="tl">基准</th><th>进度</th><th>正确率</th><th style="width:56px">失败</th><th>状态</th><th style="width:130px"></th>
-  </tr></thead><tbody id="evals"><tr><td colspan="8" class="empty">暂无任务</td></tr></tbody></table>
+    <th id="th-check" style="width:32px; display:none"><input type="checkbox" id="task-check-all" onclick="toggleAllTasks(this)" title="全选本页" data-i18n-title="全选本页"></th>
+    <th style="width:40px">#</th><th class="tl" data-i18n="模型">模型</th><th class="tl" data-i18n="基准">基准</th><th data-i18n="进度">进度</th><th data-i18n="正确率">正确率</th><th style="width:56px" data-i18n="失败">失败</th><th data-i18n="状态">状态</th><th style="width:130px"></th>
+  </tr></thead><tbody id="evals"><tr><td colspan="8" class="empty" data-i18n="暂无任务">暂无任务</td></tr></tbody></table>
     <div id="batch-bar" style="padding:4px 0"></div>
     <div id="task-controls" style="padding:8px 0"></div></div>
   <div id="items-box"></div>
 
-  <h2><span class="no">4</span>成绩总览</h2>
-  <div id="overview"><div class="card"><div class="empty">完成一次评测后生成</div></div></div>
+  <h2><span class="no">4</span><span data-i18n="成绩总览">成绩总览</span></h2>
+  <div id="overview"><div class="card"><div class="empty" data-i18n="完成一次评测后生成">完成一次评测后生成</div></div></div>
 
-  <h2><span class="no">5</span>排行榜</h2>
-  <div id="board"><div class="card"><div class="empty">完成一次评测后生成</div></div></div>
+  <h2><span class="no">5</span><span data-i18n="排行榜">排行榜</span></h2>
+  <div id="board"><div class="card"><div class="empty" data-i18n="完成一次评测后生成">完成一次评测后生成</div></div></div>
 
-  <h2><span class="no">6</span>AI 总结</h2>
+  <h2><span class="no">6</span><span data-i18n="AI 总结">AI 总结</span></h2>
   <div class="card">
     <div class="row">
       <select id="s-model"></select>
-      <button id="s-gen" style="flex:0 0 auto" onclick="genSummary()">生成总结</button>
+      <button id="s-gen" style="flex:0 0 auto" onclick="genSummary()" data-i18n="生成总结">生成总结</button>
     </div>
-    <div class="muted" style="margin-top:8px">
+    <div class="muted" style="margin-top:8px" data-i18n-html="summary-hint">
       总结只依据下方「本次依据的数据」，由所选模型写成。
       <b>所有统计量（排名、覆盖率、差距是否显著）都是程序算好的</b>，模型只负责解释，
       因此换个模型来写，数字也不会变。
@@ -361,7 +374,7 @@
   <div class="box" onclick="event.stopPropagation()">
     <div style="display:flex;align-items:flex-start;gap:10px">
       <h3 id="bm-modal-title"></h3>
-      <button class="ghost" style="margin-left:auto" onclick="hideBmDetail()">关闭</button>
+      <button class="ghost" style="margin-left:auto" onclick="hideBmDetail()" data-i18n="关闭">关闭</button>
     </div>
     <div class="tags" id="bm-modal-tags"></div>
     <div class="body" id="bm-modal-body"></div>
@@ -370,6 +383,99 @@
 </div>
 
 <script>
+
+// ==================== i18n（中文原文即 key）====================
+// 为什么用中文原文当 key：① 中文模式零改动（查不到就返回原文，现有中文与全部自检原样有效）；
+// ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
+// 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
+const EN = {
+  // ---- 静态骨架 ----
+  "LLM Bench - 大模型基准测评": "LLM Bench — LLM benchmark suite",
+  "填入任意 OpenAI 兼容接口（base_url + API Key + 模型名），自动跑基准测试并对比排名":
+    "Plug in any OpenAI-compatible endpoint (base_url + API key + model name), run the benchmarks and compare the ranking",
+  "已接入模型": "Models",
+  "可用基准": "Benchmarks",
+  "评测任务": "Runs",
+  "最佳正确率": "Best accuracy",
+  "模型管理": "Models",
+  "选择基准并发起评测": "Pick a benchmark and run",
+  "评测任务2": "",
+  "成绩总览": "Overview",
+  "排行榜": "Leaderboard",
+  "AI 总结": "AI summary",
+  "选择服务商（自动填 base_url）…": "Pick a provider (fills base_url)…",
+  "通义千问（阿里）": "Qwen (Alibaba)",
+  "Kimi（月之暗面）": "Kimi (Moonshot)",
+  "智谱 GLM": "Zhipu GLM",
+  "本地 Ollama": "Local Ollama",
+  "自定义（手动填写）": "Custom (fill in manually)",
+  "模型名（API 调用的名字，如 deepseek-v4-flash）": "Model name (as the API expects, e.g. deepseek-v4-flash)",
+  "base_url（必填），如 https://api.deepseek.com": "base_url (required), e.g. https://api.deepseek.com",
+  "判别器只用于给安全类基准判分，不会出现在被测模型里":
+    "A judge model only scores safety benchmarks; it never shows up as a model under test",
+  "被测模型": "Model under test",
+  "判别器": "Judge",
+  "测试连接": "Test connection",
+  "添加": "Add",
+  "模型": "Model",
+  "用途": "Role",
+  "Key": "Key",
+  "base_url": "base_url",   // 技术词，中英一样（英文表里也不能出现中文）
+  "暂无模型": "No models yet",
+  "题目数（0 或留空 = 全部）": "Item count (0 or empty = all)",
+  "开始评测": "Start run",
+  "高级参数（可选，不填用默认值）": "Advanced options (optional; defaults are fine)",
+  "输出 token 上限": "Max output tokens",
+  "单题超时（秒）": "Timeout per item (s)",
+  "并发数": "Concurrency",
+  "思考型模型（DeepSeek V4、R1、o 系列等）的输出上限要包含思考 token，2048 是安全值；并发调高速度快但可能触发服务商限流。":
+    "For reasoning models (DeepSeek V4, R1, o-series…) the output cap must cover thinking tokens; 2048 is a safe value. Higher concurrency is faster but may hit provider rate limits.",
+  "请先选择一个基准（点击上方卡片）和模型。": "Pick a benchmark (click a card above) and a model first.",
+  "全选本页": "Select all on this page",
+  "基准": "Benchmark",
+  "进度": "Progress",
+  "正确率": "Accuracy",
+  "失败": "Failed",
+  "状态": "Status",
+  "暂无任务": "No runs yet",
+  "完成一次评测后生成": "Generated after your first run",
+  "生成总结": "Generate summary",
+  "关闭": "Close",
+  // ---- 静态骨架里带 HTML 的（data-i18n-html）----
+  "demo-hint": 'No API key needed to try it: set the model name to <code>demo</code> and base_url to <code>mock://local</code>. API keys are only stored locally under <code>data/</code> and never uploaded anywhere.',
+  "summary-hint": 'The summary is written by the selected model, based only on the data listed below. <b>All statistics (ranking, coverage, whether a gap is significant) are computed by the program</b> — the model only explains them, so the numbers stay the same no matter which model writes it.',
+};
+// 语言：先看用户选过的（localStorage），没有就跟浏览器；都不是就中文
+let LANG = (() => {
+  const saved = localStorage.getItem("lang");
+  if (saved === "zh" || saved === "en") return saved;
+  return (navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en";
+})();
+const tf = (zh, params) => {
+  let out = (LANG === "en" && EN[zh]) || zh;
+  if (params) for (const k in params) out = out.split("{" + k + "}").join(params[k]);
+  return out;
+};
+const t = zh => tf(zh);
+
+// 静态骨架的文案：加载时按 data-i18n* 标一遍
+function applyI18n(root) {
+  const scope = root || document;
+  scope.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+  scope.querySelectorAll("[data-i18n-html]").forEach(el => { el.innerHTML = t(el.dataset.i18nHtml); });
+  scope.querySelectorAll("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+  scope.querySelectorAll("[data-i18n-title]").forEach(el => { el.title = t(el.dataset.i18nTitle); });
+  document.documentElement.lang = LANG === "en" ? "en" : "zh-CN";
+  const sw = document.getElementById("langsw");
+  if (sw) sw.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.lang === LANG));
+}
+// 切换语言：写 localStorage 后**整页重载**。服务端返回的文案（基准简介、报错、判定）
+// 也跟着语言变，重载是唯一能保证两边一致的做法 —— 局部重渲染反而容易出现中英混排。
+function setLang(lang) {
+  localStorage.setItem("lang", lang === "en" ? "en" : "zh");
+  location.reload();
+}
+
 let selBenchmark = null;
 let benchMeta = {};      // benchmark_id -> 元数据（用来判断选中的是不是代码类基准）
 let sbxState = null;     // 代码沙箱探测结果缓存（一次页面加载只探一次，可点「重新检测」重置）
@@ -595,7 +701,8 @@ async function pollDownloadUntilDone() {
 }
 
 async function api(path, opts) {
-  const r = await fetch(path, opts);
+  // 每条请求都带 X-Lang：服务端按它返回对应语言的文案（基准简介、报错、判定）
+  const r = await fetch(path, { ...(opts || {}), headers: { ...((opts || {}).headers || {}), "X-Lang": LANG } });
   if (!r.ok) { const t = await r.text(); throw new Error(t); }
   return r.json();
 }
@@ -1816,6 +1923,7 @@ function pollSummary() {
   }, 2500);
 }
 
+applyI18n();
 setAddModelOpen(false); loadModels(); loadBenchmarks(); refresh();
 // 沙箱探测是异步的（要调 docker 约 1 秒），拿到结果后重新渲染一次基准卡片，
 // 好让「需要 Docker」的标签能显示出「未就绪」
