@@ -2,6 +2,8 @@ import sqlite3
 import threading
 from pathlib import Path
 
+from . import model_colors
+
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "app.db"
 
 _local = threading.local()
@@ -16,6 +18,23 @@ def get_conn() -> sqlite3.Connection:
         conn.execute("PRAGMA journal_mode=WAL")
         _local.conn = conn
     return conn
+
+
+def backfill_model_colors(conn) -> None:
+    """给还没有颜色的模型补上颜色（按创建顺序，和新建模型走同一套分配规则）。
+
+    单独成一个函数是为了**可测**：老库升级、以及「有人手改过库」这两种情况都要能查，
+    所以自检可以直接把某行的 color 清空、再调一次它，验证补出来的颜色不撞色。
+    """
+    rows = conn.execute("SELECT id FROM models WHERE color IS NULL OR color = '' ORDER BY id").fetchall()
+    if not rows:
+        return
+    used = [r["color"] for r in conn.execute(
+        "SELECT color FROM models WHERE color IS NOT NULL AND color <> ''")]
+    for r in rows:
+        c = model_colors.pick(used)
+        conn.execute("UPDATE models SET color=? WHERE id=?", (c, r["id"]))
+        used.append(c)
 
 
 def init_db():
@@ -38,6 +57,10 @@ def init_db():
             -- 做成**模型级**配置而不是代码里写死 provider：不同厂商的参数名不一样，
             -- 而且不能给不认识的 provider 乱发字段（严格校验的接口会直接 400）。
             extra_body TEXT NOT NULL DEFAULT '',
+            -- 排行榜上的身份色（见 app/model_colors.py）。落库而不是前端临时算：
+            -- 前端按名字排序取色时，加一个名字靠前的模型会让榜上其他模型集体变色。
+            -- 空串 = 老库还没补（迁移里会按名字顺序补上）。
+            color TEXT NOT NULL DEFAULT '',
             created_at TEXT DEFAULT (datetime('now','localtime'))
         );
         CREATE TABLE IF NOT EXISTS evaluations(
@@ -113,6 +136,11 @@ def init_db():
     # 老库补列：模型级额外请求参数（老模型留空 = 行为和以前一样）
     if "extra_body" not in mcols:
         conn.execute("ALTER TABLE models ADD COLUMN extra_body TEXT NOT NULL DEFAULT ''")
+    # 老库补列：模型身份色。补列之后立刻补色，否则老模型的点在排行榜上是灰的
+    # （前端拿不到颜色就只能画兜底色）。补色规则和新建模型共用 model_colors.pick。
+    if "color" not in mcols:
+        conn.execute("ALTER TABLE models ADD COLUMN color TEXT NOT NULL DEFAULT ''")
+        backfill_model_colors(conn)
     # 老库补列：逐题的「没得到有效结果」标记。**故意不给默认值**：老行留 NULL，
     # 表示「当年没记」，前端据此退回老判据；给 0 会把老任务里真正的失败题显示成答错。
     icols = {r["name"] for r in conn.execute("PRAGMA table_info(eval_items)")}

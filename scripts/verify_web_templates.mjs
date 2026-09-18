@@ -101,11 +101,11 @@ if (!pctLine) throw new Error("找不到 pct 的定义");
 const bds = [{
   id: "code", name: "代码工程", color: "#e08a3c", n_benchmarks: 1,
   combined: [
-    { model_name: "模型甲", avg_accuracy: 99.39, covered: 1, total: 1, partial: 0, families: [] },
+    { model_name: "模型甲", color: "#123456", avg_accuracy: 99.39, covered: 1, total: 1, partial: 0, families: [] },
     // 与冠军只差 0.39 分：用来验证「差得再小也不重叠」（靠最小间距摊开）
-    { model_name: "模型丙", avg_accuracy: 99.0, covered: 1, total: 1, partial: 0, families: [] },
+    { model_name: "模型丙", color: "#abcdef", avg_accuracy: 99.0, covered: 1, total: 1, partial: 0, families: [] },
     // covered < total：走到「未跑全 / N 项为部分」那条分支（否则英文冒烟覆盖不到它）
-    { model_name: "模型乙", avg_accuracy: 0, covered: 1, total: 2, partial: 1, families: [] },
+    { model_name: "模型乙", color: "#654321", avg_accuracy: 0, covered: 1, total: 2, partial: 1, families: [] },
   ],
   boards: [{
     benchmark: "humaneval", benchmark_name: "HumanEval", family: "", group: "", group_name: "", group_weight: null,
@@ -123,7 +123,7 @@ const bds = [{
   // 家族分类：子集不单独出现在 combined 里，而是折叠进 families 块
   id: "agent", name: "Agent / 工具调用", color: "#e0952f", n_benchmarks: 1,
   combined: [{
-    model_name: "模型甲", avg_accuracy: 42.65, covered: 1, total: 1, partial: 1, coverage: 0.5,
+    model_name: "模型甲", color: "#123456", avg_accuracy: 42.65, covered: 1, total: 1, partial: 1, coverage: 0.5,
     families: [{ id: "BFCL v4", score: 42.65, weight_covered: 0.5, groups_covered: 3,
                  groups_total: 4, subsets_run: 4, subsets_total: 16, partial: true }],
   }],
@@ -169,8 +169,8 @@ const bds = [{
   // 否则图上看就像高亮错了（实测代码工程：冠军 93.98%，另一个 98.17% 只跑了 1/2 项）
   id: "safety", name: "安全 / 对齐", color: "#c44b8a", n_benchmarks: 2,
   combined: [
-    { model_name: "模型甲", avg_accuracy: 91.5, covered: 2, total: 2, partial: 0, coverage: 2, families: [] },
-    { model_name: "模型乙", avg_accuracy: 99.0, covered: 1, total: 2, partial: 0, coverage: 1, families: [] },
+    { model_name: "模型甲", color: "#123456", avg_accuracy: 91.5, covered: 2, total: 2, partial: 0, coverage: 2, families: [] },
+    { model_name: "模型乙", color: "#654321", avg_accuracy: 99.0, covered: 1, total: 2, partial: 0, coverage: 1, families: [] },
   ],
   boards: [], families: [],
 }];
@@ -232,6 +232,18 @@ check("排行榜总览：同一模型到处同色、不同模型不同色（颜�
   && cYi.length >= 1 && cJia[0] !== cYi[0]
   && champDots.length === bds.length && new Set(champDots).size === 1 && champDots[0] === cJia[0],
   `模型甲 ${cJia}、模型乙 ${cYi}、冠军点 ${champDots}`);
+// 颜色必须是**后端给的**（models.color，创建模型时定下来），不能是前端按名字排序临时算的。
+// 这一条是那个 bug 的回归位：前端自己排色时，加一个名字靠前的模型会让榜上其他模型集体变色
+// （实测 6 个里 4 个变），"绿色 = 某模型"这种记忆就不成立了。
+// 假数据里三个模型的 color 刻意与"名字排序后取调色板"的结果不同（#123456/#654321/#abcdef），
+// 所以只要谁改回前端自己排色，这里立刻红。
+const cBing = colorOf("模型丙");
+check("排行榜：模型颜色取自后端 payload 的 color（不是前端按名字排序自己分）",
+  cJia[0] === "#123456" && cYi[0] === "#654321" && cBing[0] === "#abcdef",
+  `期望 payload 里的 #123456/#654321/#abcdef，实际 ${cJia[0]}/${cYi[0]}/${cBing[0]}`);
+check("排行榜：前端不再自带调色板（颜色是模型的属性，存在后端）",
+  !/MODEL_COLORS/.test(script) && /filter\(m => m\.color\)/.test(script),
+  "前端又出现了自己的调色板：那样加模型会让别人的颜色变");
 // 颜色既然代表身份，就得能查到是谁：总览顶部给出「色点 + 模型名」的图例。
 // 同样要限定在图例容器里 —— 冠军模型那一格也是同样的「色点 + 模型名」，
 // 不限定的话去掉图例照样绿（和上一条同一种毛病）。
@@ -365,9 +377,9 @@ const modelsSrc = script.slice(script.indexOf("async function loadModels("),
                                script.indexOf("function applyPreset("));
 if (!modelsSrc) throw new Error("找不到 loadModels");
 const modelList = [
-  { id: 1, name: "被测甲", base_url: "u1", api_key: "***", kind: "test", evaluations: 3 },
-  { id: 2, name: "裁判乙", base_url: "u2", api_key: "***", kind: "judge", evaluations: 2 },
-  { id: 3, name: "被测丙", base_url: "u3", api_key: "***", kind: "test", evaluations: 0 },
+  { id: 1, name: "被测甲", color: "#123456", base_url: "u1", api_key: "***", kind: "test", evaluations: 3 },
+  { id: 2, name: "裁判乙", color: "#654321", base_url: "u2", api_key: "***", kind: "judge", evaluations: 2 },
+  { id: 3, name: "被测丙", color: "#abcdef", base_url: "u3", api_key: "***", kind: "test", evaluations: 0 },
 ];
 const els = {};
 await new Function("api", "document", "esc", "updateEvalHint",
@@ -435,9 +447,12 @@ check("评测任务的「模型/基准」列标了 tl（文本列左对齐）",
 // 两张表的行是在别的函数里拼的（不在 <table> 块内），所以单独精确断言正文单元格 ——
 // 全局数量检查太松，少标一格它发现不了（反向验证过）。
 check("模型管理：正文的模型 / base_url / Key 单元格都标了 tl",
-  /<td class="[^"]*\btl\b[^"]*" style="font-weight:550">\$\{esc\(m\.name\)\}/.test(src)
+  // 模型名那一格前面还有个身份色点（<span class="mdot">），所以中间用 [\s\S]*? 兜住
+  /<td class="[^"]*\btl\b[^"]*" style="font-weight:550">[\s\S]{0,120}?\$\{esc\(m\.name\)\}/.test(src)
   && /<td class="[^"]*\btl\b[^"]*muted">\$\{esc\(m\.base_url\)\}/.test(src)
   && /<td class="[^"]*\btl\b[^"]*muted">\$\{esc\(m\.api_key\)\}/.test(src));
+check("模型管理：模型名前面画身份色点（和排行榜上的点是同一个颜色）",
+  /class="mdot" style="background:\$\{esc\(m\.color/.test(script));
 check("评测任务：正文的模型 / 基准单元格都标了 tl",
   /<td class="[^"]*\btl\b[^"]*" style="font-weight:550">\$\{esc\(e\.model_name\)\}/.test(src)
   && /<td class="[^"]*\btl\b[^"]*" title="\$\{tf\("输出上限/.test(src));
@@ -686,6 +701,11 @@ check("模型管理表：英文模式的用途标签与切换按钮用短文案�
   && enModelHtml.includes(">To Judge</button>") && enModelHtml.includes(">To Test</button>"),
   `实测：Test=${enModelHtml.includes(">Test</span>")} Judge=${enModelHtml.includes(">Judge</span>")} `
   + `To Judge=${enModelHtml.includes(">To Judge</button>")} To Test=${enModelHtml.includes(">To Test</button>")}`);
+// 身份色点用的是后端给的 m.color（不是前端自己算的），中英模式下都一样
+check("模型管理表：色点用的是后端给的 m.color",
+  enModelHtml.includes('class="mdot" style="background:#123456"')
+  && enModelHtml.includes('class="mdot" style="background:#654321"'),
+  "渲染里没找到 payload 里的颜色");
 
 // ---------------- i18n 的两条硬不变量 ----------------
 // ① 代码里每个 t()/tf() 键都必须在英文表里 —— 少一条，英文模式下那一处就露出中文。

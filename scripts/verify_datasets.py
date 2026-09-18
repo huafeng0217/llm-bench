@@ -55,6 +55,8 @@ def _pick_tmp() -> pathlib.Path:
     except OSError:
         pass
     d = ROOT / ".datasets_tmp"
+    # 上一次崩溃留下的库会让断言随机变红/绿（残留数据被当成这次的输入），先清干净
+    shutil.rmtree(d, ignore_errors=True)
     d.mkdir(exist_ok=True)
     return d
 

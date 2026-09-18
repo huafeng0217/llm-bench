@@ -994,7 +994,10 @@ async function loadModels() {
       : `<span class="tag ok">${t("被测模型")}</span>`;
     const hist = m.evaluations ? `<div class="muted" style="font-size:11px;margin-top:3px">${tf("{0} 条历史评测", [m.evaluations])}</div>` : "";
     const btn = judge ? t("改回被测") : t("设为判别器");
-    return `<tr><td class="tl" style="font-weight:550">${esc(m.name)}</td>
+    // 身份色点也画在这里：颜色是创建模型时就定下的（同一模型在排行榜各处同色），
+    // 摆在模型名前面，用户就能「先在模型管理里认色、再去排行榜上看点」。
+    const dot = `<span class="mdot" style="background:${esc(m.color || "var(--border2)")}"></span>`;
+    return `<tr><td class="tl" style="font-weight:550">${dot}${esc(m.name)}</td>
      <td>${kindCell}${hist}</td>
      <td class="tl muted">${esc(m.base_url)}</td><td class="tl muted">${esc(m.api_key)}</td>
      <td style="white-space:nowrap">
@@ -1380,16 +1383,15 @@ async function refresh() {
   // 否则「只跑了一个子集」和「跑满四个组」在表里看起来一样。
   const famCover = m => (m.families || []).map(f =>
     `<br><span class="tag" title="${tf("官方加权总分 {0}% · 已跑 {1}/{2} 个子集", [f.score, f.subsets_run, f.subsets_total])}">${tf("{0} 权重 {1}", [esc(f.id), pct(f.weight_covered)])}</span>`).join("");
-  // 模型配色：同一个模型在排行榜各处用同一个颜色（轨道上的点、冠军名前的点、
-  // 展开后的两张表）。按**名字排序**定色 —— 同一份数据每次渲染都一样，
-  // 也不会因为某个分类里顺序变了就换色；模型数不超过调色板长度时颜色互不重复。
-  const MODEL_COLORS = ["#4a7de0", "#e0952f", "#22995c", "#c44b8a", "#8b5cf6", "#0f9b9b", "#d9534f", "#6b7a90"];
+  // 模型配色：**颜色存在后端**（models.color，创建模型时就定下来，见 app/model_colors.py），
+  // 前端只负责取来用。以前是在这里把模型名排序、依次取 8 色 —— 那样「加一个名字靠前的
+  // 模型」会让榜上其他模型集体变色（实测 6 个里 4 个变色），删一个更是全部变色，
+  // 颜色就不算身份标记了。取不到色（理论上不该有）才用兜底色，至少还能看出是个点。
   const modelColorMap = Object.fromEntries(
-    [...new Set(bds.flatMap(c => c.combined.map(m => m.model_name)))].sort()
-      .map((n, i) => [n, MODEL_COLORS[i % MODEL_COLORS.length]]));
+    bds.flatMap(c => c.combined).filter(m => m.color).map(m => [m.model_name, m.color]));
   const mcolor = n => modelColorMap[n] || "var(--border2)";
   // 配色图例：颜色既然代表模型身份，就得让人查得到是谁 —— 否则只有悬停才知道。
-  // 模型少（≤8）时一行放得下；多了就让浏览器换行，不隐藏信息。
+  // 模型少（色板 16 色以内）时一行放得下；多了就让浏览器换行，不隐藏信息。
   const modelLegend = () => Object.keys(modelColorMap).length < 2 ? "" :
     `<div class="muted" style="font-size:11px;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 12px">
       ${Object.entries(modelColorMap).map(([n, col]) =>

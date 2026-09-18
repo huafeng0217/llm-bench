@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from . import benchmarks as bm
-from . import datasets, db, engine, i18n, sandbox, scoring, summary
+from . import datasets, db, engine, i18n, model_colors, sandbox, scoring, summary
 from .benchmarks import CATEGORIES, FAMILIES, FAMILY_GROUPS, META, get_meta
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -18,6 +18,16 @@ MODELS_FILE = Path(__file__).resolve().parent.parent / "data" / "models.json"
 
 # 下载状态：benchmark_id -> {"status": "idle"|"running"|"done"|"failed", "message": str}
 DOWNLOAD_STATE: dict[str, dict] = {}
+
+
+def _next_model_color() -> str:
+    """给新模型挑一个身份色（见 app/model_colors.py）。
+
+    两个入口都要用：`create_model`（界面上添加）和 `import_models_file`（从 models.json 导入）。
+    漏掉后者的话，导入进来的模型在排行榜上没有颜色 —— 自检就是这么抓到 id=5 那条空的。
+    """
+    used = [r["color"] for r in db.query("SELECT color FROM models WHERE color <> ''")]
+    return model_colors.pick(used)
 
 
 def import_models_file():
@@ -45,8 +55,9 @@ def import_models_file():
             except HTTPException:
                 eb = ""      # 文件里填错了就忽略这一项，不让启动挂掉
             db.execute(
-                "INSERT INTO models(name, base_url, api_key, kind, extra_body) VALUES(?,?,?,?,?)",
-                (name, base_url, str(it.get("api_key", "")).strip(), kind, eb),
+                "INSERT INTO models(name, base_url, api_key, kind, extra_body, color)"
+                " VALUES(?,?,?,?,?,?)",
+                (name, base_url, str(it.get("api_key", "")).strip(), kind, eb, _next_model_color()),
             )
 
 
@@ -223,10 +234,12 @@ def create_model(m: ModelIn):
         raise HTTPException(400, i18n.t("name 和 base_url 不能为空"))
     if m.kind not in MODEL_KINDS:
         raise HTTPException(400, i18n.t("kind 只能是 {kinds}", kinds=sorted(MODEL_KINDS)))
+    # 身份色在这里定下来（见 app/model_colors.py）：前端拿它画排行榜上的点。
+    # 分配规则是"挑用得最少的"，所以删掉模型后它空出来的颜色会被下一个新模型捡回。
     mid = db.execute(
-        "INSERT INTO models(name, base_url, api_key, kind, extra_body) VALUES(?,?,?,?,?)",
+        "INSERT INTO models(name, base_url, api_key, kind, extra_body, color) VALUES(?,?,?,?,?,?)",
         (m.name.strip(), m.base_url.strip().rstrip("/"), m.api_key.strip(), m.kind,
-         valid_extra_body(m.extra_body)),
+         valid_extra_body(m.extra_body), _next_model_color()),
     )
     sync_models_file()
     return {"id": mid, "kind": m.kind}
@@ -642,7 +655,7 @@ def leaderboard():
     供前端折叠展示（见 app/benchmarks/bfcl.py 的 FAMILY_DEFS）。
     """
     rows = db.query(
-        "SELECT e.*, m.name AS model_name FROM evaluations e"
+        "SELECT e.*, m.name AS model_name, m.color AS model_color FROM evaluations e"
         " JOIN models m ON m.id=e.model_id WHERE e.status='done' AND e.done>0"
     )
     # 1) 每个 (模型, 基准) 取「代表成绩」——
@@ -651,8 +664,10 @@ def leaderboard():
     #    以前这里只比正确率、完全不看跑了多少题，于是「跑 6 题全对」会盖过
     #    「跑 164 题 99.39%」而成为榜上成绩（实测踩过：HumanEval 的 6 题冒烟测试必须手动删）。
     runs: dict = {}
+    name_colors: dict = {}   # 模型名 -> 身份色（落库在 models.color，见 app/model_colors.py）
     for r in rows:
         runs.setdefault((r["model_name"], r["benchmark"]), []).append(r)
+        name_colors[r["model_name"]] = r["model_color"] or ""
     full_cache: dict = {}
 
     def full_of(bid: str) -> int:
@@ -666,6 +681,7 @@ def leaderboard():
         b = pick.best
         best[(mname, bid)] = {
             "model_name": mname,
+            "color": name_colors.get(mname, ""),
             "benchmark": bid,
             "benchmark_name": get_meta(bid)["name"],
             "accuracy": round(scoring.accuracy_of(b), 2),
@@ -785,6 +801,9 @@ def leaderboard():
             s = item_scores.get(m, [])
             combined.append({
                 "model_name": m,
+                # 身份色随成绩一起给前端：颜色是模型的属性（落库在 models.color），
+                # 前端不能自己按名字排序算 —— 那样加一个模型会让榜上其他模型集体变色。
+                "color": name_colors.get(m, ""),
                 "avg_accuracy": round(sum(s) / len(s), 2) if s else 0,
                 "covered": cov,
                 "total": n_bench,

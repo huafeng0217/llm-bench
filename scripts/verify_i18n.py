@@ -243,6 +243,13 @@ def main_() -> int:
             out.append(f"{path} = {obj[:60]}")
         return out
 
+    # 下面这四条断言是在**真实库**上跑接口的（要和真实数据对得上）。真实库的 schema
+    # 由应用启动时的 init_db() 迁移，而自检不会启动应用 —— 所以这里先迁一次，
+    # 否则「老库少一列」会让断言以 OperationalError 的形式炸掉（不是断言失败，是脚本崩）。
+    # 迁移是幂等的（加列 + 补色），和用户下次启动应用做的事完全一样。
+    from app import db as _db  # noqa: PLC0415
+    _db.init_db()
+
     i18n.set_lang("en")
     try:
         bms = _main.list_benchmarks()

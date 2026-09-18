@@ -30,7 +30,7 @@ SCRIPTS = [
     ("verify_i18n.py", False, "中英切换：语言识别 / 文案回落 / 漏译检查"),
     ("verify_datasets.py", False, "题库与元数据：行数缓存 / 原子写 / 卡片文案 / 题量对账"),
     ("verify_code_assembly.py", False, "代码题拼接：题目自带辅助函数 / 竞赛题不拼题面"),
-    ("verify_models.py", False, "模型用途：判别器不能被评测 / 改类型二次确认（临时库）"),
+    ("verify_models.py", False, "模型用途：判别器不能被评测 / 改类型二次确认 / 身份色（临时库）"),
     ("verify_scoring.py", False, "取数口径：完整/部分评测 + 家族官方加权总分（临时库）"),
     ("verify_safety.py", False, "安全评测：判分方向 / 裁判约束 / 判分失败处理（临时库，mock 裁判）"),
     ("verify_summary.py", False, "统计层：刷分假象护栏 / 显著性 / 数据一致性"),
