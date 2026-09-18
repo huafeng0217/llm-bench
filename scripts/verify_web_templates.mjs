@@ -376,7 +376,10 @@ check("表内联渲染的表：文本列表头与正文的 tl 数量匹配", mis
 // 「判分/执行失败」和「答错」在页面上必须一眼可分：用户实测那条 jbb_benign 有 5% 是
 // 失败（模型没产出正文），若和答错混在一起，会被读成「能力差 5%」——数字没错、结论错。
 check("任务列表：正确率的说明里写明分母含失败题、会因此偏低",
-  /class="acc" title="[^"]*分母是已完成的题数，失败的那 \$\{failed\} 题也在里面[^"]*"/.test(src));
+  /class="acc"[^>]*title="\$\{accTitle\}"/.test(src)
+  && /分母是已完成的题数，失败的那 \$\{failed\} 题也在里面/.test(src)
+  // 没有失败时不提失败（「失败的那 0 题也在里面」读起来别扭）
+  && /没有失败题，这个数就是实际正确率/.test(src));
 // 只给 >0 的行追加一截字，就会出现「有的标有的没标」的不协调（用户报过）——
 // 所以失败数独立成一列：每行都有值（0 灰 / N 红），状态列只放状态。
 check("任务列表：失败数独立成列（表头 + 空表 colspan 跟着加一）",
@@ -387,12 +390,31 @@ check("任务列表：失败列每行都有值（0 灰 / N 红），不再有的
   /failed \? `<span class="st-failed"[^>]*>\$\{failed\}<\/span>`\s*:\s*`<span class="muted">0<\/span>`/.test(src));
 check("任务列表：状态列只放状态（失败数不再挤进来）",
   /class="\$\{stCls\}">\$\{ST_TEXT\[e\.status\] \|\| e\.status\}<\/td>/.test(src));
-check("任务列表：主数字保持保守口径，旁边并列一个「有效题 X%」（有失败时才出现）",
+check("任务列表：主数字保持保守口径，「有效题 X%」默认隐藏、点正确率才出来",
   /有效题 \$\{validAcc\}%/.test(src)
-  && /validAcc = failed && e\.done \? Math\.round\(e\.correct \/ \(e\.done - failed\) \* 1000\) \/ 10 : null/.test(src)
-  // 必须是**行内**的：换成块级元素会把这些行撑高，又变成「有的高有的矮」（用户报过同类问题）
-  && !/有效题 \$\{validAcc\}%<\/div>/.test(src),
+  && /id="vacc-\$\{e\.id\}"/.test(src)
+  && /onclick="toggleValidAcc\(event, \$\{e\.id\}\)"/.test(src)
+  // 默认必须带 hidden：用户要的是「点击正确率显示就行了」，不能一上来就挤在表上
+  && /\$\{validAccOpen\.has\(e\.id\) \? "" : " hidden"\}/.test(src)
+  && /validAcc = failed && e\.done \? Math\.round\(e\.correct \/ \(e\.done - failed\) \* 1000\) \/ 10 : null/.test(src),
   "未跑成的题不能从主数字里消失，但也不能让主数字独占解释权");
+// 展开状态必须存在 DOM 之外：任务列表每 2.5 秒重渲染一次，放 DOM 上会被刷掉
+check("任务列表：「有效题」的展开状态存在模块级 Set 里（表格重渲染不会丢）",
+  /let validAccOpen = new Set\(\)/.test(src)
+  && /el\.hidden = !el\.hidden;/.test(src)
+  && /if \(el\.hidden\) validAccOpen\.delete\(id\); else validAccOpen\.add\(id\);/.test(src));
+// 点表格里的正确率不能被当成「点空白处」——否则已选中的基准会被清掉
+check("任务列表：点正确率时不让全局点击处理清掉已选基准",
+  /function toggleValidAcc\(ev, id\) \{\s*ev\.stopPropagation\(\);/.test(src));
+// 「有效题」必须是**行内**的：块级会把这些行撑高，又变成有的高有的矮（用户报过同类问题）
+check("任务列表：「有效题」用行内元素（块级会把那几行撑高）",
+  !/有效题 \$\{validAcc\}%<\/div>/.test(src));
+ // 整个页面脚本必须能解析。上面所有断言都是把**某几个**渲染函数抠出来跑的 ——
+// 别处的语法错误（比如 refresh 里拼模板时少个反引号）它们一个都发现不了，
+// 只会在浏览器里白屏。这里补一条兜底。
+let parseOk = true, parseErr = "";
+try { new Function(script); } catch (e) { parseOk = false; parseErr = String(e).slice(0, 300); }
+check("页面脚本整体能解析（语法错误不该只被浏览器发现）", parseOk, parseErr);
 check("任务列表：失败数带说明（失败 ≠ 答错，别读成能力差）",
   /title="判分 \/ 执行失败：[^"]*既不算对也不算答错[^"]*/.test(src));
 check("逐题明细：顶部把「正确 / 答错 / 判分失败」三档分开列",

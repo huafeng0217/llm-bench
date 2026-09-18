@@ -376,6 +376,7 @@ const TASK_PAGE_SIZE = 10; // 展开后每页条数
 const ST_TEXT = { done: "已完成", running: "运行中", failed: "失败", stopped: "已停止", pending: "排队中" };
 let batchMode = false;          // 是否进入「批量」选择模式（进入后才显示勾选框）
 let selectedTasks = new Set();  // 批量操作选中的任务 id
+let validAccOpen = new Set();   // 已点开「有效题 X%」的任务 id（表格会重渲染，状态得存在外面）
 let currentEvalIds = [];        // 当前页显示的任务 id（供「全选本页」用）
 
 function bmCard(b) {
@@ -925,16 +926,24 @@ async function refresh() {
     // 正确率的分母是**已完成**的题数，失败题也算在里面（保守口径，安全评测必须如此：
     // 失败若被剔除，安全分会凭空变好看）。但失败题多的时候主数字会严重偏低 ——
     // #118 livecodebench 有 78 题超时（73 个 Request timed out），显示 52%，
-    // 而跑成的那 97 题上是 93.8%。所以有失败时**并列**补一个「有效题」小字：
-    // 主数字不藏东西，副数字说明「跑成的那些题上表现如何」，不替用户选边。
+    // 而跑成的那 97 题上是 93.8%。两个数都重要，但不能都摆在表上（用户嫌挤，
+    // 也嫌「有的标有的没标」），所以：主数字常驻，副数字**默认隐藏、点一下正确率才出来**。
+    // 状态要存在表格外面 —— 任务列表每 2.5 秒重渲染一次，放在 DOM 上会被刷掉。
     const failed = e.failed || 0;
     const validAcc = failed && e.done ? Math.round(e.correct / (e.done - failed) * 1000) / 10 : null;
+    const accExtra = validAcc == null ? "" :
+      `<span class="muted" id="vacc-${e.id}" style="font-size:11px;font-weight:400;white-space:nowrap"${validAccOpen.has(e.id) ? "" : " hidden"}> 有效题 ${validAcc}%</span>`;
+    // 悬停说明也要按有没有失败分开写：没有失败时还说「失败的那 0 题也在里面」很别扭
+    const accTitle = `正确 ${e.correct ?? 0}/${e.done} 题。` + (failed
+      ? `分母是已完成的题数，失败的那 ${failed} 题也在里面 —— 失败不是「答错」（见失败列的说明），`
+        + `按保守口径不算对，所以这个百分比会偏低；点一下可以看「只看跑成的 ${e.done - failed} 题」是多少。`
+      : "没有失败题，这个数就是实际正确率。");
     return `<tr>
       ${batchMode ? `<td><input type="checkbox" ${selectedTasks.has(e.id) ? "checked" : ""} onclick="toggleTaskSel(${e.id}, this)"></td>` : ""}
       <td class="muted">${e.id}</td><td class="tl" style="font-weight:550">${esc(e.model_name)}</td>
       <td class="tl" title="输出上限 ${e.max_tokens ?? 2048} tokens · 单题超时 ${e.timeout_s ?? 90}s · 并发 ${e.concurrency ?? 8}"><span style="font-weight:550">${esc(e.benchmark)}</span></td>
       <td><div class="score-cell"><div class="bar"><i style="width:${pct}%"></i></div><span class="muted" style="min-width:64px;text-align:right">${e.done}/${e.total}</span></div>${liveHtml}</td>
-      <td class="acc" title="正确 ${e.correct ?? 0}/${e.done} 题。分母是已完成的题数，失败的那 ${failed} 题也在里面 —— 失败不是「答错」（见失败列的说明），按保守口径不算对，所以这个百分比会偏低${validAcc != null ? `；只看跑成的 ${e.done - failed} 题则是 ${validAcc}%` : ""}。">${e.accuracy == null ? "-" : e.accuracy + "%"}${validAcc != null ? `<span class="muted" style="font-size:11px;font-weight:400;white-space:nowrap"> 有效题 ${validAcc}%</span>` : ""}</td>
+      <td class="acc"${validAcc != null ? ` onclick="toggleValidAcc(event, ${e.id})" style="cursor:pointer"` : ""} title="${accTitle}">${e.accuracy == null ? "-" : e.accuracy + "%"}${accExtra}</td>
       <td>${failed ? `<span class="st-failed" style="font-weight:550" title="判分 / 执行失败：这几题没得到有效结果（被测模型没产出正文、裁判给不出可解析判定、服务商拦截、请求超时、题目本身报错等）。既不算对也不算答错，但按保守口径计入了正确率分母 —— 别把它读成「能力差这么多」。">${failed}</span>` : `<span class="muted">0</span>`}</td>
       <td class="${stCls}">${ST_TEXT[e.status] || e.status}</td>
       <td><div class="menu-wrap">
@@ -1249,6 +1258,17 @@ function exitBatchMode() { batchMode = false; selectedTasks.clear(); refresh(); 
 function toggleTaskSel(id, cb) {
   if (cb.checked) selectedTasks.add(id); else selectedTasks.delete(id);
   renderBatchBar();
+}
+
+// 点正确率展开/收起「有效题 X%」。状态存在这个 Set 里而不是 DOM 上：
+// 任务列表每 2.5 秒由 refresh() 重渲染一次，放在 DOM 上的展开状态会被刷掉。
+// 直接切 DOM（不重渲染）是为了点一下就有反馈，不用等一次网络往返。
+function toggleValidAcc(ev, id) {
+  ev.stopPropagation();   // 别让全局点击处理把已选中的基准清掉（点表格不算「点空白处」）
+  const el = document.getElementById("vacc-" + id);
+  if (!el) return;
+  el.hidden = !el.hidden;
+  if (el.hidden) validAccOpen.delete(id); else validAccOpen.add(id);
 }
 
 // 全选/取消本页显示的任务
