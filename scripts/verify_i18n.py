@@ -113,6 +113,34 @@ def main_() -> int:
           i18n.t("只有 {a}", b=1), "只有 {a}")
     i18n.set_lang("zh")
 
+    # ---- 4d) 两份 README：结构对齐 + 互链（防文档漂移）----
+    zh_doc = (ROOT / "README.md").read_text(encoding="utf-8")
+    en_doc = (ROOT / "README.en.md").read_text(encoding="utf-8")
+    check_true("有英文 README（README.en.md）", len(en_doc.splitlines()) > 100,
+               f"{len(en_doc.splitlines())} 行")
+    check_true("两份 README 互相链接",
+               "README.en.md" in zh_doc and "README.md" in en_doc)
+    # 章节结构：数量和标题文字都要对得上（英文标题是我自己写的，所以只比对数量与顺序键）
+    zh_h2 = re.findall(r"^## (.+)$", zh_doc, re.M)
+    en_h2 = re.findall(r"^## (.+)$", en_doc, re.M)
+    check(f"两份 README 的二级章节数一致（中文 {len(zh_h2)} / 英文 {len(en_h2)}）",
+          len(zh_h2), len(en_h2))
+    zh_h3 = re.findall(r"^### (.+)$", zh_doc, re.M)
+    en_h3 = re.findall(r"^### (.+)$", en_doc, re.M)
+    check(f"两份 README 的三级章节数一致（中文 {len(zh_h3)} / 英文 {len(en_h3)}）",
+          len(zh_h3), len(en_h3))
+    # 表格行数（数据集表）也要一致：加一个基准只更新一边的话，这里会红
+    zh_rows = len([l for l in zh_doc.splitlines() if l.startswith("| ")])
+    en_rows = len([l for l in en_doc.splitlines() if l.startswith("| ")])
+    check(f"两份 README 的表格行数一致（中文 {zh_rows} / 英文 {en_rows}）", zh_rows, en_rows)
+    # 英文 README 正文（代码块之外）不该有中文 —— 除了语言开关那一行。
+    # 防的是"翻译翻一半"：一段没翻，读者看到中英混排，而这类文档没人会逐行读。
+    en_body = re.sub(r"```[\s\S]*?```", "", en_doc)
+    leftover = [l.strip()[:60] for l in en_body.splitlines()
+                if re.search(r"[\u4e00-\u9fff]", l) and "README.md" not in l]
+    check_true("英文 README 正文里没有残留中文（语言开关那行除外）", not leftover,
+               f"残留: {leftover[:5]}")
+
     # ---- 5) 语言是从请求头来的（不是全局变量）----
     src = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
     check_true("main.py 有语言中间件（X-Lang / Accept-Language）",

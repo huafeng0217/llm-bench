@@ -1,5 +1,7 @@
 # LLM Bench — 大模型基准测评
 
+**中文** | [English](README.en.md)
+
 一个**本地运行的 Web 应用**：填入任意 OpenAI 兼容接口（`base_url` + API Key + 模型名），即可自动跑公开 benchmark、判分、生成排行榜对比。
 
 纯本地部署，**API Key 只保存在你自己电脑上**，不上传任何服务器。
@@ -11,6 +13,9 @@
     后端也会直接拒绝拿它发起评测 —— 安全评测里最忌讳「裁判自己也在被测之列」（自偏袒）。改用途时可逆，
     已有历史评测时会先提示条数再确认，**历史成绩不会被删**（数据是真的，出现过就留着）
 - **题库下载**：一键下载 34 个公开 benchmark 数据集到本地 `data/` 目录；GitHub raw 主源失败会自动回退 ghproxy 加速镜像，HuggingFace 失败回退 hf-mirror
+- **界面中英切换**：顶栏语言开关，选过就记住；第一次访问跟浏览器语言。
+  服务端返回的文案（基准简介、报错、明细判定）也跟着语言变 —— 库里存的始终是中文原文，
+  翻译在响应时做，所以**历史任务切到英文也能看**
 - **评测引擎**：并发调用 API、自动判分、3 次重试、逐题明细导出（JSONL）
 - **任务管理**：运行中的任务可随时**停止**（保留已跑进度）；**删除会自动先停止**；支持**批量删除**；被中断的任务可**续跑**（只补剩下的题）
 - **排行榜**：按分类分区（通用知识 / 中文能力 / 科学推理 / 常识推理 / 数学推理 / Agent·工具调用 / 代码工程 / 安全·对齐），先看「总览（各分类冠军）」，点分类展开「综合榜（分类内平均分）+ 各基准分项榜」
@@ -159,6 +164,7 @@ app/
   lcb.py            # LiveCodeBench 测试用例的安全解码
   scoring.py        # 取数口径：题库派生事实 + 「一次成绩算不算数」（排行榜/总览/AI 总结共用）
   summary.py        # AI 总结：统计层（排名/覆盖率/显著性/护栏）+ 生成
+  i18n.py           # 界面语言：中文原文当 key + 英文表 + 每请求 ContextVar
   db.py             # SQLite 封装
   static/index.html # 前端单页（无构建步骤）
 scripts/
@@ -167,11 +173,13 @@ scripts/
   verify_all.py         # 一键跑完下面全部自检
   verify_imports.py     # 静态检查：未定义的名字 / 失效的相对导入
   verify_datasets.py    # 题库与元数据：行数缓存 / 题数口径一致 / 下载原子写 / 卡片文案放得下
+  verify_i18n.py        # 中英切换：语言识别 / 文案回落 / 漏译检查
   verify_models.py      # 模型用途：判别器不能被评测 / 改类型二次确认（临时库）
   verify_safety.py      # 安全评测：判分方向 / 裁判约束 / 判分失败处理（mock 裁判）
   calibrate_judge.py    # 用官方人工标注集校准裁判（会花 token，支持 --dry-run）
   verify_scoring.py     # 取数口径：完整/部分评测怎么选（临时库，不碰 data/app.db）
-  verify_dispatch.py    # 判分分派：8 条用例覆盖 6 种题型（mock 模型，不花钱）
+  verify_dispatch.py    # 判分分派：10 条用例覆盖 6 种题型（mock 模型，不花钱）
+  verify_code_assembly.py # 代码题拼接：题目自带辅助函数 / 竞赛题不拼题面（不需要 Docker）
   verify_sandbox.py     # 沙箱隔离安全验证（跑攻击载荷）
   verify_humaneval.py   # HumanEval 抽取 + 参考解法自检
   verify_livecodebench.py  # LiveCodeBench 判分器自检
@@ -209,12 +217,16 @@ outcome = await qtypes.detect(ctx, item).runner(model_cfg, item, params, ctx)
 
 > 这两条约束（每个基准都有 summary、两行内放得下、不复述名字/不重复题量）由
 > `python scripts/verify_datasets.py` 守着 —— 被省略的文案在页面上看起来完全正常，靠肉眼是发现不了的。
+> 英文文案（`*_en` 字段）同样要过这一关，但**阈值按英文字宽单独算**：英文一行约 46 字符，
+> 中文那套「一个字算两格」的算法对它不成立。
 >
 > **自己丢进 `data/` 的题库**（没有对应 `Benchmark` 记录的）走 `FALLBACK` 元数据，同样要有能放下的简介：
 > 卡片上会写明「自己放进 data/ 的题库：没有官方口径说明，卡片只按文件名与题量显示」，
 > 而不是显示一段对所有自定义题库都一样的格式说明（完整说明里才讲 jsonl 字段怎么填）。
 
-**加一个基准 = 加一个文件**（或往同源模块的 `ENTRIES` 里加一条），不用改别处。
+**加一个基准 = 加一个文件**（或往同源模块的 `ENTRIES` 里加一条），不用改别处；
+英文文案写在同一条目里（`name_en` / `summary_en` / `description_en` / `label_en` / `status_en`），
+两种语言不会各写一份、也就不会跑偏。
 以前要同时改四处（`benchmarks.py` 的 META、`download.py` 的两份字典、以及下载函数所在的脚本），
 实测某个基准 id 散落在 10 个文件里。
 
@@ -279,10 +291,12 @@ python scripts/verify_all.py            # 一键跑完全部自检（推荐）
 python scripts/verify_dispatch.py       # 6 种题型的分派 + 完整链路（mock 模型，不花 API 费用）
 python scripts/verify_imports.py        # 静态检查：未定义的名字 / 失效的相对导入
 python scripts/verify_datasets.py       # 题库与元数据：行数缓存 / 原子写 / 卡片文案放得下
+python scripts/verify_i18n.py           # 中英切换：语言识别 / 文案回落 / 漏译检查
 python scripts/verify_models.py         # 模型用途：判别器不能被评测 / 改类型二次确认（临时库）
 python scripts/verify_safety.py         # 安全评测：判分方向 / 裁判约束 / 判分失败处理（不花钱）
 python scripts/calibrate_judge.py --dry-run   # 先看裁判校准要花多少 token，再决定跑不跑
 python scripts/verify_scoring.py        # 取数口径：完整/部分评测怎么选，三处是否一致（临时库）
+python scripts/verify_code_assembly.py  # 代码题拼接：辅助函数 / 竞赛题（不需要 Docker）
 python scripts/verify_sandbox.py        # 8 项隔离验证 + 3 项判分链路验证
 python scripts/verify_humaneval.py      # 代码抽取 8 项 + 164 道官方参考解法
 python scripts/verify_livecodebench.py  # 判分器 10 项（两种题型 + 四类失败判定）
