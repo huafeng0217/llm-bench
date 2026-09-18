@@ -193,6 +193,16 @@
   .score-cell { display:flex; align-items:center; gap:10px; }
   .score-cell .bar { flex:1; min-width:56px; }
   .score-cell .acc { min-width:50px; text-align:right; }
+  /* 排行榜总览里的「分数分布」条：把该分类每个模型的综合得分点在一条 0–100 轨道上。
+     目的是回答「这个分类是一枝独秀还是挤在一起」—— 只给冠军一个数字是看不出来的。
+     点左右各留 3%：点半径 6px，占 200px 轨道的 3%，不留边点会被轨道边缘切掉一半。 */
+  .ov-dist { position:relative; height:10px; border-radius:6px; background:var(--bg2);
+             border:1px solid var(--border); min-width:150px; }
+  .ov-dist i { position:absolute; top:50%; width:9px; height:9px; margin:-5px 0 0 -5px;
+               border-radius:50%; background:var(--border2); border:1.5px solid var(--card);
+               box-sizing:border-box; }
+  .ov-dist i.champ { width:14px; height:14px; margin:-7px 0 0 -7px; background:var(--accent);
+                     box-shadow:0 0 0 2px rgba(74,125,224,.22); }
   .bar i { display:block; height:100%; border-radius:4px; transition:width .35s;
            background:linear-gradient(90deg,#3d6fe0,#6f9bf5); }
   .st-running { color:var(--accent2); } .st-done { color:var(--green); } .st-failed { color:var(--red); } .st-stopped { color:var(--amber); }
@@ -992,17 +1002,30 @@ async function refresh() {
   // 否则「只跑了一个子集」和「跑满四个组」在表里看起来一样。
   const famCover = m => (m.families || []).map(f =>
     `<br><span class="tag" title="官方加权总分 ${f.score}% · 已跑 ${f.subsets_run}/${f.subsets_total} 个子集">${esc(f.id)} 权重 ${pct(f.weight_covered)}</span>`).join("");
+  // 分数分布：该分类**所有**模型的综合得分点在一条 0–100 轨道上（冠军高亮）。
+  // 只给冠军一个数字看不出「这个分类有没有区分度」：75.76% 可能是没人跑，
+  // 也可能是第二三四名都挤在 70 上下。轨道上的疏密一眼就分得出来。
+  // 悬停给每个点的模型名与分数；轨道本身的悬停把所有模型列一遍（点重叠时也不丢信息）。
+  const distBar = c => {
+    const ms = c.combined;
+    const pos = a => (3 + Math.max(0, Math.min(100, a)) * 0.94).toFixed(2);
+    const dots = ms.map((m, i) => `<i class="${i === 0 ? "champ" : ""}" style="left:${pos(m.avg_accuracy)}%"
+      title="${esc(m.model_name)} · ${m.avg_accuracy}%${i === 0 ? "（冠军）" : ""}"></i>`).join("");
+    const all = ms.map(m => `${m.model_name} ${m.avg_accuracy}%`).join(" / ");
+    return `<div class="ov-dist" title="本分类 ${ms.length} 个模型的综合得分分布：${esc(all)}">${dots}</div>`;
+  };
   // 总览：各分类冠军一览。每行本身即开关，点击展开/收起该分类详情（可同时展开多个）
   const overview = `
     <div class="card" style="padding:14px 18px">
       <div class="cat-head" style="margin:0"><span class="dot" style="background:var(--accent)"></span>总览<span class="cnt">点击分类查看详情，可同时展开多个</span></div>
-      <table style="margin-top:10px"><thead><tr><th class="tl" style="width:190px">分类</th><th class="tl">冠军模型</th><th style="width:200px">综合得分</th><th style="width:150px">覆盖</th></tr></thead>
+      <table style="margin-top:10px"><thead><tr><th class="tl" style="width:190px">分类</th><th class="tl">冠军模型</th><th style="width:210px" title="本分类所有模型的综合得分；实心大点是冠军">分数分布</th><th style="width:200px">综合得分</th><th style="width:150px">覆盖</th></tr></thead>
       <tbody>${bds.map(c => {
         const champ = c.combined[0];
         const open = !!expandedCats[c.id];
         return `<tr style="cursor:pointer" onclick="toggleCat('${esc(c.id)}')">
           <td class="tl"><span style="display:inline-block;width:12px;color:var(--faint)">${open ? "▾" : "▸"}</span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:3px;background:${c.color};margin-right:6px"></span>${esc(c.name)}</td>
           <td class="tl" style="font-weight:550">${esc(champ.model_name)}</td>
+          <td>${distBar(c)}</td>
           <td><div class="score-cell"><span class="acc">${champ.avg_accuracy}%</span><div class="bar"><i style="width:${Math.min(champ.avg_accuracy, 100)}%"></i></div></div></td>
           <td class="muted">${champ.covered}/${champ.total}${famCover(champ)}</td>
         </tr>`;

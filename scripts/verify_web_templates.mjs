@@ -161,6 +161,20 @@ check("排行榜：部分评测不排名次", boardHtml.includes('title="只跑�
 check("排行榜：完整评测仍有名次徽章", boardHtml.includes('class="rank r1"'));
 check("排行榜：综合排行提示部分评测不计入平均", boardHtml.includes("1 项为部分"));
 check("排行榜：措辞已改成「完整评测中的最高分」", boardHtml.includes("完整评测中的最高分"));
+// 总览行的「分数分布」条：把该分类每个模型的综合得分点在一条 0–100 轨道上（冠军高亮）。
+// 只给冠军一个数字看不出这个分类有没有区分度（75.76% 可能是没人跑，也可能是大家都挤在 70）。
+check("排行榜总览：每个分类一条分布轨道，分类里每个模型一个点、冠军高亮",
+  (boardHtml.match(/class="ov-dist"/g) || []).length === bds.length
+  && (boardHtml.match(/i class="champ"/g) || []).length === bds.length
+  && boardHtml.includes('title="模型甲 · 99.39%（冠军）"')
+  && boardHtml.includes('title="模型乙 · 0%"'),
+  "分类数、点数、冠军高亮必须都对上");
+// 点位置 = 3% + 分数×0.94%：两端留边，否则 0 分和 100 分的点会被轨道边缘切掉一半
+check("排行榜总览：点位置按分数换算且两端留边",
+  boardHtml.includes('style="left:96.43%"') && boardHtml.includes('style="left:3.00%"'));
+// 点重叠时不能丢信息：轨道本身的悬停把所有模型列一遍
+check("排行榜总览：轨道悬停列出本分类所有模型的分数",
+  /title="本分类 2 个模型的综合得分分布：模型甲 99\.39% \/ 模型乙 0%"/.test(boardHtml));
 
 // 家族折叠块 + 官方加权总分
 check("家族：折叠块渲染出官方加权总分", boardHtml.includes("官方加权总分"));
