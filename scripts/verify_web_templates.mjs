@@ -150,6 +150,15 @@ const bds = [{
                partial: false, avg_latency_ms: 800, prompt_tokens: 4000, completion_tokens: 700 }],
     }],
   }],
+}, {
+  // 「分数更高、但没跑全」的情形：冠军口径下它不参选，悬停里必须点名，
+  // 否则图上看就像高亮错了（实测代码工程：冠军 93.98%，另一个 98.17% 只跑了 1/2 项）
+  id: "safety", name: "安全 / 对齐", color: "#c44b8a", n_benchmarks: 2,
+  combined: [
+    { model_name: "模型甲", avg_accuracy: 91.5, covered: 2, total: 2, partial: 0, coverage: 2, families: [] },
+    { model_name: "模型乙", avg_accuracy: 99.0, covered: 1, total: 2, partial: 0, coverage: 1, families: [] },
+  ],
+  boards: [], families: [],
 }];
 
 const boardHtml = new Function("bds", "expandedCats", "esc",
@@ -161,20 +170,27 @@ check("排行榜：部分评测不排名次", boardHtml.includes('title="只跑�
 check("排行榜：完整评测仍有名次徽章", boardHtml.includes('class="rank r1"'));
 check("排行榜：综合排行提示部分评测不计入平均", boardHtml.includes("1 项为部分"));
 check("排行榜：措辞已改成「完整评测中的最高分」", boardHtml.includes("完整评测中的最高分"));
-// 总览行的「分数分布」条：把该分类每个模型的综合得分点在一条 0–100 轨道上（冠军高亮）。
-// 只给冠军一个数字看不出这个分类有没有区分度（75.76% 可能是没人跑，也可能是大家都挤在 70）。
-check("排行榜总览：每个分类一条分布轨道，分类里每个模型一个点、冠军高亮",
-  (boardHtml.match(/class="ov-dist"/g) || []).length === bds.length
+// 总览行的「分数分布」：哑铃图，两端是同一口径下的冠军与亚军，中间是差距。
+// 为什么不画全部模型：多数分类只有 1~4 个模型，灰轨道信息密度太低、还和右边的得分条撞形状。
+check("排行榜总览：哑铃图只画冠军与亚军，1 个模型时写「无对比」",
+  (boardHtml.match(/class="ov-dumbbell"/g) || []).length === bds.length
   && (boardHtml.match(/i class="champ"/g) || []).length === bds.length
-  && boardHtml.includes('title="模型甲 · 99.39%（冠军）"')
-  && boardHtml.includes('title="模型乙 · 0%"'),
-  "分类数、点数、冠军高亮必须都对上");
-// 点位置 = 3% + 分数×0.94%：两端留边，否则 0 分和 100 分的点会被轨道边缘切掉一半
-check("排行榜总览：点位置按分数换算且两端留边",
-  boardHtml.includes('style="left:96.43%"') && boardHtml.includes('style="left:3.00%"'));
-// 点重叠时不能丢信息：轨道本身的悬停把所有模型列一遍
-check("排行榜总览：轨道悬停列出本分类所有模型的分数",
-  /title="本分类 2 个模型的综合得分分布：模型甲 99\.39% \/ 模型乙 0%"/.test(boardHtml));
+  && (boardHtml.match(/i class="runner"/g) || []).length === bds.length - 1
+  && boardHtml.includes(">无对比<"),
+  "分类数、冠军点、亚军点（少一个）、单模型分类的文案都要对上");
+// 位置 = 3% + 分数×0.94%（两端留边，否则 0 分/100 分的点被切一半）；
+// 连线跨度 = 两点的距离（模型乙 0% → 3.00%，模型甲 99.39% → 96.43%）
+check("排行榜总览：两端留边、连线跨度等于两人的分数差",
+  boardHtml.includes('style="left:96.43%"') && boardHtml.includes('style="left:3.00%;width:93.43%"'));
+check("排行榜总览：给出与第 2 名的差距", boardHtml.includes(">差 99.4 点<"));
+// 冠军口径必须写出来：冠军是「跑得最全的一批里分数最高」，不一定是分数最高的那个。
+// 要求**表头和哑铃悬停都说**：只写一处时，另一处看起来仍然像高亮错了。
+// （第一版只断言「出现过」，结果去掉悬停那份照样绿 —— 反向验证才发现是弱断言。）
+check("排行榜总览：冠军口径在表头和哑铃悬停里都说明",
+  (boardHtml.match(/冠军 = 跑得最全的一批里分数最高/g) || []).length >= 2,
+  `"只说了一处：" + (boardHtml.match(/冠军 = 跑得最全的一批里分数最高/g) || []).length + " 处"`);
+check("排行榜总览：分数更高但没跑全的模型，在悬停里点名",
+  boardHtml.includes("模型乙 99% 更高，但只跑了 1/2 项"));
 
 // 家族折叠块 + 官方加权总分
 check("家族：折叠块渲染出官方加权总分", boardHtml.includes("官方加权总分"));
