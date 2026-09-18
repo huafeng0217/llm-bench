@@ -237,7 +237,7 @@ def fingerprint(stats: dict) -> str:
 
     用来判断「已有的总结是不是过期了」—— 数据没变就不该重新烧一遍 token。
     """
-    key = []
+    key = [f"lang={i18n.get_lang()}"]     # 语言变了就是另一份成品，不能复用另一种语言的总结
     for bid in sorted(stats["cells"]):
         for mid in sorted(stats["cells"][bid]):
             c = stats["cells"][bid][mid]
@@ -402,8 +402,8 @@ def model_overview(stats: dict) -> list:
     return out
 
 
-def prompt_payload(stats: dict) -> dict:
-    """给 LLM 的结构化输入。
+def _payload_zh(stats: dict, caps: list, diffs: list, n_cmp: int, bm_meta: dict) -> dict:
+    """中文 payload（原始实现；英文模式在 prompt_payload 里把键名换掉）。
 
     一级维度是**能力分类**，而且每个分类下的「事实」都已算好：名次、领先/落后是否显著、
     谁没测、哪些低于随机线。模型只负责把这些组织成语言，不负责判断。
@@ -481,6 +481,105 @@ def prompt_payload(stats: dict) -> dict:
         "数据问题": [f"[{c['kind']}] {c['detail']}" for c in stats["caveats"]],
     }
 
+
+def prompt_payload(stats: dict) -> dict:
+    """给 LLM 的结构化输入（语言跟随界面语言）。
+
+    一级维度是**能力分类**，而且每个分类下的「事实」都已算好：名次、领先/落后是否显著、
+    谁没测、哪些低于随机线。模型只负责把这些组织成语言，不负责判断。
+    """
+    caps = capabilities(stats)
+    diffs = differences(stats)
+    n_cmp = len(stats["comparisons"])
+    bm_meta = {b["id"]: b for b in stats["benchmarks"]}
+    zh = _payload_zh(stats, caps, diffs, n_cmp, bm_meta)
+    # 键名是模型读的标签：中英混着会带偏输出，所以英文模式下换成英文键
+    return zh if i18n.get_lang() == "zh" else _payload_en(zh)
+
+
+# payload 的键名 → 英文（英文模式下换掉；值里的少数固定说明句也一并换）
+_PAYLOAD_EN = {
+    "本次数据的置信度": "data_confidence",
+    "模型总览": "model_overview",
+    "模型": "model",
+    "覆盖": "coverage",
+    "平均名次": "average_rank",
+    "参评基准数": "ranked_benchmarks",
+    "第一名次数": "first_places",
+    "末位次数": "last_places",
+    "显著领先的基准": "significantly_ahead_on",
+    "显著落后的基准": "significantly_behind_on",
+    "领先但未达显著": "ahead_not_significant",
+    "落后但未达显著": "behind_not_significant",
+    "各分类覆盖": "coverage_by_category",
+    "未测基准": "not_tested",
+    "低于随机线": "below_random_baseline",
+    "只有它一个模型测过的基准数": "benchmarks_only_it_ran",
+    "按能力分类的事实": "facts_by_capability_category",
+    "分类": "category",
+    "基准": "benchmark",
+    "题量": "items",
+    "参与比较的模型数": "compared_models",
+    "参与比较的模型": "models_compared",
+    "排名": "ranking",
+    "第一名是否显著领先": "leader_significantly_ahead",
+    "说明": "note",
+    "两两对比": "pairwise",
+    "分差": "gap",
+    "显著性阈值": "significance_threshold",
+    "差距显著": "significant",
+    "未测的模型（能力未知）": "not_tested_models",
+    "成绩低于随机线，不参与比较": "below_random_baseline_excluded",
+    "部分评测": "partial_runs",
+    "各模型在该分类的汇总": "per_model_in_category",
+    "未测基准（能力未知）": "not_tested",
+    "该分类未测的模型（能力未知，不代表能力弱）": "models_not_tested_in_category",
+    "该分类是否缺乏对照": "category_lacks_comparison",
+    "全部显著的模型间差异": "all_significant_differences",
+    "领先方": "leader",
+    "落后方": "trailer",
+    "领先多少个百分点": "lead_in_points",
+    "对比总数": "comparisons_total",
+    "其中未达显著（不能区分）": "not_significant_total",
+    "数据问题": "data_issues",
+}
+
+_PAYLOAD_EN_VALUES = {
+    "只有 1 个模型有成绩，缺少其他模型的对照，无法判断它是否突出":
+        "only one model has a score here, so there is no comparison to judge whether it stands out",
+}
+
+# 这几个键**不做**英文替换：值本身就是数据（模型名、基准名、分数）
+_DATA_KEYS = {"model", "benchmark", "category", "ranking", "models_compared", "not_tested_models",
+              "not_tested", "significantly_ahead_on", "significantly_behind_on",
+              "ahead_not_significant", "behind_not_significant", "features", "coverage_by_category",
+              "per_model_in_category", "all_significant_differences", "data_issues"}
+
+
+def _payload_en(obj):
+    """把 payload 的键名换成英文（值里的固定说明句也换；纯数据不动）。"""
+    if isinstance(obj, list):
+        return [_payload_en(x) for x in obj]
+    if not isinstance(obj, dict):
+        return _PAYLOAD_EN_VALUES.get(obj, obj) if isinstance(obj, str) else obj
+    out = {}
+    for k, v in obj.items():
+        en_k = _PAYLOAD_EN.get(k, k)
+        if k in _DATA_KEYS:
+            out[en_k] = v
+        else:
+            out[en_k] = _payload_en(v)
+    return out
+
+
+# 语言指令：只加一句，不维护两份长提示词 —— 提示词里那些规则（能不能用外部知识、
+# 显著性怎么表述、哪些不许写进正文）与语言无关，翻译一遍只会带来两份会各自漂移的规则。
+SYSTEM_PROMPT_LANG = {
+    "zh": "请按**能力分类**写一份中文总结。",
+    "en": "Write the summary **in English**, organised by capability category. Every field value in "
+          "the JSON output (headline, overview, notes, next_steps) must be in English; the "
+          "category / model / benchmark names you copy from the input are already English.",
+}
 
 SYSTEM_PROMPT = """你是一个严谨的大模型评测分析师。你会拿到一份**已经算好的**评测数据统计，\
 请按**能力分类**写一份中文总结。
@@ -574,14 +673,17 @@ SYSTEM_PROMPT = """你是一个严谨的大模型评测分析师。你会拿到�
 
 
 def build_messages(stats: dict) -> list:
-    """组装给总结模型的对话消息。"""
+    """组装给总结模型的对话消息（语言跟随界面语言）。"""
+    lang = i18n.get_lang()
     payload = prompt_payload(stats)
+    suffix = ("\n\n请按系统提示里的 JSON 结构输出总结。" if lang == "zh"
+              else "\n\nReturn the summary in the JSON structure described in the system prompt.")
+    lead = ("以下是本次评测的统计结果（JSON）：" if lang == "zh"
+            else "Here are the statistics for this evaluation (JSON):")
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content":
-            "以下是本次评测的统计结果（JSON）：\n\n"
-            + json.dumps(payload, ensure_ascii=False, indent=1)
-            + "\n\n请按系统提示里的 JSON 结构输出总结。"},
+        {"role": "system", "content": SYSTEM_PROMPT + "\n\n" + SYSTEM_PROMPT_LANG.get(lang, "")},
+        {"role": "user", "content": lead + "\n\n"
+            + json.dumps(payload, ensure_ascii=False, indent=1) + suffix},
     ]
 
 

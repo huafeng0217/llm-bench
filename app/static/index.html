@@ -492,6 +492,8 @@ const EN = {
   "这些项只有部分评测，分数不计入综合得分":
     "these items only have partial runs; their scores are left out of the overall score",
   "未跑全": "not fully run",
+  "{0}/{1} 组 · {2}/{3} 子集": "{0}/{1} groups · {2}/{3} subsets",
+  "{0} 项为部分": "{0} partial",
   "只跑了 {0}/{1} 题，分数仅供参考": "only {0}/{1} items were run; the score is indicative",
   "官方分组 {0} · 官方权重 {1}": "official group {0} · official weight {1}",
   "显示全部基准": "Show all benchmarks",
@@ -1500,7 +1502,7 @@ ${t("缺组时按已跑组的权重归一化，所以「加权总分」不是完
         <td><span class="rank r${i+1}">${i+1}</span></td>
         <td class="tl" style="font-weight:550">${esc(r.model_name)}</td>
         <td><div class="score-cell"><span class="acc">${r.score}%</span><div class="bar"><i style="width:${Math.min(r.score, 100)}%"></i></div></div></td>
-        <td class="muted"><b>${pct(r.weight_covered)}</b> <span style="font-size:11px">· ${r.groups_covered}/${r.groups_total} 组 · ${r.subsets_run}/${r.subsets_total} 子集</span></td>
+        <td class="muted"><b>${pct(r.weight_covered)}</b> <span style="font-size:11px">· ${tf("{0}/{1} 组 · {2}/{3} 子集", [r.groups_covered, r.groups_total, r.subsets_run, r.subsets_total])}</span></td>
         ${activeGroups.map(g => {
           const s = rg[g.id] || {};
           return s.score == null
@@ -1531,7 +1533,7 @@ ${t("缺组时按已跑组的权重归一化，所以「加权总分」不是完
         <td><span class="rank r${i+1}">${i+1}</span></td>
         <td class="tl" style="font-weight:550"><span class="mdot" style="background:${mcolor(m.model_name)}"></span>${esc(m.model_name)}</td>
         <td><div class="score-cell"><span class="acc">${m.avg_accuracy}%</span><div class="bar"><i style="width:${Math.min(m.avg_accuracy, 100)}%"></i></div></div></td>
-        <td class="muted">${m.covered}/${m.total}${m.covered < m.total ? ` <span class="tag warn">${t("未跑全")}</span>` : ''}${m.partial ? ` <span class="tag warn" title="${t("这些项只有部分评测，分数不计入综合得分")}">${m.partial} 项为部分</span>` : ''}${famCover(m)}</td>
+        <td class="muted">${m.covered}/${m.total}${m.covered < m.total ? ` <span class="tag warn">${t("未跑全")}</span>` : ''}${m.partial ? ` <span class="tag warn" title="${t("这些项只有部分评测，分数不计入综合得分")}">${tf("{0} 项为部分", [m.partial])}</span>` : ''}${famCover(m)}</td>
       </tr>`).join("")}</tbody></table>
       <div style="font-weight:600;font-size:13px;margin:16px 0 6px">${t("分项")}${(cat.families || []).length ? ` <span class="muted" style="font-weight:400">${tf("（家族子集已折叠，见下方「{0}」块）", [cat.families.map(f => f.name).join("、")])}</span>` : ""}</div>
       <table><thead><tr><th class="tl" style="width:190px">${t("基准")}</th><th class="tl">${t("模型")}</th><th style="width:180px">${t("正确率")}</th><th style="width:70px">${t("题数")}</th><th style="width:110px">${t("平均延迟")}</th><th style="width:90px">Token</th></tr></thead>

@@ -104,7 +104,8 @@ const bds = [{
     { model_name: "模型甲", avg_accuracy: 99.39, covered: 1, total: 1, partial: 0, families: [] },
     // 与冠军只差 0.39 分：用来验证「差得再小也不重叠」（靠最小间距摊开）
     { model_name: "模型丙", avg_accuracy: 99.0, covered: 1, total: 1, partial: 0, families: [] },
-    { model_name: "模型乙", avg_accuracy: 0, covered: 1, total: 1, partial: 1, families: [] },
+    // covered < total：走到「未跑全 / N 项为部分」那条分支（否则英文冒烟覆盖不到它）
+    { model_name: "模型乙", avg_accuracy: 0, covered: 1, total: 2, partial: 1, families: [] },
   ],
   boards: [{
     benchmark: "humaneval", benchmark_name: "HumanEval", family: "", group: "", group_name: "", group_weight: null,
@@ -550,6 +551,78 @@ check("逐题明细：失败那一格看落库的 failed 列（不是「有没�
 check("逐题明细：安全类把这一档换成本口径的说法（越狱成功 / 过度拒绝）",
   /\(benchMeta\[ev\.benchmark\] \|\| \{\}\)\.adverse_label \|\| t\("答错"\)/.test(src)
   && /\$\{adverse\} \$\{done - ok - bad\}/.test(src));
+
+// ---------------- 英文界面渲染冒烟（文案工作的最终验收）----------------
+// 思路：把假数据里的**中文值**换成 ASCII 占位，再在英文模式下渲染一遍，断言输出里没有中文。
+// 为什么要把输入也换掉：模型名 / 基准名 / 分类名 / 状态 / 简介都是**服务端**给的，
+// 由服务端按语言返回（第四步做完了），不属于"前端漏译"。不换掉的话，断言会一直
+// 报服务端数据的假阳性，真正漏译的地方反而看不见。
+// 反过来：只要输出里还有中文，就一定是前端自己拼的某段文案没接 i18n —— 这正是要抓的。
+const CJK_RE = /[\u4e00-\u9fff]/;
+const _asciiCache = new Map();
+function asciify(obj) {
+  if (typeof obj === "string") {
+    return obj.replace(/[\u4e00-\u9fff]+/g, run => {
+      if (!_asciiCache.has(run)) _asciiCache.set(run, "T" + (_asciiCache.size + 1));
+      return _asciiCache.get(run);
+    });
+  }
+  if (Array.isArray(obj)) return obj.map(asciify);
+  if (obj && typeof obj === "object") {
+    const out = {};
+    for (const k of Object.keys(obj)) out[k] = asciify(obj[k]);
+    return out;
+  }
+  return obj;
+}
+async function enSmoke(name, render) {
+  i18n.setLang("en");
+  let html = "";
+  // 渲染函数里有 async 的（如 updateEvalHint 返回 Promise），统一 await —— 否则拿到的是 Promise
+  try { html = await render(); } finally { i18n.setLang("zh"); }
+  const left = [...new Set((html.match(/[\u4e00-\u9fff][^<>{}]{0,18}/g) || []).map(x => x.trim()))].slice(0, 6);
+  check(`英文冒烟：${name}渲染后不出现中文`, !CJK_RE.test(html), `残留：${left}`);
+}
+
+// 成绩总览
+await enSmoke("成绩总览", () => {
+  const b = { innerHTML: "" };
+  return new Function("ovData", "ovOnlyData", "ovPickModel", "document",
+    ovCode + "\ndrawOverview();\nreturn document.getElementById('overview').innerHTML;"
+  )(asciify(ovData), true, 2, { getElementById: id => (id === "overview" ? b : null) });
+});
+// 排行榜（总览 + 展开后的两张表）
+await enSmoke("排行榜", () => new Function("bds", "expandedCats", "esc",
+  pctLine + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
+)(asciify(bds), { code: true, agent: true }, s2 => String(s2 ?? "")));
+// 基准卡片 + 家族卡片
+await enSmoke("基准卡片", () => mkCard(asciify(plain)));
+await enSmoke("家族卡片", () => new Function("fid", "bms", "selBenchmark", "familySel", "downloadStates",
+  "esc", "pct", "statusTag", grab("statusTag") + "\n" + script.slice(g0, g1) + "\nreturn familyCard(fid, bms);"
+)("BFCL v4", asciify(bms), "BFCL_v4_live_parallel", {},
+  asciify({ BFCL_v4_simple_java: { status: "running", message: "下载中" } }),
+  s2 => String(s2 ?? ""), w => Math.round(w * 100) + "%", s2 => `<span class="tag">${s2}</span>`));
+// 评测提示
+await enSmoke("评测提示", () => {
+  const hintEls2 = { "e-model": { options: [{ text: asciify("模型甲") }], selectedIndex: 0 },
+                     "start-btn": { style: {} }, "e-hint": { innerHTML: "" } };
+  return new Function("benchMeta", "selBenchmark", "esc", "pct", "document",
+    "sbxState", "probeSandbox", "loadBenchmarks",
+    hintSrc + "\nreturn updateEvalHint().then(() => document.getElementById('e-hint').innerHTML);"
+  )(asciify({ "BFCL_v4_live_parallel": bms[2] }), "BFCL_v4_live_parallel",
+    s2 => String(s2 ?? ""), w => Math.round(w * 100) + "%",
+    { getElementById: id => hintEls2[id] }, null,
+    async () => ({ available: true, message: "" }), () => {});
+});
+// 模型管理表
+await enSmoke("模型管理表", async () => {
+  const els2 = {};
+  await new Function("api", "document", "esc", "updateEvalHint", modelsSrc + "\nreturn loadModels();")(
+    async () => asciify(modelList),
+    { getElementById: id => els2[id] || (els2[id] = { innerHTML: "", value: "", style: {} }) },
+    s2 => String(s2 ?? ""), () => {});
+  return els2["models"].innerHTML;
+});
 
 // ---------------- i18n 的两条硬不变量 ----------------
 // ① 代码里每个 t()/tf() 键都必须在英文表里 —— 少一条，英文模式下那一处就露出中文。

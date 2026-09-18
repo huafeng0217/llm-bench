@@ -141,6 +141,51 @@ def main_() -> int:
     check_true("英文 README 正文里没有残留中文（语言开关那行除外）", not leftover,
                f"残留: {leftover[:5]}")
 
+    # ---- 4e) AI 总结跟随界面语言 ----
+    # 用户选的策略是「总结跟随界面语言」。三件事都要成立：
+    # ① 提示词里给出语言指令；② payload 的**键名**也换成英文（模型读的是这些标签，
+    #    中英混着会带偏输出）；③ 语言计入指纹 —— 换语言要重新生成，而不是复用另一种语言的成品。
+    import re as _re
+    from app import summary as _summary
+
+    mini = {"cells": {}, "rankings": {}, "comparisons": [], "confidence": "low",
+            "benchmarks": [], "caveats": []}
+
+    def _keys(d, pre=""):
+        out = []
+        for k, v in d.items():
+            out.append(pre + k)
+            if isinstance(v, dict):
+                out += _keys(v, pre + k + ".")
+            elif isinstance(v, list) and v and isinstance(v[0], dict):
+                out += _keys(v[0], pre + k + "[].")
+        return out
+
+    i18n.set_lang("zh")
+    zh_fp = _summary.fingerprint(mini)
+    zh_msgs = _summary.build_messages(mini)
+    zh_keys = _keys(_summary.prompt_payload(mini))
+    i18n.set_lang("en")
+    en_fp = _summary.fingerprint(mini)
+    en_msgs = _summary.build_messages(mini)
+    en_keys = _keys(_summary.prompt_payload(mini))
+    i18n.set_lang("zh")
+
+    check_true("总结：语言计入指纹（换语言要重新生成，不能复用另一种语言的成品）",
+               zh_fp != en_fp, f"zh={zh_fp} en={en_fp}")
+    check_true("总结：英文 payload 的键名没有中文",
+               not [k for k in en_keys if _re.search(r"[\u4e00-\u9fff]", k)],
+               f"残留：{[k for k in en_keys if _re.search(r'[\u4e00-\u9fff]', k)][:5]}")
+    check_true("总结：中文 payload 仍是中文键名",
+               all(_re.search(r"[\u4e00-\u9fff]", k) for k in zh_keys[:3]),
+               f"{zh_keys[:3]}")
+    check_true("总结：英文模式给模型下语言指令",
+               "in English" in en_msgs[0]["content"] and "in English" not in zh_msgs[0]["content"],
+               f"system prompt 尾部：{en_msgs[0]['content'][-90:]!r}")
+    check_true("总结：中文模式的用户消息保持原样（零变化）",
+               zh_msgs[1]["content"].startswith("以下是本次评测的统计结果"),
+               zh_msgs[1]["content"][:30])
+
     # ---- 5) 语言是从请求头来的（不是全局变量）----
     src = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
     check_true("main.py 有语言中间件（X-Lang / Accept-Language）",
