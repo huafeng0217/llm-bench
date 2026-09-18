@@ -192,7 +192,9 @@
   /* 排行榜：分数 + 横条（一眼看出强弱） */
   .score-cell { display:flex; align-items:center; gap:10px; }
   .score-cell .bar { flex:1; min-width:56px; }
-  .score-cell .acc { min-width:50px; text-align:right; }
+  /* 百分比放在**条的右边**、定宽右对齐：数字仍是一列对齐的，条共用同一起点；
+     同时也把数字从「分布轨道 + 得分条」两根横条中间挪了出来（挤在中间最显乱）。 */
+  .score-cell .acc { min-width:58px; text-align:right; font-variant-numeric:tabular-nums; }
   /* 排行榜总览的「分数分布」：一条浅色轨道 + 每个模型一个**彩色**点。
      颜色 = 模型身份（同一模型在轨道上、冠军名前面、展开后的两张表里颜色一致），
      所以颜色不是装饰：配合悬停就能看出「这个分类里谁在哪、彼此差多远」。
@@ -1013,36 +1015,76 @@ async function refresh() {
     [...new Set(bds.flatMap(c => c.combined.map(m => m.model_name)))].sort()
       .map((n, i) => [n, MODEL_COLORS[i % MODEL_COLORS.length]]));
   const mcolor = n => modelColorMap[n] || "var(--border2)";
-  // 分数分布：一条浅色轨道 + 每个模型一个**彩色**点，点的位置 = 综合得分。
-  // 颜色就是模型身份（同一模型在轨道上、冠军名前面、展开后的两张表里都同色），
-  // 所以配合悬停能看出「谁在哪、彼此差多远」；冠军点画得更大，且永远画在最上层。
-  // 位置 3% + 分数×0.94%：两端各留 3%，否则 0 分/100 分的点会被轨道边缘切掉一半。
-  // 冠军口径 = 先比覆盖、再比分数（防止只挑好跑的那项），所以**冠军不一定在最右边** ——
-  // 悬停里说明口径，并点名"分数更高但没跑全"的模型（否则图上看着像高亮错了）。
+  // 配色图例：颜色既然代表模型身份，就得让人查得到是谁 —— 否则只有悬停才知道。
+  // 模型少（≤8）时一行放得下；多了就让浏览器换行，不隐藏信息。
+  const modelLegend = () => Object.keys(modelColorMap).length < 2 ? "" :
+    `<div class="muted" style="font-size:11px;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 12px">
+      ${Object.entries(modelColorMap).map(([n, col]) =>
+        `<span style="white-space:nowrap"><span class="mdot" style="background:${col}"></span>${esc(n)}</span>`).join("")}
+    </div>`;
+  // 分数分布：一条浅色轨道 + 每个模型一个**彩色**点（颜色 = 模型身份，见上）。
+  // 两条布局规则，都是为了"看得清"：
+  //   ① **每行按该分类自己的分数区间放大**（不是 0–100 的绝对位置）：高分扎堆时
+  //      点会全挤在右端、左边一大片空（用户报「分布可以靠中间，没有必要挨着右边」）。
+  //      区间铺到整条轨道上，数据就自然落在中间；两端标出该行的最低/最高分，
+  //      免得读者把位置误读成绝对分数。
+  //   ② **相邻两点保持最小间距**：分数只差 0.5 分的两个模型会完全叠在一起
+  //      （实测通用知识 demo 83.33 / deepseek-flash 82.86，只看得见一个点）。
+  //      按"从左往右推开、越界再回推"把点摊开，顺序仍严格按分数。
+  // 冠军点更大、并且永远最后画（在最上层），悬停里说明冠军口径并点名
+  // "分数更高但没跑全"的模型（否则图上看着像高亮错了）。
   const CHAMP_RULE = "冠军 = 跑得最全的一批里分数最高（防止只挑好跑的那项），所以冠军不一定是分数最高的那个";
   const distBar = c => {
     const ms = c.combined;
     const champ = ms[0];
-    const x = a => 3 + Math.max(0, Math.min(100, a)) * 0.94;
+    const PAD = 5;    // 两端各留 5%（点半径 + 边距，不然点会被轨道边缘切掉一半）
+    const GAP = 9;    // 相邻两点的最小间距（%）≈ 13px：差得再小也不重叠
+    const lo = Math.min(...ms.map(m => m.avg_accuracy));
+    const hi = Math.max(...ms.map(m => m.avg_accuracy));
+    const span = hi - lo;
+    const ideal = m => span === 0 ? 50 : PAD + (m.avg_accuracy - lo) / span * (100 - 2 * PAD);
     const label = m => `${m.model_name} ${m.avg_accuracy}%（覆盖 ${m.covered}/${m.total}${m.partial ? `，含 ${m.partial} 项部分` : ""}）`;
-    const dot = (m, cls) => `<i class="${cls}" style="left:${x(m.avg_accuracy).toFixed(2)}%;background:${mcolor(m.model_name)}"
-      title="${esc(label(m))}${m === champ ? "　★ 冠军" : ""}"></i>`;
-    // 分数升序画，分高的后画（叠在上面）；冠军最后画，保证它在最上层
-    const others = ms.slice(1).sort((p, q) => p.avg_accuracy - q.avg_accuracy);
-    const dots = others.map(m => dot(m, "")).join("") + dot(champ, "champ");
+    // 位置必须按**分数升序**算（摊开的前提是位置单调递增）。
+    // 踩过一次：先把冠军挪到最后再算位置，遇到「冠军分数最低」的分类
+    // （实测安全 / 对齐：冠军 91.5% < 另一个 99%），数组一开始就是降序，
+    // 摊开循环把冠军推到了 86% —— 图上冠军跑到了别人右边，看着就是错的。
+    const asc = [...ms].sort((p, q) => p.avg_accuracy - q.avg_accuracy);
+    const pos = asc.map(ideal);
+    for (let i = 1; i < pos.length; i++) pos[i] = Math.max(pos[i], pos[i - 1] + GAP);
+    if (pos[pos.length - 1] > 100 - PAD) {          // 推过头了就从右往左回推
+      pos[pos.length - 1] = 100 - PAD;
+      for (let i = pos.length - 2; i >= 0; i--) pos[i] = Math.min(pos[i], pos[i + 1] - GAP);
+      for (let i = 0; i < pos.length; i++) pos[i] = Math.max(pos[i], PAD);
+    }
+    const posOf = new Map(asc.map((m, i) => [m, pos[i]]));
+    // 画的时候冠军放最后（叠在最上层，不被同分的点盖住）；位置从 posOf 取，不再按下标对应
+    const dots = [...asc.filter(m => m !== champ), champ].map(m => `<i class="${m === champ ? "champ" : ""}"
+      style="left:${posOf.get(m).toFixed(2)}%;background:${mcolor(m.model_name)}"
+      title="${esc(label(m))}${m === champ ? "　★ 冠军" : ""}"></i>`).join("");
     const byScore = [...ms].sort((p, q) => q.avg_accuracy - p.avg_accuracy);
     const higher = ms.slice(1).filter(m => m.avg_accuracy > champ.avg_accuracy);
     const note = higher.length
       ? "　注意：" + higher.map(m => `${m.model_name} ${m.avg_accuracy}% 更高，但只跑了 ${m.covered}/${m.total} 项`).join("；")
       : "";
-    return `<div class="ov-dist" title="${CHAMP_RULE}。本分类 ${ms.length} 个模型（按分数）：${esc(byScore.map(label).join("；"))}。${note}">
-      <span class="tick" style="left:50%"></span>${dots}</div>`;
+    const tip = `每行按本分类的分数区间放大显示（不是 0–100 的绝对位置）。${CHAMP_RULE}。`
+      + `本分类 ${ms.length} 个模型（按分数）：${esc(byScore.map(label).join("；"))}。${note}`;
+    // 只有一个模型（或所有模型同分）时不标区间：两端都是同一个数，标了反而是噪音
+    if (span === 0) {
+      return `<div class="ov-dist" title="${tip}">${dots}</div>`;
+    }
+    const fmt = v => (span < 10 ? v.toFixed(1) : Math.round(v)) + "%";
+    return `<div style="display:flex;align-items:center;gap:6px">
+      <span class="muted" style="font-size:9.5px;font-variant-numeric:tabular-nums">${fmt(lo)}</span>
+      <div class="ov-dist" style="flex:1" title="${tip}">${dots}</div>
+      <span class="muted" style="font-size:9.5px;font-variant-numeric:tabular-nums">${fmt(hi)}</span>
+    </div>`;
   };
   // 总览：各分类冠军一览。每行本身即开关，点击展开/收起该分类详情（可同时展开多个）
   const overview = `
     <div class="card" style="padding:14px 18px">
       <div class="cat-head" style="margin:0"><span class="dot" style="background:var(--accent)"></span>总览<span class="cnt">点击分类查看详情，可同时展开多个</span></div>
-      <table style="margin-top:10px"><thead><tr><th class="tl" style="width:190px">分类</th><th class="tl">冠军模型</th><th style="width:200px" title="轨道上一个点 = 一个模型，颜色区分模型（和冠军名前的点、展开后的表里同色）。冠军 = 跑得最全的一批里分数最高，所以不一定是分数最高的那个 —— 悬停里会说明，并点名分数更高但没跑全的模型">分数分布</th><th style="width:200px">综合得分</th><th style="width:150px">覆盖</th></tr></thead>
+      ${modelLegend()}
+      <table style="margin-top:10px"><thead><tr><th class="tl" style="width:190px">分类</th><th class="tl">冠军模型</th><th style="width:210px" title="轨道上一个点 = 一个模型，颜色区分模型（同一模型在冠军名前的点、展开后的表里都是同色）。**每行按该分类自己的分数区间放大**，两端标出该行的最低/最高分 —— 位置不是 0–100 的绝对值。冠军 = 跑得最全的一批里分数最高，所以不一定是分数最高的那个，悬停里会点名分数更高但没跑全的模型">分数分布</th><th style="width:190px">综合得分</th><th style="width:150px">覆盖</th></tr></thead>
       <tbody>${bds.map(c => {
         const champ = c.combined[0];
         const open = !!expandedCats[c.id];
@@ -1050,7 +1092,7 @@ async function refresh() {
           <td class="tl"><span style="display:inline-block;width:12px;color:var(--faint)">${open ? "▾" : "▸"}</span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:3px;background:${c.color};margin-right:6px"></span>${esc(c.name)}</td>
           <td class="tl" style="font-weight:550"><span class="mdot" style="background:${mcolor(champ.model_name)}"></span>${esc(champ.model_name)}</td>
           <td>${distBar(c)}</td>
-          <td><div class="score-cell"><span class="acc">${champ.avg_accuracy}%</span><div class="bar"><i style="width:${Math.min(champ.avg_accuracy, 100)}%"></i></div></div></td>
+          <td><div class="score-cell"><div class="bar"><i style="width:${Math.min(champ.avg_accuracy, 100)}%"></i></div><span class="acc">${champ.avg_accuracy}%</span></div></td>
           <td class="muted">${champ.covered}/${champ.total}${famCover(champ)}</td>
         </tr>`;
       }).join("")}</tbody></table>

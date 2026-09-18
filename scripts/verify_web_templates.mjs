@@ -91,6 +91,8 @@ const bds = [{
   id: "code", name: "代码工程", color: "#e08a3c", n_benchmarks: 1,
   combined: [
     { model_name: "模型甲", avg_accuracy: 99.39, covered: 1, total: 1, partial: 0, families: [] },
+    // 与冠军只差 0.39 分：用来验证「差得再小也不重叠」（靠最小间距摊开）
+    { model_name: "模型丙", avg_accuracy: 99.0, covered: 1, total: 1, partial: 0, families: [] },
     { model_name: "模型乙", avg_accuracy: 0, covered: 1, total: 1, partial: 1, families: [] },
   ],
   boards: [{
@@ -174,27 +176,57 @@ check("排行榜：措辞已改成「完整评测中的最高分」", boardHtml.
 // 为什么每行都要有轨道：只有 >0 的行才有的话，就成了用户最反感的「有的有有的没」。
 check("排行榜总览：每个分类一条轨道，点数 = 该分类模型数，冠军点单独标记",
   (boardHtml.match(/class="ov-dist"/g) || []).length === bds.length
-  && (boardHtml.match(/<i class="(?:champ)?" style="left:/g) || []).length === 5
-  && (boardHtml.match(/<i class="champ" style="left:/g) || []).length === bds.length,
-  "分类数 3、模型总数 2+1+2=5、每行一个冠军点");
-// 位置 = 3% + 分数×0.94%（两端留边，否则 0 分/100 分的点会被轨道边缘切掉一半）；
-// 轨道上给一条 50% 刻度，位置才有参照
-check("排行榜总览：两端留边 + 有 50% 刻度",
-  // 注意别写成 style="left:96.43%"：点的 style 后面还跟着 background，引号不在这儿
-  boardHtml.includes("left:96.43%") && boardHtml.includes("left:3.00%")
-  && (boardHtml.match(/class="tick" style="left:50%"/g) || []).length === bds.length);
+  && (boardHtml.match(/<i class="(?:champ)?"\s+style="left:/g) || []).length === 6
+  && (boardHtml.match(/<i class="champ"\s+style="left:/g) || []).length === bds.length,
+  "分类数 3、模型总数 3+1+2=6、每行一个冠军点");
+// 「差得再小也不重叠」：同一行里相邻两点的间距必须 ≥ 9%（≈13px）。
+// 实测通用知识 demo 83.33 / deepseek-flash 82.86 只差 0.47 分，旧版完全叠成一个点。
+const strips = [...boardHtml.matchAll(/class="ov-dist"[^>]*>([\s\S]*?)<\/div>/g)]
+  .map(m => [...m[1].matchAll(/style="left:([\d.]+)%/g)].map(x => +x[1]).sort((a, b) => a - b));
+check("排行榜总览：同一行里相邻点不重叠（最小间距 ≥ 9%）",
+  strips.length === bds.length
+  && strips.every(ps => ps.every((p, i) => i === 0 || p - ps[i - 1] >= 8.99)),
+  JSON.stringify(strips));
+// 每行按**自己的区间**放大：code 组理想位置是 5% / 94.63% / 95%，
+// 后两点太近 → 摊到 86% / 95%（顺序仍严格按分数，且都落在轨道内）
+check("排行榜总览：每行按该分类区间放大，并把挨在一起的点摊开",
+  boardHtml.includes("left:5.00%") && boardHtml.includes("left:86.00%") && boardHtml.includes("left:95.00%"),
+  "期望 code 行三点在 5% / 86% / 95%；见 " + JSON.stringify(strips));
+// 回归：冠军**分数最低**时（实测安全 / 对齐：冠军 91.5% < 另一个 99%），位置仍必须按分数单调。
+// 第一版先把冠军挪到数组末尾再算位置，数组一开始就是降序，摊开循环把冠军推到了 86%
+// —— 图上冠军跑到别人右边，看着就是错的。所以位置要按升序数组算，画的时候再挪冠军。
+const safetyStrip = [...boardHtml.matchAll(/class="ov-dist"[^>]*>([\s\S]*?)<\/div>/g)][2][1];
+const champLeft = (safetyStrip.match(/<i class="champ"\s+style="left:([\d.]+)%/) || [])[1];
+const safetyXs = [...safetyStrip.matchAll(/style="left:([\d.]+)%/g)].map(m => +m[1]).sort((a, b) => a - b);
+check("排行榜总览：冠军分数最低时，位置仍按分数单调（回归）",
+  champLeft === "5.00" && JSON.stringify(safetyXs) === "[5,95]",
+  `冠军在 ${champLeft}%，全部位置 ${JSON.stringify(safetyXs)}`);// 区间放大之后位置不再是绝对值，所以两端必须标出该行的最低/最高分（否则会被误读成 0–100）。
+// 断言必须带上区间标签那份样式：光找 ">91.5%<" 会被「综合得分」列的数字命中（第一版就是这个问题，
+// 去掉区间标签照样绿 —— 又是「断言某句话出现过，先数它有几处」）。
+const rangeLabel = /font-size:9\.5px;font-variant-numeric:tabular-nums">([\d.]+)%</g;
+const rangeLabels = [...boardHtml.matchAll(rangeLabel)].map(m => m[1]);
+check("排行榜总览：标出该行的最低/最高分（区间放大的前提）",
+  rangeLabels.includes("91.5") && rangeLabels.includes("99.0"),
+  `区间标签：${JSON.stringify(rangeLabels)}`);
 // 颜色必须真的是「模型身份」：同一模型在冠军名前的点、轨道上的点、展开后的两张表里同色；
 // 不同模型不同色。只断言"有颜色"是不够的 —— 那样颜色就只是装饰。
 const colorOf = name => [...boardHtml.matchAll(
   new RegExp(`class="mdot" style="background:(#[0-9a-f]{6})"></span>${name}`, "g"))].map(m => m[1]);
 const cJia = colorOf("模型甲"), cYi = colorOf("模型乙");
-const champDots = [...boardHtml.matchAll(/<i class="champ" style="left:[\d.]+%;background:(#[0-9a-f]{6})"/g)]
+const champDots = [...boardHtml.matchAll(/<i class="champ"\s+style="left:[\d.]+%;background:(#[0-9a-f]{6})"/g)]
   .map(m => m[1]);
 check("排行榜总览：同一模型到处同色、不同模型不同色（颜色 = 模型身份）",
   cJia.length >= 2 && new Set(cJia).size === 1
   && cYi.length >= 1 && cJia[0] !== cYi[0]
   && champDots.length === bds.length && new Set(champDots).size === 1 && champDots[0] === cJia[0],
   `模型甲 ${cJia}、模型乙 ${cYi}、冠军点 ${champDots}`);
+// 颜色既然代表身份，就得能查到是谁：总览顶部给出「色点 + 模型名」的图例。
+// 同样要限定在图例容器里 —— 冠军模型那一格也是同样的「色点 + 模型名」，
+// 不限定的话去掉图例照样绿（和上一条同一种毛病）。
+const legend = (boardHtml.match(/gap:4px 12px">([\s\S]*?)<\/div>/) || [, ""])[1];
+check("排行榜总览：给出配色图例（否则只有悬停才知道颜色是谁）",
+  ["模型甲", "模型乙", "模型丙"].every(n => legend.includes(n)),
+  `图例内容：${JSON.stringify(legend.slice(0, 120))}`);
 // 冠军口径必须写出来：冠军是「跑得最全的一批里分数最高」，不一定是分数最高的那个。
 // 要求**表头和哑铃悬停都说**：只写一处时，另一处看起来仍然像高亮错了。
 // （第一版只断言「出现过」，结果去掉悬停那份照样绿 —— 反向验证才发现是弱断言。）
