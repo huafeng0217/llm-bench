@@ -13,17 +13,28 @@ def code_from_completion(item: dict, completion: str) -> str:
 
     HumanEval 是**补全式**评测：题目 question 是「函数签名 + docstring」，
     模型（和官方参考解法）给出的只是**缩进的函数体**，两者拼起来才是一个函数。
-    所以这里若发现续写里没有目标函数的定义，就把题目里的签名前置。
+    所以这里**只要题目有 entry_point，就把题目前置** —— 这正是官方 harness 的做法
+    （``prompt + completion``）。
+
+    为什么不能「续写里已经有目标函数就不前置」（老写法，实测踩过）：
+    HumanEval/38 的题目里定义了**辅助函数** ``encode_cyclic``（官方测试要调用它），
+    而模型这次把 ``def decode_cyclic`` 的签名也重写了一遍 —— 按老写法题目不再前置，
+    拼出来的文件里**根本没有 encode_cyclic**，测试直接 ``NameError``，
+    于是一个正确答案被判成错。题目里有辅助函数的题（如 38 / 73 / 79 / 131 / 152）
+    都会这样翻车，而且看起来像「模型答错」，很难发现。
+
+    前置不会有副作用：模型重写的定义排在后面，Python 以后者为准（语义与官方一致）。
+    反过来，只有「只给函数体」时才前置的老逻辑会让这类题悄悄丢代码 ——
+    两种续写形态都要能吃下，所以不能靠猜续写形态。
 
     注意：**不能对续写做 strip()** —— 那会把函数体的缩进一起剥掉，
     拼出来就成了顶层的 for/return，直接语法错误或语义全错。
     """
     ep = item.get("entry_point") or ""
     code = completion or ""
-    # 只有「函数补全式」的题（HumanEval / MBPP）才需要补签名。
-    # 竞赛题（LiveCodeBench）要的是完整程序，把题面拼上去只会毁掉代码 ——
-    # 所以这里必须先判断 entry_point 是否存在，不能无条件前置。
-    if ep and not re.search(rf"^def\s+{re.escape(ep)}\s*\(", code, re.MULTILINE):
+    # 只有「函数补全式」的题（HumanEval / MBPP）才需要补题目。
+    # 竞赛题（LiveCodeBench）要的是完整程序、也没有 entry_point，把题面拼上去只会毁掉代码。
+    if ep:
         code = str(item.get("question") or "").rstrip() + "\n" + code.lstrip("\n")
     return code
 
@@ -36,7 +47,7 @@ def extract_code(text: str | None, item: dict) -> str | None:
       2) 未闭合的围栏 —— 模型被 max_tokens 截断时会漏掉收尾的 ```
       3) 完全没有围栏时，从第一个 def/class/import/from 截到最后
 
-    只有「模型只给了函数体」时会补上题目里的签名（见 code_from_completion）。
+    只有「函数补全式」的题（有 entry_point）会把题目前置（见 code_from_completion）。
     """
     if not text:
         return None

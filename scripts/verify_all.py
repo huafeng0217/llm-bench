@@ -2,10 +2,11 @@
 
 为什么需要它
 ------------
-自检脚本现在有 10 个，靠人记着逐个跑并不现实 —— 我自己就差点在改完核心分派后
+自检脚本现在有 11 个，靠人记着逐个跑并不现实 —— 我自己就差点在改完核心分派后
 只跑了其中一个。这个入口按依赖分档、逐个跑、最后给一张汇总表：
 
-  - **纯计算**（不需要 Docker / 网络）：verify_imports、verify_scoring、verify_summary、verify_summaries
+  - **纯计算**（不需要 Docker / 网络）：verify_imports、verify_code_assembly、verify_datasets、
+    verify_scoring、verify_summary、verify_summaries
   - **需要 Node**（只有前端模板一项）：verify_web_templates.mjs
   - **需要 Docker**：verify_dispatch、verify_sandbox、verify_humaneval、verify_livecodebench
 
@@ -27,6 +28,7 @@ SCRIPTS = [
     # (脚本, 是否需要 Docker, 一句话说明)
     ("verify_imports.py", False, "静态检查：用到但未定义/未 import 的名字"),
     ("verify_datasets.py", False, "题库与元数据：行数缓存 / 原子写 / 卡片文案 / 题量对账"),
+    ("verify_code_assembly.py", False, "代码题拼接：题目自带辅助函数 / 竞赛题不拼题面"),
     ("verify_models.py", False, "模型用途：判别器不能被评测 / 改类型二次确认（临时库）"),
     ("verify_scoring.py", False, "取数口径：完整/部分评测 + 家族官方加权总分（临时库）"),
     ("verify_safety.py", False, "安全评测：判分方向 / 裁判约束 / 判分失败处理（临时库，mock 裁判）"),
