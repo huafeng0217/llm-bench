@@ -376,10 +376,25 @@ check("表内联渲染的表：文本列表头与正文的 tl 数量匹配", mis
 // 「判分/执行失败」和「答错」在页面上必须一眼可分：用户实测那条 jbb_benign 有 5% 是
 // 失败（模型没产出正文），若和答错混在一起，会被读成「能力差 5%」——数字没错、结论错。
 check("任务列表：正确率的说明里写明分母含失败题、会因此偏低",
-  /class="acc" title="[^"]*分母是已完成的题数，判分失败的那 \$\{e\.failed \|\| 0\} 题也在里面[^"]*"/.test(src));
-check("任务列表：失败题数带说明（失败 ≠ 答错，别读成能力差）",
-  /失败 \$\{e\.failed\} 题/.test(src)
-  && /title="判分 \/ 执行失败：[^"]*既不算对也不算答错[^"]*/.test(src));
+  /class="acc" title="[^"]*分母是已完成的题数，失败的那 \$\{failed\} 题也在里面[^"]*"/.test(src));
+// 只给 >0 的行追加一截字，就会出现「有的标有的没标」的不协调（用户报过）——
+// 所以失败数独立成一列：每行都有值（0 灰 / N 红），状态列只放状态。
+check("任务列表：失败数独立成列（表头 + 空表 colspan 跟着加一）",
+  /<th>进度<\/th><th>正确率<\/th><th style="width:56px">失败<\/th><th>状态<\/th>/.test(src)
+  && /<tbody id="evals"><tr><td colspan="8" class="empty">/.test(src)
+  && /colspan="\$\{batchMode \? 9 : 8\}"/.test(src));
+check("任务列表：失败列每行都有值（0 灰 / N 红），不再有的标有的没标",
+  /failed \? `<span class="st-failed"[^>]*>\$\{failed\}<\/span>`\s*:\s*`<span class="muted">0<\/span>`/.test(src));
+check("任务列表：状态列只放状态（失败数不再挤进来）",
+  /class="\$\{stCls\}">\$\{ST_TEXT\[e\.status\] \|\| e\.status\}<\/td>/.test(src));
+check("任务列表：主数字保持保守口径，旁边并列一个「有效题 X%」（有失败时才出现）",
+  /有效题 \$\{validAcc\}%/.test(src)
+  && /validAcc = failed && e\.done \? Math\.round\(e\.correct \/ \(e\.done - failed\) \* 1000\) \/ 10 : null/.test(src)
+  // 必须是**行内**的：换成块级元素会把这些行撑高，又变成「有的高有的矮」（用户报过同类问题）
+  && !/有效题 \$\{validAcc\}%<\/div>/.test(src),
+  "未跑成的题不能从主数字里消失，但也不能让主数字独占解释权");
+check("任务列表：失败数带说明（失败 ≠ 答错，别读成能力差）",
+  /title="判分 \/ 执行失败：[^"]*既不算对也不算答错[^"]*/.test(src));
 check("逐题明细：顶部把「正确 / 答错 / 判分失败」三档分开列",
   /evalsCache/.test(src) && /答错 \$\{done - ok - bad\}/.test(src)
   && /判分\/执行失败 \$\{bad\}/.test(src));

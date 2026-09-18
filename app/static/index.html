@@ -313,8 +313,8 @@
   <h2><span class="no">3</span>评测任务<span id="batch-toggle" style="margin-left:auto"></span></h2>
   <div class="card" style="padding:6px 18px"><table><thead><tr>
     <th id="th-check" style="width:32px; display:none"><input type="checkbox" id="task-check-all" onclick="toggleAllTasks(this)" title="全选本页"></th>
-    <th style="width:40px">#</th><th class="tl">模型</th><th class="tl">基准</th><th>进度</th><th>正确率</th><th>状态</th><th style="width:130px"></th>
-  </tr></thead><tbody id="evals"><tr><td colspan="7" class="empty">暂无任务</td></tr></tbody></table>
+    <th style="width:40px">#</th><th class="tl">模型</th><th class="tl">基准</th><th>进度</th><th>正确率</th><th style="width:56px">失败</th><th>状态</th><th style="width:130px"></th>
+  </tr></thead><tbody id="evals"><tr><td colspan="8" class="empty">暂无任务</td></tr></tbody></table>
     <div id="batch-bar" style="padding:4px 0"></div>
     <div id="task-controls" style="padding:8px 0"></div></div>
   <div id="items-box"></div>
@@ -922,13 +922,21 @@ async function refresh() {
       liveHtml = `<div class="muted" style="font-size:12px;margin-top:2px${slow ? ";color:var(--amber)" : ""}"
         title="并发跑多道题时，只要其中几道是难题（实测单题可达 200~280 秒），整体进度就会几分钟不动 —— 不代表卡死。容器只在模型返回代码之后才启动，所以「没有容器」也是正常的。">${parts.join(" · ")}${slow ? " ⚠" : ""}</div>`;
     }
+    // 正确率的分母是**已完成**的题数，失败题也算在里面（保守口径，安全评测必须如此：
+    // 失败若被剔除，安全分会凭空变好看）。但失败题多的时候主数字会严重偏低 ——
+    // #118 livecodebench 有 78 题超时（73 个 Request timed out），显示 52%，
+    // 而跑成的那 97 题上是 93.8%。所以有失败时**并列**补一个「有效题」小字：
+    // 主数字不藏东西，副数字说明「跑成的那些题上表现如何」，不替用户选边。
+    const failed = e.failed || 0;
+    const validAcc = failed && e.done ? Math.round(e.correct / (e.done - failed) * 1000) / 10 : null;
     return `<tr>
       ${batchMode ? `<td><input type="checkbox" ${selectedTasks.has(e.id) ? "checked" : ""} onclick="toggleTaskSel(${e.id}, this)"></td>` : ""}
       <td class="muted">${e.id}</td><td class="tl" style="font-weight:550">${esc(e.model_name)}</td>
       <td class="tl" title="输出上限 ${e.max_tokens ?? 2048} tokens · 单题超时 ${e.timeout_s ?? 90}s · 并发 ${e.concurrency ?? 8}"><span style="font-weight:550">${esc(e.benchmark)}</span></td>
       <td><div class="score-cell"><div class="bar"><i style="width:${pct}%"></i></div><span class="muted" style="min-width:64px;text-align:right">${e.done}/${e.total}</span></div>${liveHtml}</td>
-      <td class="acc" title="正确 ${e.correct ?? 0}/${e.done} 题。分母是已完成的题数，判分失败的那 ${e.failed || 0} 题也在里面 —— 失败不是「答错」（见右边状态列的说明），按保守口径不算对，所以这个百分比会偏低。">${e.accuracy == null ? "-" : e.accuracy + "%"}</td>
-      <td class="${stCls}">${ST_TEXT[e.status] || e.status}${e.failed ? ` <span class="st-failed" style="font-size:12px" title="判分 / 执行失败：这几题没得到有效结果（被测模型没产出正文、裁判给不出可解析判定、服务商拦截、题目本身报错等）。既不算对也不算答错，但按保守口径计入了正确率分母 —— 别把它读成「能力差这么多」。">失败 ${e.failed} 题</span>` : ""}</td>
+      <td class="acc" title="正确 ${e.correct ?? 0}/${e.done} 题。分母是已完成的题数，失败的那 ${failed} 题也在里面 —— 失败不是「答错」（见失败列的说明），按保守口径不算对，所以这个百分比会偏低${validAcc != null ? `；只看跑成的 ${e.done - failed} 题则是 ${validAcc}%` : ""}。">${e.accuracy == null ? "-" : e.accuracy + "%"}${validAcc != null ? `<span class="muted" style="font-size:11px;font-weight:400;white-space:nowrap"> 有效题 ${validAcc}%</span>` : ""}</td>
+      <td>${failed ? `<span class="st-failed" style="font-weight:550" title="判分 / 执行失败：这几题没得到有效结果（被测模型没产出正文、裁判给不出可解析判定、服务商拦截、请求超时、题目本身报错等）。既不算对也不算答错，但按保守口径计入了正确率分母 —— 别把它读成「能力差这么多」。">${failed}</span>` : `<span class="muted">0</span>`}</td>
+      <td class="${stCls}">${ST_TEXT[e.status] || e.status}</td>
       <td><div class="menu-wrap">
         <button class="icon-btn" onclick="toggleMenu(event, ${e.id})" aria-label="更多操作" title="更多操作">
           <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
@@ -945,7 +953,7 @@ async function refresh() {
           <button class="menu-item danger" onclick="delEval(${e.id})">删除</button>
         </div>
       </div></td></tr>`;
-  }).join("") : `<tr><td colspan="${batchMode ? 8 : 7}" class="empty">暂无任务</td></tr>`;
+  }).join("") : `<tr><td colspan="${batchMode ? 9 : 8}" class="empty">暂无任务</td></tr>`;
   // 内容没变就不动 DOM：否则每次 refresh 都会重置 hover / 展开态。
   // 没有任务在跑时这个字符串是稳定的，于是绝大多数轮询都变成零副作用。
   if (tb.innerHTML !== rowsHtml) {
