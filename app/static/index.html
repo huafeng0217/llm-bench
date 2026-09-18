@@ -441,6 +441,271 @@ const EN = {
   "完成一次评测后生成": "Generated after your first run",
   "生成总结": "Generate summary",
   "关闭": "Close",
+  // ---- stage 2 批次 4：模板之外的残留（对象字面量 / alert / title / 比较值）----
+  "已完成": "Done",
+  "运行中": "Running",
+  "失败": "Failed",
+  "已停止": "Stopped",
+  "排队中": "Queued",
+  "代码沙箱不可用：": "Code sandbox unavailable: ",
+  "这个基准会把模型生成的代码放进一次性 Docker 容器里真实执行":
+    "this benchmark runs the model's code for real inside a throwaway Docker container",
+  "{0} 题": "{0} items",
+  "（{0} 题）": " ({0} items)",
+  "未下载": "not downloaded",
+  "（未下载）": " (not downloaded)",
+  "自定义": "Custom",
+  "改回被测": "Make it a model under test",
+  "设为判别器": "Make it a judge",
+  "需裁判模型": "Needs a judge model",
+  "需 Docker 沙箱": "Needs the Docker sandbox",
+  "未选择": "not selected",
+  "需要先选择裁判模型": "a judge model must be selected first",
+  "无法开始：": "Cannot start: ",
+  "请先添加并选择模型": "Add and select a model first",
+  "请先添加并选择一个模型": "Add and select a model first",
+  "请先点击选择一个基准": "Click a benchmark first",
+  "代码沙箱不可用，无法评测该基准：\n\n":
+    "The code sandbox is unavailable, so this benchmark cannot run:\n\n",
+  "这个基准由裁判模型判分，请先在模型管理里添加一个「判别器」，再在评测区选它":
+    "This benchmark is scored by a judge model: add a judge under Models first, then pick it here",
+  "裁判不能是被测模型自己 —— 自己判自己会让分数失去意义":
+    "The judge cannot be the model under test — a model scoring itself makes the number meaningless",
+  "启动失败：": "Could not start: ",
+  "生成失败：": "Generation failed: ",
+  "进度监视中": "watching progress",
+  "刚刚有进展": "progress just now",
+  "没有失败题，这个数就是实际正确率。": "no failed items, so this is the plain accuracy.",
+  "判分 / 执行失败：这几题没得到有效结果（被测模型没产出正文、裁判给不出可解析判定、服务商拦截、请求超时、题目本身报错等）。既不算对也不算答错，但按保守口径计入了正确率分母 —— 别把它读成「能力差这么多」。":
+    "Failed to score or run: these items produced no usable result (the model returned no content, the judge gave no parseable verdict, the provider blocked the request, it timed out, the item itself errored…). They are neither correct nor wrong, but they do count in the accuracy denominator — do not read this as a capability gap.",
+  "停止": "Stop",
+  "继续（补跑剩余 {0} 题）": "Resume ({0} items left)",
+  "冠军 = 跑得最全的一批里分数最高（防止只挑好跑的那项），所以冠军不一定是分数最高的那个":
+    "The top model is the best scorer among those that ran the most (so nobody wins by running only the easy items), which is why it is not necessarily the highest score",
+  "　★ 冠军": "　★ top model",
+  "　注意：": "　Note: ",
+  "{0} · 官方权重 {1}": "{0} · official weight {1}",
+  "未跑（共 {0} 个子集）": "not run ({0} subsets in total)",
+  "本项目未提供该分组": "this project does not provide this group",
+  "{0}：已跑 {1}/{2} 个子集 · 官方权重 {3}": "{0}: {1}/{2} subsets run · official weight {3}",
+  "只跑了部分题库，不排名次": "only part of the dataset was run, so it is not ranked",
+  "这些项只有部分评测，分数不计入综合得分":
+    "these items only have partial runs; their scores are left out of the overall score",
+  "未跑全": "not fully run",
+  "只跑了 {0}/{1} 题，分数仅供参考": "only {0}/{1} items were run; the score is indicative",
+  "官方分组 {0} · 官方权重 {1}": "official group {0} · official weight {1}",
+  "显示全部基准": "Show all benchmarks",
+  "只看有数据的": "Only those with data",
+  "两个模型没有分歧题（要么都对、要么都错）":
+    "no disagreements between the two models (both correct or both wrong)",
+  "没有可对比的题目": "no comparable items",
+  "共同题": "Common items",
+  "答错": "wrong",
+  "（失败 ≠ {0}：这几题没得到有效结果，但按保守口径算在正确率分母里）":
+    "(failed ≠ {0}: these items produced no usable result, but they still count in the accuracy denominator under the conservative rule)",
+  "数据不足：{0}": "not enough data: {0}",
+  "基于旧数据": "based on stale data",
+  "数据置信度 {0}": "data confidence {0}",
+  "⚠ 本总结由 <b>{0}</b> 生成，而它自己也在被评测的模型之列，看的时候留意这一点。":
+    "⚠ This summary was written by <b>{0}</b>, which is itself one of the models under evaluation — keep that in mind when reading it.",
+  "显著的模型间差异": "significant differences between models",
+  "缓存": "cached",
+  " ⚠部分": " ⚠partial",
+  // ---- 提示 / 按钮 / 弹窗（stage 2 批次 1）----
+  "下载失败：": "Download failed: ",
+  "添加失败：": "Add failed: ",
+  "修改失败：": "Change failed: ",
+  "删除失败：": "Delete failed: ",
+  "停止失败：": "Stop failed: ",
+  "续跑失败：": "Resume failed: ",
+  "批量删除失败：": "Batch delete failed: ",
+  "探测失败：": "Probe failed: ",
+  "\n\n确定要改吗？": "\n\nChange it anyway?",
+  "⚠ 模型名和 base_url 必填（可先从上方选择服务商自动填 base_url）":
+    "⚠ Model name and base_url are required (pick a provider above to fill base_url in)",
+  "正在测试连接…": "Testing the connection…",
+  "✓ 连接成功（{0}ms），模型回复：{1}": "✓ Connected in {0}ms. The model replied: {1}",
+  "✗ 连接失败：{0}": "✗ Connection failed: {0}",
+  "✗ 请求失败：": "✗ Request failed: ",
+  "收起": "Collapse",
+  "＋ 添加模型": "＋ Add model",
+  "仍有区分度": "still discriminating",
+  "已饱和": "saturated",
+  "接近饱和": "near saturation",
+  "总览加载失败：{0}": "Could not load the overview: {0}",
+  "展开全部 {0} 条记录": "Show all {0} runs",
+  "上一页": "Prev",
+  "下一页": "Next",
+  "第 {0} / {1} 页 · 共 {2} 条": "Page {0} / {1} · {2} runs",
+  "退出批量": "Exit batch",
+  "批量": "Batch",
+  "已选 {0} 条": "{0} selected",
+  "选中恰好 2 个同一基准的任务，可逐题对比": "Select exactly 2 runs of the same benchmark to compare them item by item",
+  "逐题对比": "Compare items",
+  "批量删除": "Delete selected",
+  "取消选择": "Clear selection",
+  "确定删除选中的 {0} 条任务？此操作不可恢复。": "Delete the {0} selected runs? This cannot be undone.",
+  "请恰好选中 2 个任务再对比（需要同一基准）": "Select exactly 2 runs to compare (same benchmark needed)",
+  "对比中…": "Comparing…",
+  "对比失败：{0}": "Comparison failed: {0}",
+  "任务 #{0} 已开始续跑：已完成 {1}/{2}，本次补跑 {3} 题":
+    "Run #{0} resumed: {1}/{2} already done, {3} to go",
+  "查看": "View",
+  "【错误】\n{0}\n\n【原始输出】\n{1}": "[error]\n{0}\n\n[raw output]\n{1}",
+  "（空）": "(empty)",
+  // ---- 界面文案（stage 2：表格 / 卡片 / 弹层 / 排行榜 / 明细 / 对比 / 总结）----
+  "A 回答": "A answer",
+  "B 回答": "B answer",
+  "{0} {1}% 更高，但只跑了 {2}/{3} 项": "{0} scores higher ({1}%) but only ran {2}/{3} items",
+  "{0} · {1}：{2}%（{3} 题 · 任务 #{4}）{5}": "{0} · {1}: {2}% ({3} items · run #{4}){5}",
+  "{0} · {1}：{2}%（只跑了 {3}/{4} 题，属部分评测，不参与最高分评选 · 任务 #{5}）":
+    "{0} · {1}: {2}% (only {3}/{4} items — partial run, not eligible for best-score marking · run #{5})",
+  "{0} · 模型代码在一次性容器里执行：禁网、只读根目录、256MB 内存、限 64 进程、{1} 路并发":
+    "{0} · model code runs in a throwaway container: no network, read-only root, 256MB RAM, 64-process limit, {1}-way concurrency",
+  "{0} 个": "{0}",
+  "{0} 个基准": "{0} benchmarks",
+  "{0} 个子集 · {1} 个官方分组": "{0} subsets · {1} official groups",
+  "{0} 个官方分组 · {1} 个子集": "{0} official groups · {1} subsets",
+  "{0} 权重 {1}": "{0} weight {1}",
+  "{0} 条历史评测": "{0} past runs",
+  "{0} 正在写总结…": "{0} is writing the summary…",
+  "{0} 的能力画像": "{0} — capability profile",
+  "{0} 组 · 官方权重 {1}": "group {0} · official weight {1}",
+  "{0} 题进行中": "{0} items running",
+  "≥{0}s 无进展": "no progress for ≥{0}s",
+  "上次完成 {0}s 前": "last item finished {0}s ago",
+  "下载": "Download",
+  "下载中…": "Downloading…",
+  "下载全部 {0} 个子集": "Download all {0} subsets",
+  "下载本子集": "Download this subset",
+  "不参与最高分评选": "not eligible for best-score marking",
+  "仅 A 对": "only A correct",
+  "仅 B 对": "only B correct",
+  "仅对比两者都跑了的 {0} 题（A 独有 {1}、B 独有 {2} 未计入）。":
+    "Only the {0} items both ran are compared ({1} A-only and {2} B-only items are left out).",
+  "代码沙箱不可用": "Code sandbox unavailable",
+  "代码沙箱就绪": "Code sandbox ready",
+  "任务 #{0} 已启动，共 {1} 题": "Run #{0} started with {1} items",
+  "任务 #{0} 明细（前 {1} 条）": "Run #{0} details (first {1})",
+  "全部 · {0}": "All · {0}",
+  "共 {0} 个基准 · 按分数降序": "{0} benchmarks · sorted by score",
+  "冠军模型": "Top model",
+  "分数分布": "Score spread",
+  "分母是已完成的题数，失败的那 {0} 题也在里面 —— 失败不是「答错」（见失败列的说明），":
+    "the denominator is the number of finished items and includes the {0} that failed — a failure is not a wrong answer (see the Failed column),",
+  "分类": "Category",
+  "删除": "Delete",
+  "判分/执行失败 {0}": "failed {0}",
+  "判别器：只用于给安全类基准判分，不能作为被测模型":
+    "Judge: scores safety benchmarks only; cannot be a model under test",
+  "判定": "Verdict",
+  "原始输出": "Raw output",
+  "只看分歧题（{0} 题）": "Only disagreements ({0})",
+  "各模型总览": "Per-model overview",
+  "名次": "Rank",
+  "子集": "Subset",
+  "子集明细（有成绩的 {0} 个，按官方分组排列）":
+    "Subset details ({0} with results, in official group order)",
+  "完整逐题明细（含模型原始输出）已保存到本地文件 data/results/eval_{0}.jsonl":
+    "The full item-by-item log (raw model output included) is written to data/results/eval_{0}.jsonl",
+  "官方分组": "Official group",
+  "官方加权总分": "Official weighted score",
+  "官方加权总分 {0}% · 已跑 {1}/{2} 个子集": "official weighted score {0}% · {1}/{2} subsets run",
+  "官方总分口径：{0}": "Official scoring rule: {0}",
+  "官方总分口径：{0}。本表按此口径**重新加权**（组内先取子集平均，再按组权重加权）；":
+    "Official scoring rule: {0}. This table re-weights accordingly (average within a group, then weight the groups);",
+  "官方权重覆盖 {0}": "official weight covered {0}",
+  "将评测：模型【{0}】 × 基准【{1}】{2}": "About to run: model [{0}] × benchmark [{1}]{2}",
+  "已就绪": "Ready",
+  "已就绪 {0}/{1}": "ready {0}/{1}",
+  "已用 {0} 秒 · 比预计的 {1} 秒久一些，思考型模型遇到长总结会慢（进度百分比为估算）":
+    "{0}s elapsed · slower than the estimated {1}s — reasoning models take longer on a long summary (the percentage is an estimate)",
+  "已用 {0} 秒 · 预计 {1} 秒左右（模型是一次性返回的，进度百分比为估算）":
+    "{0}s elapsed · about {1}s expected (the model returns everything at once; the percentage is an estimate)",
+  "带「部分 x/y」的格子表示这次只跑了部分题库，分数仅供参考、":
+    "Cells marked “partial x/y” mean only part of the dataset was run, so the score is indicative and ",
+  "平均延迟": "Avg latency",
+  "并发跑多道题时，只要其中几道是难题（实测单题可达 200~280 秒），整体进度就会几分钟不动 —— 不代表卡死。容器只在模型返回代码之后才启动，所以「没有容器」也是正常的。":
+    "With several items in flight, a few hard ones (measured: up to 200–280s each) can leave overall progress unchanged for minutes — that does not mean it is stuck. Containers start only after the model returns code, so “no container” is normal too.",
+  "延迟": "Latency",
+  "总览": "Overview",
+  "悬停任一格子可以看到题量与任务号。": "Hover any cell to see the item count and run number.",
+  "按保守口径不算对，所以这个百分比会偏低；只看跑成的 {0} 题是 {1}%。":
+    "it counts as not-correct under the conservative rule, so this percentage reads low; over the {0} items that did run it is {1}%.",
+  "明细": "Details",
+  "暂未提供下载": "No download available",
+  "更多操作": "More actions",
+  "期望": "Expected",
+  "本分类 {0} 个模型（按分数）：{1}。{2}": "{0} models in this category (by score): {1}. {2}",
+  "本次依据的数据（点开核对）": "Data behind this summary (open to check)",
+  "本项目没有提供 Web Search / Memory 那两组":
+    "This project does not provide the Web Search / Memory groups",
+  "权重覆盖": "Weight covered",
+  "权重 {0}": "weight {0}",
+  "模型名和 base_url 必填（可先从上方选择服务商自动填 base_url）":
+    "Model name and base_url are required (pick a provider above to fill base_url in)",
+  "模型答": "Model answer",
+  "正在检测代码沙箱…": "Checking the code sandbox…",
+  "正确": "Correct",
+  "正确 {0}/{1} 题。": "Correct {0}/{1} items. ",
+  "正确率 {0}%（{1}/{2}）": "Accuracy {0}% ({1}/{2})",
+  "每行按本分类的分数区间放大显示（不是 0–100 的绝对位置）。{0}。":
+    "Each row is zoomed to its own score range (positions are not absolute 0–100). {0}.",
+  "注意：A 共 {0} 题、B 共 {1} 题，": "Note: A ran {0} items and B ran {1};",
+  "点击分类查看详情，可同时展开多个": "Click a category for details; several can be open at once",
+  "点击查看 {0} 的能力画像": "Click to see the capability profile of {0}",
+  "点击查看完整简介": "Click for the full description",
+  "生成中": "Generating",
+  "生成失败": "Generation failed",
+  "用官方提示词判定；换裁判分数不可比，结果里会写明这次是谁判的":
+    "scored with the official prompt; scores are not comparable across judges, and each result records which judge ran",
+  "简介": "About",
+  "结果": "Result",
+  "综合得分": "Score",
+  "综合排行": "Overall ranking",
+  "缺组时按已跑组的权重归一化，所以「加权总分」不是完整 BFCL 成绩 —— 每行的权重覆盖都标出来了。":
+    "Missing groups are renormalised over the groups that ran, so this “weighted score” is not a complete BFCL result — every row shows how much official weight it covers.",
+  "自己判自己会让分数失去意义，请换一个判别器":
+    "a model scoring itself makes the number meaningless; pick another judge",
+  "蓝色 = 该基准上参与评测的模型中的最高分":
+    "Blue = best score among the models that ran this benchmark",
+  "行 = 基准，列 = 模型。": "Rows are benchmarks, columns are models. ",
+  "裁判不能是被测模型自己": "The judge cannot be the model under test",
+  "裁判：{0}": "Judge: {0}",
+  "覆盖": "Coverage",
+  "论文/来源 ↗": "Paper/source ↗",
+  "该分类下暂无基准": "No benchmarks in this category yet",
+  "轨道上一个点 = 一个模型，颜色区分模型（同一模型在冠军名前的点、展开后的表里都是同色）。**每行按该分类自己的分数区间放大**，两端标出该行的最低/最高分 —— 位置不是 0–100 的绝对值。冠军 = 跑得最全的一批里分数最高，所以不一定是分数最高的那个，悬停里会点名分数更高但没跑全的模型":
+    "One dot per model, colour identifies the model (the same colour appears next to the top model and in the expanded tables). Each row is zoomed to its own score range and the ends show that row's min/max, so positions are not absolute 0–100. The top model is the best scorer among those that ran the most, so it is not necessarily the highest score; the tooltip names any model that scored higher without running everything.",
+  "输出上限 {0} tokens · 单题超时 {1}s · 并发 {2}":
+    "max output {0} tokens · per-item timeout {1}s · concurrency {2}",
+  "还没有任何成绩": "No results yet",
+  "还没有总结。选一个模型，点「生成总结」。": "No summary yet. Pick a model and click “Generate summary”.",
+  "这个基准由裁判判分，请先选一个「判别器」": "this benchmark is scored by a judge model; pick one first",
+  "选中这个基准": "Select this benchmark",
+  "部分 {0}/{1}": "partial {0}/{1}",
+  "都对": "both correct",
+  "都错": "both wrong",
+  "重新检测": "Re-check",
+  "需要 Docker{0}": "Docker required{0}",
+  "需要裁判模型": "Needs a judge model",
+  "领先": " leads ",
+  "题数": "Items",
+  "题目": "Item",
+  "（仅在完整评测之间评），并列最高会同时标出；其余格子统一底色。":
+    " (complete runs only); ties are marked as well and the rest share one colour.",
+  "（先在模型管理里添加一个判别器）": "(add a judge model first)",
+  "（先添加被测模型）": "(add a model under test first)",
+  "（分类内各项的平均分 · 每项取完整评测中的最高分；家族按**官方加权总分**算一项）":
+    " (average over this category's items · per item the best complete run; a family counts as one item using its **official weighted score**)",
+  // 短语里的小片段（codemod 会把它们当参数传进来，所以自身也要能翻）
+  " · 未就绪": " · not ready",
+  " —— 该基准最高": " — best on this benchmark",
+  "，含 {0} 项部分": ", {0} partial",
+  "分项": "Per benchmark",
+  "（家族子集已折叠，见下方「{0}」块）": "(family subsets are folded into the “{0}” block below)",
+  "{0} {1}%（覆盖 {2}/{3}{4}）": "{0} {1}% (ran {2}/{3}{4})",
+  "全部": "All",
   // ---- 静态骨架里带 HTML 的（data-i18n-html）----
   "demo-hint": 'No API key needed to try it: set the model name to <code>demo</code> and base_url to <code>mock://local</code>. API keys are only stored locally under <code>data/</code> and never uploaded anywhere.',
   "summary-hint": 'The summary is written by the selected model, based only on the data listed below. <b>All statistics (ranking, coverage, whether a gap is significant) are computed by the program</b> — the model only explains them, so the numbers stay the same no matter which model writes it.',
@@ -494,7 +759,7 @@ let tasksExpanded = false; // 任务列表是否展开
 let taskPage = 0;          // 任务列表当前页（展开后分页用）
 const TASK_PREVIEW = 5;    // 收起时显示的最新条数
 const TASK_PAGE_SIZE = 10; // 展开后每页条数
-const ST_TEXT = { done: "已完成", running: "运行中", failed: "失败", stopped: "已停止", pending: "排队中" };
+const ST_TEXT = { done: t("已完成"), running: t("运行中"), failed: t("失败"), stopped: t("已停止"), pending: t("排队中") };
 let batchMode = false;          // 是否进入「批量」选择模式（进入后才显示勾选框）
 let selectedTasks = new Set();  // 批量操作选中的任务 id
 let currentEvalIds = [];        // 当前页显示的任务 id（供「全选本页」用）
@@ -509,19 +774,19 @@ function bmCard(b) {
   const sbxDown = needsDocker && sbxState && !sbxState.available;
   const dockerTag = needsDocker
     ? `<span class="tag ${sbxDown ? "warn" : ""}" title="${esc(
-        sbxDown ? "代码沙箱不可用：" + (sbxState.message || "")
-                : "这个基准会把模型生成的代码放进一次性 Docker 容器里真实执行")}"
-      >需要 Docker${sbxDown ? " · 未就绪" : ""}</span>`
+        sbxDown ? t("代码沙箱不可用：") + (sbxState.message || "")
+                : t("这个基准会把模型生成的代码放进一次性 Docker 容器里真实执行"))}"
+      >${tf("需要 Docker{0}", [sbxDown ? t(" · 未就绪") : ""])}</span>`
     : "";
   let dlHtml;
   if (b.count > 0) {
-    dlHtml = `<span class="tag ok">已就绪</span>`;
+    dlHtml = `<span class="tag ok">${t("已就绪")}</span>`;
   } else if (dl.status === "running") {
-    dlHtml = `<button class="ghost" style="cursor:default" disabled onclick="event.stopPropagation()">下载中…</button>`;
+    dlHtml = `<button class="ghost" style="cursor:default" disabled onclick="event.stopPropagation()">${t("下载中…")}</button>`;
   } else if (b.downloadable) {
-    dlHtml = `<button class="ghost" onclick="event.stopPropagation(); downloadBm('${esc(b.id)}')">下载</button>`;
+    dlHtml = `<button class="ghost" onclick="event.stopPropagation(); downloadBm('${esc(b.id)}')">${t("下载")}</button>`;
   } else {
-    dlHtml = `<span class="tag warn">暂未提供下载</span>`;
+    dlHtml = `<span class="tag warn">${t("暂未提供下载")}</span>`;
   }
   return `
     <div class="card bm${sel}" data-id="${esc(b.id)}" onclick="pickBenchmark('${esc(b.id)}', this)">
@@ -529,16 +794,16 @@ function bmCard(b) {
       <div class="tags">
         <span class="tag">${esc(b.category)}</span>
         <span class="tag">${esc(b.lang)}</span>
-        <span class="tag">${b.count > 0 ? b.count + " 题" : "未下载"}</span>
+        <span class="tag">${b.count > 0 ? tf("{0} 题", [b.count]) : t("未下载")}</span>
         ${statusTag(b.status)}
         ${dockerTag}
       </div>
-      <div class="desc" title="点击查看完整简介"
+      <div class="desc" title="${t("点击查看完整简介")}"
            onclick="event.stopPropagation(); showBmDetail('${esc(b.id)}')">${esc(b.summary || b.description)}</div>
       <div class="foot">
         ${dlHtml}
-        <button class="ghost" onclick="event.stopPropagation(); showBmDetail('${esc(b.id)}')">简介</button>
-        ${b.source ? `<a href="${esc(b.source)}" target="_blank" onclick="event.stopPropagation()">论文/来源 ↗</a>` : ""}
+        <button class="ghost" onclick="event.stopPropagation(); showBmDetail('${esc(b.id)}')">${t("简介")}</button>
+        ${b.source ? `<a href="${esc(b.source)}" target="_blank" onclick="event.stopPropagation()">${t("论文/来源 ↗")}</a>` : ""}
       </div>
     </div>`;
 }
@@ -582,43 +847,43 @@ function familyCard(fid, bms) {
     + `${b.group_name ? esc(b.group_name) + " · " : ""}${esc(b.name.replace(fid + " · ", ""))}`
     // 带上那一行简介：16 个子集里挑的时候，「缺函数 vs 缺参数」这种差别就靠它一眼分开
     + `${b.summary ? " — " + esc(b.summary) : ""}`
-    + `${b.count > 0 ? "（" + b.count + " 题）" : "（未下载）"}</option>`).join("");
+    + `${b.count > 0 ? tf("（{0} 题）", [b.count]) : t("（未下载）")}</option>`).join("");
 
   const dl = downloadStates[sel] || {};
   let dlHtml;
-  if (cur.count > 0) dlHtml = `<span class="tag ok">已就绪</span>`;
-  else if (dl.status === "running") dlHtml = `<button class="ghost" style="cursor:default" disabled onclick="event.stopPropagation()">下载中…</button>`;
-  else if (cur.downloadable) dlHtml = `<button class="ghost" onclick="event.stopPropagation(); downloadBm('${esc(cur.id)}')">下载本子集</button>`;
-  else dlHtml = `<span class="tag warn">暂未提供下载</span>`;
+  if (cur.count > 0) dlHtml = `<span class="tag ok">${t("已就绪")}</span>`;
+  else if (dl.status === "running") dlHtml = `<button class="ghost" style="cursor:default" disabled onclick="event.stopPropagation()">${t("下载中…")}</button>`;
+  else if (cur.downloadable) dlHtml = `<button class="ghost" onclick="event.stopPropagation(); downloadBm('${esc(cur.id)}')">${t("下载本子集")}</button>`;
+  else dlHtml = `<span class="tag warn">${t("暂未提供下载")}</span>`;
 
   const anyMissing = bms.some(b => b.downloadable && b.count === 0);
   const allBtn = anyMissing
-    ? `<button class="ghost" onclick="event.stopPropagation(); downloadFamily('${esc(fid)}')">下载全部 ${bms.length} 个子集</button>`
+    ? `<button class="ghost" onclick="event.stopPropagation(); downloadFamily('${esc(fid)}')">${tf("下载全部 {0} 个子集", [bms.length])}</button>`
     : "";
 
   return `
     <div class="card bm${sel === selBenchmark ? " sel" : ""}" data-id="${esc(sel)}"
          onclick="pickBenchmark('${esc(sel)}', this)">
-      <div class="nm">${esc(fid)} <span class="tag">${bms.length} 个子集 · ${nGroups} 个官方分组</span></div>
+      <div class="nm">${esc(fid)} <span class="tag">${tf("{0} 个子集 · {1} 个官方分组", [bms.length, nGroups])}</span></div>
       <div class="tags">
         <span class="tag">${esc(cur.category)}</span>
-        <span class="tag ${cur.group_name ? "ok" : ""}">${esc(cur.group_name || "-")} 组 · 官方权重 ${pct(cur.group_weight)}</span>
-        <span class="tag">已就绪 ${ready}/${bms.length}</span>
+        <span class="tag ${cur.group_name ? "ok" : ""}">${tf("{0} 组 · 官方权重 {1}", [esc(cur.group_name || "-"), pct(cur.group_weight)])}</span>
+        <span class="tag">${tf("已就绪 {0}/{1}", [ready, bms.length])}</span>
       </div>
       <select class="famsel" onclick="event.stopPropagation()"
               onchange="event.stopPropagation(); pickFamilySubset('${esc(fid)}', this.value)">${opts}</select>
       <div class="tags">
-        <span class="tag">${cur.count > 0 ? cur.count + " 题" : "未下载"}</span>
+        <span class="tag">${cur.count > 0 ? tf("{0} 题", [cur.count]) : t("未下载")}</span>
         <span class="tag">${esc(cur.lang)}</span>
         ${statusTag(cur.status)}
       </div>
-      <div class="desc" title="点击查看完整简介"
+      <div class="desc" title="${t("点击查看完整简介")}"
            onclick="event.stopPropagation(); showBmDetail('${esc(cur.id)}')">${esc(cur.summary || cur.description)}</div>
-      <div class="famnote" title="${esc(cur.family_note || "")}">官方总分口径：${esc(cur.family_note || "")}</div>
+      <div class="famnote" title="${esc(cur.family_note || "")}">${tf("官方总分口径：{0}", [esc(cur.family_note || "")])}</div>
       <div class="foot">
         ${dlHtml}${allBtn}
-        <button class="ghost" onclick="event.stopPropagation(); showBmDetail('${esc(cur.id)}')">简介</button>
-        ${cur.source ? `<a href="${esc(cur.source)}" target="_blank" onclick="event.stopPropagation()">论文/来源 ↗</a>` : ""}
+        <button class="ghost" onclick="event.stopPropagation(); showBmDetail('${esc(cur.id)}')">${t("简介")}</button>
+        ${cur.source ? `<a href="${esc(cur.source)}" target="_blank" onclick="event.stopPropagation()">${t("论文/来源 ↗")}</a>` : ""}
       </div>
     </div>`;
 }
@@ -633,7 +898,7 @@ function pickFamilySubset(fid, sid) {
 async function downloadFamily(fid) {
   try {
     await api("/api/families/" + encodeURIComponent(fid) + "/download", { method:"POST" });
-  } catch (e) { return alert("下载失败：" + e.message); }
+  } catch (e) { return alert(t("下载失败：") + e.message); }
   loadBenchmarks();          // 立即刷新为「下载中…」
   pollDownloadUntilDone();
 }
@@ -646,7 +911,7 @@ function renderBenchmarks() {
   const catMap = new Map();
   bs.forEach(b => {
     const cid = b.category_id || "custom";
-    if (!catMap.has(cid)) catMap.set(cid, { id: cid, name: b.category || "自定义", color: b.category_color || "#8a94a6" });
+    if (!catMap.has(cid)) catMap.set(cid, { id: cid, name: b.category || t("自定义"), color: b.category_color || "#8a94a6" });
   });
   const cats = [...catMap.values()];
 
@@ -655,7 +920,7 @@ function renderBenchmarks() {
     style="${catFilter === c.id ? `background:${c.color}` : ""}"
     onclick="setCat('${c.id}')">${esc(c.name)}</span>`;
   document.getElementById("cat-filter").innerHTML =
-    `<span class="catchip ${catFilter === "" ? "on" : ""}" style="${catFilter === "" ? "background:var(--accent)" : ""}" onclick="setCat('')">全部 · ${bs.length}</span>` +
+    `<span class="catchip ${catFilter === "" ? "on" : ""}" style="${catFilter === "" ? "background:var(--accent)" : ""}" onclick="setCat('')">${tf("全部 · {0}", [bs.length])}</span>` +
     cats.map(chip).join("");
 
   // 按分类分组渲染。家族（同名 family 的多个子集）在其中折叠成一张卡，
@@ -677,17 +942,17 @@ function renderBenchmarks() {
       }
     });
     groups.push(
-      `<div class="cat-head"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}<span class="cnt">${list.length} 个</span></div>` +
+      `<div class="cat-head"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}<span class="cnt">${tf("{0} 个", [list.length])}</span></div>` +
       cards.join(""));
   });
   document.getElementById("benchmarks").innerHTML =
-    groups.join("") || `<div class="empty" style="grid-column:1/-1">该分类下暂无基准</div>`;
+    groups.join("") || `<div class="empty" style="grid-column:1/-1">${t("该分类下暂无基准")}</div>`;
 }
 
 async function downloadBm(id) {
   try {
     await api("/api/benchmarks/" + id + "/download", { method:"POST" });
-  } catch (e) { return alert("下载失败：" + e.message); }
+  } catch (e) { return alert(t("下载失败：") + e.message); }
   loadBenchmarks();          // 立即刷新为「下载中…」
   pollDownloadUntilDone();
 }
@@ -724,24 +989,24 @@ async function loadModels() {
     // 判分用途与「有多少历史评测」都摆在明面上：改成判别器不会删历史成绩，
     // 所以得让用户看得见它以前被测过几次。
     const kindCell = judge
-      ? `<span class="tag warn" title="判别器：只用于给安全类基准判分，不能作为被测模型">判别器</span>`
-      : `<span class="tag ok">被测模型</span>`;
-    const hist = m.evaluations ? `<div class="muted" style="font-size:11px;margin-top:3px">${m.evaluations} 条历史评测</div>` : "";
-    const btn = judge ? "改回被测" : "设为判别器";
+      ? `<span class="tag warn" title="${t("判别器：只用于给安全类基准判分，不能作为被测模型")}">${t("判别器")}</span>`
+      : `<span class="tag ok">${t("被测模型")}</span>`;
+    const hist = m.evaluations ? `<div class="muted" style="font-size:11px;margin-top:3px">${tf("{0} 条历史评测", [m.evaluations])}</div>` : "";
+    const btn = judge ? t("改回被测") : t("设为判别器");
     return `<tr><td class="tl" style="font-weight:550">${esc(m.name)}</td>
      <td>${kindCell}${hist}</td>
      <td class="tl muted">${esc(m.base_url)}</td><td class="tl muted">${esc(m.api_key)}</td>
      <td style="white-space:nowrap">
        <button class="ghost" onclick="toggleKind(${m.id}, '${judge ? "test" : "judge"}')">${btn}</button>
-       <button class="ghost" onclick="delModel(${m.id})">删除</button></td></tr>`;
+       <button class="ghost" onclick="delModel(${m.id})">${t("删除")}</button></td></tr>`;
   }).join("")
-    : `<tr><td colspan="5" class="empty">暂无模型</td></tr>`;
+    : `<tr><td colspan="5" class="empty">${t("暂无模型")}</td></tr>`;
   // 评测的模型下拉**排除判别器**：判别器不能被测（后端也会拦，这里只是别让人白选一场）
   const testable = ms.filter(m => m.kind !== "judge");
   const esel = document.getElementById("e-model");
   const keepEval = esel.value;
   esel.innerHTML = testable.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("")
-    || `<option value="">（先添加被测模型）</option>`;
+    || `<option value="">${t("（先添加被测模型）")}</option>`;
   if (keepEval && testable.some(m => String(m.id) === keepEval)) esel.value = keepEval;
   // 裁判下拉只列 kind=judge 的模型；整页共用一份 modelList 供 updateEvalHint 查名字
   modelList = ms;
@@ -750,7 +1015,7 @@ async function loadModels() {
   if (jsel) {
     const keepJudge = jsel.value;
     jsel.innerHTML = judges.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("")
-      || `<option value="">（先在模型管理里添加一个判别器）</option>`;
+      || `<option value="">${t("（先在模型管理里添加一个判别器）")}</option>`;
     if (keepJudge && judges.some(m => String(m.id) === keepJudge)) jsel.value = keepJudge;
   }
   updateEvalHint();
@@ -768,8 +1033,8 @@ async function toggleKind(id, kind) {
     // 409 的响应体是后端写好的说明（含历史评测条数），直接拿它问用户
     let text = msg;
     try { text = JSON.parse(msg).detail || msg; } catch (_) { /* 不是 JSON 就原文显示 */ }
-    if (!confirm(text + "\n\n确定要改吗？")) return;
-    try { await post(true); } catch (e2) { return alert("修改失败：" + e2.message); }
+    if (!confirm(text + t("\n\n确定要改吗？"))) return;
+    try { await post(true); } catch (e2) { return alert(t("修改失败：") + e2.message); }
   }
   loadModels();
 }
@@ -793,22 +1058,22 @@ function modelForm() {
 async function testConn() {
   const m = modelForm();
   const box = document.getElementById("m-test-result");
-  if (!m.name || !m.base_url) { box.textContent = "⚠ 模型名和 base_url 必填（可先从上方选择服务商自动填 base_url）"; return; }
-  box.textContent = "正在测试连接…";
+  if (!m.name || !m.base_url) { box.textContent = t("⚠ 模型名和 base_url 必填（可先从上方选择服务商自动填 base_url）"); return; }
+  box.textContent = t("正在测试连接…");
   try {
     const r = await api("/api/models/test", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(m) });
     box.textContent = r.ok
-      ? `✓ 连接成功（${r.latency_ms}ms），模型回复：${r.sample}`
-      : `✗ 连接失败：${r.error}`;
-  } catch (e) { box.textContent = "✗ 请求失败：" + e.message; }
+      ? tf("✓ 连接成功（{0}ms），模型回复：{1}", [r.latency_ms, r.sample])
+      : tf("✗ 连接失败：{0}", [r.error]);
+  } catch (e) { box.textContent = t("✗ 请求失败：") + e.message; }
 }
 
 async function addModel() {
   const m = modelForm();
-  if (!m.name || !m.base_url) return alert("模型名和 base_url 必填（可先从上方选择服务商自动填 base_url）");
+  if (!m.name || !m.base_url) return alert(t("模型名和 base_url 必填（可先从上方选择服务商自动填 base_url）"));
   try {
     await api("/api/models", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(m) });
-  } catch (e) { return alert("添加失败：" + e.message); }
+  } catch (e) { return alert(t("添加失败：") + e.message); }
   document.getElementById("m-name").value = document.getElementById("m-url").value = document.getElementById("m-key").value = "";
   document.getElementById("m-kind").value = "test";
   document.getElementById("m-test-result").textContent = "";
@@ -820,7 +1085,7 @@ async function addModel() {
 function setAddModelOpen(open) {
   document.getElementById("add-model-box").style.display = open ? "" : "none";
   document.getElementById("add-model-toggle").innerHTML =
-    `<button class="ghost" onclick="toggleAddModel()">${open ? "收起" : "＋ 添加模型"}</button>`;
+    `<button class="ghost" onclick="toggleAddModel()">${open ? t("收起") : t("＋ 添加模型")}</button>`;
   if (open) document.getElementById("m-name").focus();
 }
 function toggleAddModel() {
@@ -830,12 +1095,12 @@ function toggleAddModel() {
 async function delModel(id) {
   try {
     await api("/api/models/" + id, { method:"DELETE" });
-  } catch (e) { return alert("删除失败：" + e.message); }
+  } catch (e) { return alert(t("删除失败：") + e.message); }
   loadModels();
 }
 
 function statusTag(s) {
-  const cls = s === "仍有区分度" ? "ok" : s === "已饱和" || s === "接近饱和" ? "warn" : "";
+  const cls = s === t("仍有区分度") ? "ok" : s === t("已饱和") || s === t("接近饱和") ? "warn" : "";
   return `<span class="tag ${cls}">${esc(s)}</span>`;
 }
 
@@ -854,17 +1119,17 @@ function showBmDetail(id) {
   const box = document.getElementById("bm-modal");
   if (!m || !box) return;
   document.getElementById("bm-modal-title").textContent = m.name;
-  const tags = [m.category, m.lang, m.count > 0 ? m.count + " 题" : "未下载", m.status];
-  if (m.group_name) tags.push(`${m.group_name} 组 · 官方权重 ${pct(m.group_weight)}`);
-  if (m.requires_judge) tags.push("需裁判模型");
-  if (m.requires_docker) tags.push("需 Docker 沙箱");
+  const tags = [m.category, m.lang, m.count > 0 ? tf("{0} 题", [m.count]) : t("未下载"), m.status];
+  if (m.group_name) tags.push(`${tf("{0} 组 · 官方权重 {1}", [m.group_name, pct(m.group_weight)])}`);
+  if (m.requires_judge) tags.push(t("需裁判模型"));
+  if (m.requires_docker) tags.push(t("需 Docker 沙箱"));
   document.getElementById("bm-modal-tags").innerHTML =
     tags.filter(Boolean).map(t => `<span class="tag">${esc(t)}</span>`).join("");
   document.getElementById("bm-modal-body").textContent = m.description || m.summary || "";
   document.getElementById("bm-modal-foot").innerHTML =
-    (m.source ? `<a href="${esc(m.source)}" target="_blank">论文/来源 ↗</a>` : "")
+    (m.source ? `<a href="${esc(m.source)}" target="_blank">${t("论文/来源 ↗")}</a>` : "")
     + `<button class="sm" style="margin-left:auto"
-         onclick="hideBmDetail(); pickBenchmarkById('${esc(id)}')">选中这个基准</button>`;
+         onclick="hideBmDetail(); pickBenchmarkById('${esc(id)}')">${t("选中这个基准")}</button>`;
   box.hidden = false;
 }
 
@@ -908,7 +1173,7 @@ async function probeSandbox(force) {
   if (force) sbxState = null;
   if (sbxState) return sbxState;
   try { sbxState = await api("/api/sandbox/status"); }
-  catch (e) { sbxState = { available: false, message: "探测失败：" + e.message }; }
+  catch (e) { sbxState = { available: false, message: t("探测失败：") + e.message }; }
   return sbxState;
 }
 
@@ -920,8 +1185,8 @@ async function updateEvalHint(force) {
   // 完整说明放在这里（而不是卡片上硬截两行）—— 这是真要花钱跑之前最后一眼看的地方。
   const bmLabel = m ? m.name : selBenchmark;
   const groupTag = m && m.group_name
-    ? ` <span class="tag">${esc(m.group_name)} 组 · 官方权重 ${pct(m.group_weight)}</span>` : "";
-  let html = `将评测：模型【${esc(mn || "未选择")}】 × 基准【${esc(bmLabel || "未选择")}】${groupTag}`;
+    ? ` <span class="tag">${tf("{0} 组 · 官方权重 {1}", [esc(m.group_name), pct(m.group_weight)])}</span>` : "";
+  let html = `${tf("将评测：模型【{0}】 × 基准【{1}】{2}", [esc(mn || t("未选择")), esc(bmLabel || t("未选择")), groupTag])}`;
   if (m) {
     html += `<br><span style="color:var(--text)">${esc(m.description)}</span>`;
     if (m.summary) html += `<br><span class="muted">${esc(m.summary)}</span>`;
@@ -936,33 +1201,33 @@ async function updateEvalHint(force) {
   if (needJudge && jsel) {
     const jn = jsel.options[jsel.selectedIndex] ? jsel.options[jsel.selectedIndex].text : "";
     if (!jsel.value) {
-      html += `<br><span class="tag warn">需要裁判模型</span> <span class="muted">这个基准由裁判判分，请先选一个「判别器」</span>`;
-      blocked = "需要先选择裁判模型";
+      html += `<br><span class="tag warn">${t("需要裁判模型")}</span> <span class="muted">${t("这个基准由裁判判分，请先选一个「判别器」")}</span>`;
+      blocked = t("需要先选择裁判模型");
     } else if (String(jsel.value) === String(sel.value)) {
-      html += `<br><span class="tag warn">裁判不能是被测模型自己</span> <span class="muted">自己判自己会让分数失去意义，请换一个判别器</span>`;
-      blocked = "裁判不能是被测模型自己";
+      html += `<br><span class="tag warn">${t("裁判不能是被测模型自己")}</span> <span class="muted">${t("自己判自己会让分数失去意义，请换一个判别器")}</span>`;
+      blocked = t("裁判不能是被测模型自己");
     } else {
-      html += `<br><span class="tag">裁判：${esc(jn)}</span> <span class="muted">用官方提示词判定；换裁判分数不可比，结果里会写明这次是谁判的</span>`;
+      html += `<br><span class="tag">${tf("裁判：{0}", [esc(jn)])}</span> <span class="muted">${t("用官方提示词判定；换裁判分数不可比，结果里会写明这次是谁判的")}</span>`;
     }
   }
   if (m && (m.requires_docker || m.category_id === "code")) {
     // 代码类基准要真跑容器：先把沙箱能不能用摆出来，别让用户点了「开始评测」才发现
     if (force) { sbxState = null; loadBenchmarks(); }  // 顺带刷新卡片上的标签
     if (!sbxState) {
-      document.getElementById("e-hint").innerHTML = html + `<br><span class="muted">正在检测代码沙箱…</span>`;
+      document.getElementById("e-hint").innerHTML = html + `<br><span class="muted">${t("正在检测代码沙箱…")}</span>`;
       await probeSandbox();
     }
     if (sbxState.available) {
-      html += `<br><span class="tag ok">代码沙箱就绪</span> <span class="muted">${esc(sbxState.message)} · 模型代码在一次性容器里执行：禁网、只读根目录、256MB 内存、限 64 进程、${sbxState.concurrency} 路并发</span>`;
+      html += `<br><span class="tag ok">${t("代码沙箱就绪")}</span> <span class="muted">${tf("{0} · 模型代码在一次性容器里执行：禁网、只读根目录、256MB 内存、限 64 进程、{1} 路并发", [esc(sbxState.message), sbxState.concurrency])}</span>`;
     } else {
-      html += `<br><span class="tag warn">代码沙箱不可用</span> <span class="muted">${esc(sbxState.message)}</span>`;
+      html += `<br><span class="tag warn">${t("代码沙箱不可用")}</span> <span class="muted">${esc(sbxState.message)}</span>`;
       blocked = sbxState.message;
     }
-    html += ` <a href="#" onclick="updateEvalHint(true);return false">重新检测</a>`;
+    html += ` <a href="#" onclick="updateEvalHint(true);return false">${t("重新检测")}</a>`;
   }
   if (btn) {
     btn.disabled = !!blocked;
-    btn.title = blocked ? "无法开始：" + blocked : "";
+    btn.title = blocked ? t("无法开始：") + blocked : "";
   }
   document.getElementById("e-hint").innerHTML = html;
 }
@@ -970,20 +1235,20 @@ async function updateEvalHint(force) {
 async function startEval() {
   const model_id = +document.getElementById("e-model").value;
   const limit = +document.getElementById("e-limit").value || 0;
-  if (!model_id) return alert("请先添加并选择模型");
-  if (!selBenchmark) return alert("请先点击选择一个基准");
+  if (!model_id) return alert(t("请先添加并选择模型"));
+  if (!selBenchmark) return alert(t("请先点击选择一个基准"));
   const bm = benchMeta[selBenchmark];
   if (bm && (bm.requires_docker || bm.category_id === "code")) {
     // 按钮通常已经被禁用，这里只是兜底：确认沙箱真能用再发请求，别白建一个注定失败的任务
     const s = await probeSandbox();
-    if (!s.available) return alert("代码沙箱不可用，无法评测该基准：\n\n" + s.message);
+    if (!s.available) return alert(t("代码沙箱不可用，无法评测该基准：\n\n") + s.message);
   }
   // 安全类基准必须带裁判（后端也会校验，这里给出人话提示，省一次失败的请求）
   let judge_model_id = null;
   if (bm && bm.requires_judge) {
     const jv = document.getElementById("e-judge").value;
-    if (!jv) return alert("这个基准由裁判模型判分，请先在模型管理里添加一个「判别器」，再在评测区选它");
-    if (String(jv) === String(model_id)) return alert("裁判不能是被测模型自己 —— 自己判自己会让分数失去意义");
+    if (!jv) return alert(t("这个基准由裁判模型判分，请先在模型管理里添加一个「判别器」，再在评测区选它"));
+    if (String(jv) === String(model_id)) return alert(t("裁判不能是被测模型自己 —— 自己判自己会让分数失去意义"));
     judge_model_id = +jv;
   }
   try {
@@ -992,8 +1257,8 @@ async function startEval() {
         max_tokens: +document.getElementById("e-maxtokens").value || 2048,
         timeout_s: +document.getElementById("e-timeout").value || 90,
         concurrency: +document.getElementById("e-conc").value || 8 }) });
-    document.getElementById("e-hint").textContent = `任务 #${r.id} 已启动，共 ${r.total} 题`;
-  } catch (e) { return alert("启动失败：" + e.message); }
+    document.getElementById("e-hint").textContent = `${tf("任务 #{0} 已启动，共 {1} 题", [r.id, r.total])}`;
+  } catch (e) { return alert(t("启动失败：") + e.message); }
   refresh();
 }
 
@@ -1038,11 +1303,11 @@ async function refresh() {
     if (running) {
       const slow = staleS > 300;
       const parts = [];
-      if (e.inflight != null) parts.push(`${e.inflight} 题进行中`);
-      if (staleS < 5) parts.push(localTimer ? "进度监视中" : "刚刚有进展");
-      else parts.push(localTimer ? `≥${staleS}s 无进展` : `上次完成 ${staleS}s 前`);
+      if (e.inflight != null) parts.push(`${tf("{0} 题进行中", [e.inflight])}`);
+      if (staleS < 5) parts.push(localTimer ? t("进度监视中") : t("刚刚有进展"));
+      else parts.push(localTimer ? `${tf("≥{0}s 无进展", [staleS])}` : `${tf("上次完成 {0}s 前", [staleS])}`);
       liveHtml = `<div class="muted" style="font-size:12px;margin-top:2px${slow ? ";color:var(--amber)" : ""}"
-        title="并发跑多道题时，只要其中几道是难题（实测单题可达 200~280 秒），整体进度就会几分钟不动 —— 不代表卡死。容器只在模型返回代码之后才启动，所以「没有容器」也是正常的。">${parts.join(" · ")}${slow ? " ⚠" : ""}</div>`;
+        title="${t("并发跑多道题时，只要其中几道是难题（实测单题可达 200~280 秒），整体进度就会几分钟不动 —— 不代表卡死。容器只在模型返回代码之后才启动，所以「没有容器」也是正常的。")}">${parts.join(" · ")}${slow ? " ⚠" : ""}</div>`;
     }
     // 正确率的分母是**已完成**的题数，失败题也算在里面（保守口径，安全评测必须如此：
     // 失败若被剔除，安全分会凭空变好看）。但失败题多的时候主数字会严重偏低 ——
@@ -1054,20 +1319,20 @@ async function refresh() {
     const failed = e.failed || 0;
     const validAcc = failed && e.done ? Math.round(e.correct / (e.done - failed) * 1000) / 10 : null;
     // 悬停说明也按有没有失败分开写：没有失败时还说「失败的那 0 题也在里面」很别扭
-    const accTitle = `正确 ${e.correct ?? 0}/${e.done} 题。` + (failed
-      ? `分母是已完成的题数，失败的那 ${failed} 题也在里面 —— 失败不是「答错」（见失败列的说明），`
-        + `按保守口径不算对，所以这个百分比会偏低；只看跑成的 ${e.done - failed} 题是 ${validAcc}%。`
-      : "没有失败题，这个数就是实际正确率。");
+    const accTitle = `${tf("正确 {0}/{1} 题。", [e.correct ?? 0, e.done])}` + (failed
+      ? `${tf("分母是已完成的题数，失败的那 {0} 题也在里面 —— 失败不是「答错」（见失败列的说明），", [failed])}`
+        + `${tf("按保守口径不算对，所以这个百分比会偏低；只看跑成的 {0} 题是 {1}%。", [e.done - failed, validAcc])}`
+      : t("没有失败题，这个数就是实际正确率。"));
     return `<tr>
       ${batchMode ? `<td><input type="checkbox" ${selectedTasks.has(e.id) ? "checked" : ""} onclick="toggleTaskSel(${e.id}, this)"></td>` : ""}
       <td class="muted">${e.id}</td><td class="tl" style="font-weight:550">${esc(e.model_name)}</td>
-      <td class="tl" title="输出上限 ${e.max_tokens ?? 2048} tokens · 单题超时 ${e.timeout_s ?? 90}s · 并发 ${e.concurrency ?? 8}"><span style="font-weight:550">${esc(e.benchmark)}</span></td>
+      <td class="tl" title="${tf("输出上限 {0} tokens · 单题超时 {1}s · 并发 {2}", [e.max_tokens ?? 2048, e.timeout_s ?? 90, e.concurrency ?? 8])}"><span style="font-weight:550">${esc(e.benchmark)}</span></td>
       <td><div class="score-cell"><div class="bar"><i style="width:${pct}%"></i></div><span class="muted" style="min-width:64px;text-align:right">${e.done}/${e.total}</span></div>${liveHtml}</td>
       <td class="acc" title="${accTitle}">${e.accuracy == null ? "-" : e.accuracy + "%"}</td>
-      <td>${failed ? `<span class="st-failed" style="font-weight:550" title="判分 / 执行失败：这几题没得到有效结果（被测模型没产出正文、裁判给不出可解析判定、服务商拦截、请求超时、题目本身报错等）。既不算对也不算答错，但按保守口径计入了正确率分母 —— 别把它读成「能力差这么多」。">${failed}</span>` : `<span class="muted">0</span>`}</td>
+      <td>${failed ? `<span class="st-failed" style="font-weight:550" title="${t("判分 / 执行失败：这几题没得到有效结果（被测模型没产出正文、裁判给不出可解析判定、服务商拦截、请求超时、题目本身报错等）。既不算对也不算答错，但按保守口径计入了正确率分母 —— 别把它读成「能力差这么多」。")}">${failed}</span>` : `<span class="muted">0</span>`}</td>
       <td class="${stCls}">${ST_TEXT[e.status] || e.status}</td>
       <td><div class="menu-wrap">
-        <button class="icon-btn" onclick="toggleMenu(event, ${e.id})" aria-label="更多操作" title="更多操作">
+        <button class="icon-btn" onclick="toggleMenu(event, ${e.id})" aria-label="${t("更多操作")}" title="${t("更多操作")}">
           <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
             <circle cx="10" cy="10" r="8.4" fill="none" stroke="currentColor" stroke-width="1.6"/>
             <circle cx="6.6" cy="10" r="1.5" fill="currentColor"/>
@@ -1076,13 +1341,13 @@ async function refresh() {
           </svg>
         </button>
         <div class="menu" id="menu-${e.id}">
-          <button class="menu-item" onclick="showItems(${e.id})">明细</button>
-          ${running ? `<button class="menu-item" onclick="stopEval(${e.id})">停止</button>` : ""}
-          ${resumable ? `<button class="menu-item" onclick="resumeEval(${e.id})">继续（补跑剩余 ${e.total - e.done} 题）</button>` : ""}
-          <button class="menu-item danger" onclick="delEval(${e.id})">删除</button>
+          <button class="menu-item" onclick="showItems(${e.id})">${t("明细")}</button>
+          ${running ? `<button class="menu-item" onclick="stopEval(${e.id})">${t("停止")}</button>` : ""}
+          ${resumable ? `<button class="menu-item" onclick="resumeEval(${e.id})">${tf("继续（补跑剩余 {0} 题）", [e.total - e.done])}</button>` : ""}
+          <button class="menu-item danger" onclick="delEval(${e.id})">${t("删除")}</button>
         </div>
       </div></td></tr>`;
-  }).join("") : `<tr><td colspan="${batchMode ? 9 : 8}" class="empty">暂无任务</td></tr>`;
+  }).join("") : `<tr><td colspan="${batchMode ? 9 : 8}" class="empty">${t("暂无任务")}</td></tr>`;
   // 内容没变就不动 DOM：否则每次 refresh 都会重置 hover / 展开态。
   // 没有任务在跑时这个字符串是稳定的，于是绝大多数轮询都变成零副作用。
   if (tb.innerHTML !== rowsHtml) {
@@ -1113,7 +1378,7 @@ async function refresh() {
   // 家族在综合榜里算「一项」，覆盖一栏要顺带显示它的官方权重覆盖率 ——
   // 否则「只跑了一个子集」和「跑满四个组」在表里看起来一样。
   const famCover = m => (m.families || []).map(f =>
-    `<br><span class="tag" title="官方加权总分 ${f.score}% · 已跑 ${f.subsets_run}/${f.subsets_total} 个子集">${esc(f.id)} 权重 ${pct(f.weight_covered)}</span>`).join("");
+    `<br><span class="tag" title="${tf("官方加权总分 {0}% · 已跑 {1}/{2} 个子集", [f.score, f.subsets_run, f.subsets_total])}">${tf("{0} 权重 {1}", [esc(f.id), pct(f.weight_covered)])}</span>`).join("");
   // 模型配色：同一个模型在排行榜各处用同一个颜色（轨道上的点、冠军名前的点、
   // 展开后的两张表）。按**名字排序**定色 —— 同一份数据每次渲染都一样，
   // 也不会因为某个分类里顺序变了就换色；模型数不超过调色板长度时颜色互不重复。
@@ -1140,7 +1405,7 @@ async function refresh() {
   //      按"从左往右推开、越界再回推"把点摊开，顺序仍严格按分数。
   // 冠军点更大、并且永远最后画（在最上层），悬停里说明冠军口径并点名
   // "分数更高但没跑全"的模型（否则图上看着像高亮错了）。
-  const CHAMP_RULE = "冠军 = 跑得最全的一批里分数最高（防止只挑好跑的那项），所以冠军不一定是分数最高的那个";
+  const CHAMP_RULE = t("冠军 = 跑得最全的一批里分数最高（防止只挑好跑的那项），所以冠军不一定是分数最高的那个");
   const distBar = c => {
     const ms = c.combined;
     const champ = ms[0];
@@ -1150,7 +1415,9 @@ async function refresh() {
     const hi = Math.max(...ms.map(m => m.avg_accuracy));
     const span = hi - lo;
     const ideal = m => span === 0 ? 50 : PAD + (m.avg_accuracy - lo) / span * (100 - 2 * PAD);
-    const label = m => `${m.model_name} ${m.avg_accuracy}%（覆盖 ${m.covered}/${m.total}${m.partial ? `，含 ${m.partial} 项部分` : ""}）`;
+    const label = m => tf("{0} {1}%（覆盖 {2}/{3}{4}）",
+      [m.model_name, m.avg_accuracy, m.covered, m.total,
+       m.partial ? tf("，含 {0} 项部分", [m.partial]) : ""]);
     // 位置必须按**分数升序**算（摊开的前提是位置单调递增）。
     // 踩过一次：先把冠军挪到最后再算位置，遇到「冠军分数最低」的分类
     // （实测安全 / 对齐：冠军 91.5% < 另一个 99%），数组一开始就是降序，
@@ -1167,14 +1434,14 @@ async function refresh() {
     // 画的时候冠军放最后（叠在最上层，不被同分的点盖住）；位置从 posOf 取，不再按下标对应
     const dots = [...asc.filter(m => m !== champ), champ].map(m => `<i class="${m === champ ? "champ" : ""}"
       style="left:${posOf.get(m).toFixed(2)}%;background:${mcolor(m.model_name)}"
-      title="${esc(label(m))}${m === champ ? "　★ 冠军" : ""}"></i>`).join("");
+      title="${esc(label(m))}${m === champ ? t("　★ 冠军") : ""}"></i>`).join("");
     const byScore = [...ms].sort((p, q) => q.avg_accuracy - p.avg_accuracy);
     const higher = ms.slice(1).filter(m => m.avg_accuracy > champ.avg_accuracy);
     const note = higher.length
-      ? "　注意：" + higher.map(m => `${m.model_name} ${m.avg_accuracy}% 更高，但只跑了 ${m.covered}/${m.total} 项`).join("；")
+      ? t("　注意：") + higher.map(m => `${tf("{0} {1}% 更高，但只跑了 {2}/{3} 项", [m.model_name, m.avg_accuracy, m.covered, m.total])}`).join("；")
       : "";
-    const tip = `每行按本分类的分数区间放大显示（不是 0–100 的绝对位置）。${CHAMP_RULE}。`
-      + `本分类 ${ms.length} 个模型（按分数）：${esc(byScore.map(label).join("；"))}。${note}`;
+    const tip = `${tf("每行按本分类的分数区间放大显示（不是 0–100 的绝对位置）。{0}。", [CHAMP_RULE])}`
+      + `${tf("本分类 {0} 个模型（按分数）：{1}。{2}", [ms.length, esc(byScore.map(label).join("；")), note])}`;
     // 只有一个模型（或所有模型同分）时不标区间：两端都是同一个数，标了反而是噪音
     if (span === 0) {
       return `<div class="ov-dist" title="${tip}">${dots}</div>`;
@@ -1189,9 +1456,9 @@ async function refresh() {
   // 总览：各分类冠军一览。每行本身即开关，点击展开/收起该分类详情（可同时展开多个）
   const overview = `
     <div class="card" style="padding:14px 18px">
-      <div class="cat-head" style="margin:0"><span class="dot" style="background:var(--accent)"></span>总览<span class="cnt">点击分类查看详情，可同时展开多个</span></div>
+      <div class="cat-head" style="margin:0"><span class="dot" style="background:var(--accent)"></span>${t("总览")}<span class="cnt">${t("点击分类查看详情，可同时展开多个")}</span></div>
       ${modelLegend()}
-      <table style="margin-top:10px"><thead><tr><th class="tl" style="width:190px">分类</th><th class="tl">冠军模型</th><th style="width:210px" title="轨道上一个点 = 一个模型，颜色区分模型（同一模型在冠军名前的点、展开后的表里都是同色）。**每行按该分类自己的分数区间放大**，两端标出该行的最低/最高分 —— 位置不是 0–100 的绝对值。冠军 = 跑得最全的一批里分数最高，所以不一定是分数最高的那个，悬停里会点名分数更高但没跑全的模型">分数分布</th><th style="width:190px">综合得分</th><th style="width:150px">覆盖</th></tr></thead>
+      <table style="margin-top:10px"><thead><tr><th class="tl" style="width:190px">${t("分类")}</th><th class="tl">${t("冠军模型")}</th><th style="width:210px" title="${t("轨道上一个点 = 一个模型，颜色区分模型（同一模型在冠军名前的点、展开后的表里都是同色）。**每行按该分类自己的分数区间放大**，两端标出该行的最低/最高分 —— 位置不是 0–100 的绝对值。冠军 = 跑得最全的一批里分数最高，所以不一定是分数最高的那个，悬停里会点名分数更高但没跑全的模型")}">${t("分数分布")}</th><th style="width:190px">${t("综合得分")}</th><th style="width:150px">${t("覆盖")}</th></tr></thead>
       <tbody>${bds.map(c => {
         const champ = c.combined[0];
         const open = !!expandedCats[c.id];
@@ -1214,16 +1481,16 @@ async function refresh() {
     <div style="margin-top:14px;border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--card2)">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <b style="font-size:13px">${esc(f.name)}</b>
-        <span class="tag">${activeGroups.length} 个官方分组 · ${totalSubsets} 个子集</span>
-        <span class="tag warn" title="本项目没有提供 Web Search / Memory 那两组">官方权重覆盖 ${pct(official)}</span>
+        <span class="tag">${tf("{0} 个官方分组 · {1} 个子集", [activeGroups.length, totalSubsets])}</span>
+        <span class="tag warn" title="${t("本项目没有提供 Web Search / Memory 那两组")}">${tf("官方权重覆盖 {0}", [pct(official)])}</span>
       </div>
       <div class="muted" style="font-size:11.5px;line-height:1.7;margin:6px 0 8px">
-        官方总分口径：${esc(f.note)}。本表按此口径**重新加权**（组内先取子集平均，再按组权重加权）；
-        缺组时按已跑组的权重归一化，所以「加权总分」不是完整 BFCL 成绩 —— 每行的权重覆盖都标出来了。
+${tf("官方总分口径：{0}。本表按此口径**重新加权**（组内先取子集平均，再按组权重加权）；", [esc(f.note)])}
+${t("缺组时按已跑组的权重归一化，所以「加权总分」不是完整 BFCL 成绩 —— 每行的权重覆盖都标出来了。")}
       </div>
       <table><thead><tr>
-        <th style="width:56px">名次</th><th class="tl">模型</th><th style="width:150px">官方加权总分</th><th style="width:130px">权重覆盖</th>
-        ${activeGroups.map(g => `<th style="width:96px" title="${esc(g.name)} · 官方权重 ${pct(g.weight)}">${esc(g.name.split("（")[0])}</th>`).join("")}
+        <th style="width:56px">${t("名次")}</th><th class="tl">${t("模型")}</th><th style="width:150px">${t("官方加权总分")}</th><th style="width:130px">${t("权重覆盖")}</th>
+        ${activeGroups.map(g => `<th style="width:96px" title="${tf("{0} · 官方权重 {1}", [esc(g.name), pct(g.weight)])}">${esc(g.name.split("（")[0])}</th>`).join("")}
       </tr></thead>
       <tbody>${f.rows.map((r, i) => {
         // 组定义（f.groups）只有权重与子集清单，分数在每行的 r.groups 里 ——
@@ -1237,17 +1504,17 @@ async function refresh() {
         ${activeGroups.map(g => {
           const s = rg[g.id] || {};
           return s.score == null
-            ? `<td class="muted" title="${s.total ? `未跑（共 ${s.total} 个子集）` : "本项目未提供该分组"}">—</td>`
-            : `<td title="${esc(g.name)}：已跑 ${s.run}/${s.total} 个子集 · 官方权重 ${pct(g.weight)}">${s.score}%${s.run < s.total ? `<span class="muted" style="font-size:10px"> (${s.run}/${s.total})</span>` : ""}</td>`;
+            ? `<td class="muted" title="${s.total ? tf("未跑（共 {0} 个子集）", [s.total]) : t("本项目未提供该分组")}">—</td>`
+            : `<td title="${tf("{0}：已跑 {1}/{2} 个子集 · 官方权重 {3}", [esc(g.name), s.run, s.total, pct(g.weight)])}">${s.score}%${s.run < s.total ? `<span class="muted" style="font-size:10px"> (${s.run}/${s.total})</span>` : ""}</td>`;
         }).join("")}
       </tr>`; }).join("")}</tbody></table>
       <details style="margin-top:10px">
-        <summary class="muted" style="cursor:pointer;font-size:12.5px">子集明细（有成绩的 ${f.boards.length} 个，按官方分组排列）</summary>
-        <table style="margin-top:8px"><thead><tr><th class="tl" style="width:110px">官方分组</th><th class="tl" style="width:170px">子集</th><th class="tl">模型</th><th style="width:160px">正确率</th><th style="width:60px">题数</th></tr></thead>
+        <summary class="muted" style="cursor:pointer;font-size:12.5px">${tf("子集明细（有成绩的 {0} 个，按官方分组排列）", [f.boards.length])}</summary>
+        <table style="margin-top:8px"><thead><tr><th class="tl" style="width:110px">${t("官方分组")}</th><th class="tl" style="width:170px">${t("子集")}</th><th class="tl">${t("模型")}</th><th style="width:160px">${t("正确率")}</th><th style="width:60px">${t("题数")}</th></tr></thead>
         <tbody>${f.boards.map(b => b.rows.map((r, i) => `<tr>
-          ${i === 0 ? `<td class="tl muted" rowspan="${b.rows.length}" style="vertical-align:top;font-size:12px">${esc(b.group_name)}<br><span style="font-size:10.5px">权重 ${pct(b.group_weight)}</span></td>` : ""}
+          ${i === 0 ? `<td class="tl muted" rowspan="${b.rows.length}" style="vertical-align:top;font-size:12px">${esc(b.group_name)}<br><span style="font-size:10.5px">${tf("权重 {0}", [pct(b.group_weight)])}</span></td>` : ""}
           ${i === 0 ? `<td class="tl" rowspan="${b.rows.length}" style="font-weight:600;vertical-align:top">${esc(b.benchmark_name.replace(f.name + " · ", ""))}</td>` : ""}
-          <td class="tl">${r.partial ? '<span class="muted" title="只跑了部分题库，不排名次">—</span>' : `<span class="rank r${i+1}">${i+1}</span>`} ${esc(r.model_name)}${r.partial ? ` <span class="tag warn">部分 ${r.total}/${r.full_count}</span>` : ""}</td>
+          <td class="tl">${r.partial ? `<span class="muted" title="${t("只跑了部分题库，不排名次")}">—</span>` : `<span class="rank r${i+1}">${i+1}</span>`} ${esc(r.model_name)}${r.partial ? ` <span class="tag warn">${tf("部分 {0}/{1}", [r.total, r.full_count])}</span>` : ""}</td>
           <td><div class="score-cell"><span class="acc">${r.accuracy}%</span><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div></div></td>
           <td class="muted">${r.total}</td>
         </tr>`).join("")).join("")}</tbody></table>
@@ -1257,20 +1524,20 @@ async function refresh() {
   // 详情区：只渲染已展开的分类卡片
   const details = bds.filter(c => expandedCats[c.id]).map(cat => `
     <div class="card" style="padding:14px 18px">
-      <div class="cat-head" style="margin:0"><span class="dot" style="background:${cat.color}"></span>${esc(cat.name)}<span class="cnt">${cat.n_benchmarks} 个基准</span></div>
-      <div style="font-weight:600;font-size:13px;margin:12px 0 6px">综合排行 <span class="muted" style="font-weight:400">（分类内各项的平均分 · 每项取完整评测中的最高分；家族按**官方加权总分**算一项）</span></div>
-      <table><thead><tr><th style="width:64px">名次</th><th class="tl">模型</th><th style="width:200px">综合得分</th><th style="width:150px">覆盖</th></tr></thead>
+      <div class="cat-head" style="margin:0"><span class="dot" style="background:${cat.color}"></span>${esc(cat.name)}<span class="cnt">${tf("{0} 个基准", [cat.n_benchmarks])}</span></div>
+      <div style="font-weight:600;font-size:13px;margin:12px 0 6px">${t("综合排行")}<span class="muted" style="font-weight:400">${t("（分类内各项的平均分 · 每项取完整评测中的最高分；家族按**官方加权总分**算一项）")}</span></div>
+      <table><thead><tr><th style="width:64px">${t("名次")}</th><th class="tl">${t("模型")}</th><th style="width:200px">${t("综合得分")}</th><th style="width:150px">${t("覆盖")}</th></tr></thead>
       <tbody>${cat.combined.map((m, i) => `<tr>
         <td><span class="rank r${i+1}">${i+1}</span></td>
         <td class="tl" style="font-weight:550"><span class="mdot" style="background:${mcolor(m.model_name)}"></span>${esc(m.model_name)}</td>
         <td><div class="score-cell"><span class="acc">${m.avg_accuracy}%</span><div class="bar"><i style="width:${Math.min(m.avg_accuracy, 100)}%"></i></div></div></td>
-        <td class="muted">${m.covered}/${m.total}${m.covered < m.total ? ' <span class="tag warn">未跑全</span>' : ''}${m.partial ? ` <span class="tag warn" title="这些项只有部分评测，分数不计入综合得分">${m.partial} 项为部分</span>` : ''}${famCover(m)}</td>
+        <td class="muted">${m.covered}/${m.total}${m.covered < m.total ? ` <span class="tag warn">${t("未跑全")}</span>` : ''}${m.partial ? ` <span class="tag warn" title="${t("这些项只有部分评测，分数不计入综合得分")}">${m.partial} 项为部分</span>` : ''}${famCover(m)}</td>
       </tr>`).join("")}</tbody></table>
-      <div style="font-weight:600;font-size:13px;margin:16px 0 6px">分项${(cat.families || []).length ? ` <span class="muted" style="font-weight:400">（家族子集已折叠，见下方「${cat.families.map(f => f.name).join("、")}」块）</span>` : ""}</div>
-      <table><thead><tr><th class="tl" style="width:190px">基准</th><th class="tl">模型</th><th style="width:180px">正确率</th><th style="width:70px">题数</th><th style="width:110px">平均延迟</th><th style="width:90px">Token</th></tr></thead>
+      <div style="font-weight:600;font-size:13px;margin:16px 0 6px">${t("分项")}${(cat.families || []).length ? ` <span class="muted" style="font-weight:400">${tf("（家族子集已折叠，见下方「{0}」块）", [cat.families.map(f => f.name).join("、")])}</span>` : ""}</div>
+      <table><thead><tr><th class="tl" style="width:190px">${t("基准")}</th><th class="tl">${t("模型")}</th><th style="width:180px">${t("正确率")}</th><th style="width:70px">${t("题数")}</th><th style="width:110px">${t("平均延迟")}</th><th style="width:90px">Token</th></tr></thead>
       <tbody>${cat.boards.map(b => b.rows.map((r, i) => `<tr>
         ${i === 0 ? `<td class="tl" rowspan="${b.rows.length}" style="font-weight:600;vertical-align:top">${esc(b.benchmark_name)}</td>` : ""}
-        <td class="tl">${r.partial ? '<span class="muted" title="只跑了部分题库，不排名次">—</span>' : `<span class="rank r${i+1}">${i+1}</span>`} <span class="mdot" style="background:${mcolor(r.model_name)}"></span>${esc(r.model_name)}${r.partial ? ` <span class="tag warn" title="只跑了 ${r.total}/${r.full_count} 题，分数仅供参考">部分 ${r.total}/${r.full_count}</span>` : ''}</td>
+        <td class="tl">${r.partial ? `<span class="muted" title="${t("只跑了部分题库，不排名次")}">—</span>` : `<span class="rank r${i+1}">${i+1}</span>`} <span class="mdot" style="background:${mcolor(r.model_name)}"></span>${esc(r.model_name)}${r.partial ? ` <span class="tag warn" title="${tf("只跑了 {0}/{1} 题，分数仅供参考", [r.total, r.full_count])}">${tf("部分 {0}/{1}", [r.total, r.full_count])}</span>` : ''}</td>
         <td><div class="score-cell"><span class="acc">${r.accuracy}%</span><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div></div></td><td>${r.total}</td>
         <td class="muted">${r.avg_latency_ms} ms</td>
         <td class="muted">${r.prompt_tokens + r.completion_tokens}</td>
@@ -1278,7 +1545,7 @@ async function refresh() {
       ${(cat.families || []).map(f => famBlock(cat, f)).join("")}
     </div>`).join("");
   document.getElementById("board").innerHTML = bds.length ? overview + details
-    : `<div class="card"><div class="empty">完成一次评测后生成</div></div>`;
+    : `<div class="card"><div class="empty">${t("完成一次评测后生成")}</div></div>`;
 }
 
 // ---------- 成绩总览：基准 × 模型 色块矩阵 ----------
@@ -1293,7 +1560,7 @@ async function renderOverviewBlock() {
   try {
     ovData = await api("/api/overview");
   } catch (e) {
-    box.innerHTML = `<div class="card"><div class="empty">总览加载失败：${esc(e.message)}</div></div>`;
+    box.innerHTML = `<div class="card"><div class="empty">${tf("总览加载失败：{0}", [esc(e.message)])}</div></div>`;
     return;
   }
   drawOverview();
@@ -1307,7 +1574,7 @@ function drawOverview() {
   if (!box) return;
   const d = ovData;
   if (!d || !d.models.length) {
-    box.innerHTML = `<div class="card"><div class="empty">完成一次评测后生成</div></div>`;
+    box.innerHTML = `<div class="card"><div class="empty">${t("完成一次评测后生成")}</div></div>`;
     return;
   }
   const models = d.models;
@@ -1315,12 +1582,12 @@ function drawOverview() {
     .map(g => ({ ...g, benchmarks: g.benchmarks.filter(b => !ovOnlyData || Object.keys(b.scores).length) }))
     .filter(g => g.benchmarks.length);
   if (!groups.length) {
-    box.innerHTML = `<div class="card"><div class="empty">还没有任何成绩</div></div>`;
+    box.innerHTML = `<div class="card"><div class="empty">${t("还没有任何成绩")}</div></div>`;
     return;
   }
 
-  const head = `<tr><th style="width:200px">基准</th>` + models.map(m =>
-    `<th style="cursor:pointer" title="点击查看 ${esc(m.name)} 的能力画像"
+  const head = `<tr><th style="width:200px">${t("基准")}</th>` + models.map(m =>
+    `<th style="cursor:pointer" title="${tf("点击查看 {0} 的能力画像", [esc(m.name)])}"
          onclick="pickOvModel(${m.id})">${esc(m.name)}</th>`).join("") + `</tr>`;
 
   const body = groups.map(g => {
@@ -1340,15 +1607,15 @@ function drawOverview() {
         const top = max !== null && !s.partial && s.accuracy === max;
         if (s.partial) {
           return `<td class="ov-cell ov-partial"
-                      title="${esc(b.name)} · ${esc(m.name)}：${s.accuracy}%（只跑了 ${s.total}/${s.full_count} 题，属部分评测，不参与最高分评选 · 任务 #${s.eval_id}）"
-                      >${s.accuracy}%<span class="ov-part">部分 ${s.total}/${s.full_count}</span></td>`;
+                      title="${tf("{0} · {1}：{2}%（只跑了 {3}/{4} 题，属部分评测，不参与最高分评选 · 任务 #{5}）", [esc(b.name), esc(m.name), s.accuracy, s.total, s.full_count, s.eval_id])}"
+                      >${s.accuracy}%<span class="ov-part">${tf("部分 {0}/{1}", [s.total, s.full_count])}</span></td>`;
         }
         return `<td class="ov-cell ${top ? "ov-top" : "ov-plain"}"
-                    title="${esc(b.name)} · ${esc(m.name)}：${s.accuracy}%（${s.total} 题 · 任务 #${s.eval_id}）${top ? " —— 该基准最高" : ""}"
+                    title="${tf("{0} · {1}：{2}%（{3} 题 · 任务 #{4}）{5}", [esc(b.name), esc(m.name), s.accuracy, s.total, s.eval_id, top ? t(" —— 该基准最高") : ""])}"
                     >${s.accuracy}%</td>`;
       }).join("");
       return `<tr><td class="ov-bench" title="${esc(b.id)}">${esc(b.name)}${b.group_name
-        ? `<span class="ov-grp" title="官方分组 ${esc(b.group_name)} · 官方权重 ${pct(b.group_weight)}">${esc(b.group_name)} · ${pct(b.group_weight)}</span>` : ""}</td>${cells}</tr>`;
+        ? `<span class="ov-grp" title="${tf("官方分组 {0} · 官方权重 {1}", [esc(b.group_name), pct(b.group_weight)])}">${esc(b.group_name)} · ${pct(b.group_weight)}</span>` : ""}</td>${cells}</tr>`;
     }).join("");
   }).join("");
 
@@ -1357,14 +1624,14 @@ function drawOverview() {
     <div class="card" style="padding:14px 18px">
       <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:10px">
         <span class="muted" style="font-size:12.5px;line-height:1.75">
-          行 = 基准，列 = 模型。<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle">
+${t("行 = 基准，列 = 模型。")}<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle">
           <i style="display:inline-block;width:26px;height:11px;border-radius:3px;background:var(--accent)"></i></span>
-          <b>蓝色 = 该基准上参与评测的模型中的最高分</b>（仅在完整评测之间评），并列最高会同时标出；其余格子统一底色。
-          <br>带「部分 x/y」的格子表示这次只跑了部分题库，分数仅供参考、<b>不参与最高分评选</b>。
-          <br>悬停任一格子可以看到题量与任务号。
+          <b>${t("蓝色 = 该基准上参与评测的模型中的最高分")}</b>${t("（仅在完整评测之间评），并列最高会同时标出；其余格子统一底色。")}
+          <br>${t("带「部分 x/y」的格子表示这次只跑了部分题库，分数仅供参考、")}<b>${t("不参与最高分评选")}</b>。
+          <br>${t("悬停任一格子可以看到题量与任务号。")}
         </span>
         <span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <button class="ghost" onclick="toggleOvOnlyData()">${ovOnlyData ? "显示全部基准" : "只看有数据的"}</button>
+          <button class="ghost" onclick="toggleOvOnlyData()">${ovOnlyData ? t("显示全部基准") : t("只看有数据的")}</button>
         </span>
       </div>
       <div style="overflow-x:auto">
@@ -1391,9 +1658,9 @@ function renderOvProfile(m) {
     </tr>`).join("");
   return `<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <b style="font-size:13px">${esc(m.name)} 的能力画像</b>
-        <span class="muted" style="font-size:12px">共 ${list.length} 个基准 · 按分数降序</span>
-        <button class="ghost" style="margin-left:auto" onclick="pickOvModel(${m.id})">收起</button>
+        <b style="font-size:13px">${tf("{0} 的能力画像", [esc(m.name)])}</b>
+        <span class="muted" style="font-size:12px">${tf("共 {0} 个基准 · 按分数降序", [list.length])}</span>
+        <button class="ghost" style="margin-left:auto" onclick="pickOvModel(${m.id})">${t("收起")}</button>
       </div>
       <table>${rows}</table>
     </div>`;
@@ -1405,16 +1672,16 @@ function renderTaskControls(total) {
   if (!box) return;
   if (!tasksExpanded) {
     box.innerHTML = total > TASK_PREVIEW
-      ? `<div style="text-align:center"><button class="ghost" onclick="toggleTasks()">展开全部 ${total} 条记录</button></div>`
+      ? `<div style="text-align:center"><button class="ghost" onclick="toggleTasks()">${tf("展开全部 {0} 条记录", [total])}</button></div>`
       : "";
     return;
   }
   const pages = Math.max(1, Math.ceil(total / TASK_PAGE_SIZE));
   box.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap">
-    <button class="ghost" onclick="taskPrev()" ${taskPage <= 0 ? "disabled" : ""}>上一页</button>
-    <span class="muted">第 ${taskPage + 1} / ${pages} 页 · 共 ${total} 条</span>
-    <button class="ghost" onclick="taskNext(${pages})" ${taskPage >= pages - 1 ? "disabled" : ""}>下一页</button>
-    <button class="ghost" onclick="toggleTasks()">收起</button>
+    <button class="ghost" onclick="taskPrev()" ${taskPage <= 0 ? "disabled" : ""}>${t("上一页")}</button>
+    <span class="muted">${tf("第 {0} / {1} 页 · 共 {2} 条", [taskPage + 1, pages, total])}</span>
+    <button class="ghost" onclick="taskNext(${pages})" ${taskPage >= pages - 1 ? "disabled" : ""}>${t("下一页")}</button>
+    <button class="ghost" onclick="toggleTasks()">${t("收起")}</button>
   </div>`;
 }
 
@@ -1430,18 +1697,18 @@ function renderBatchBar() {
   // 标题右侧：批量模式开关
   const tog = document.getElementById("batch-toggle");
   if (tog) {
-    tog.innerHTML = `<button class="ghost" onclick="${batchMode ? "exitBatchMode()" : "enterBatchMode()"}">${batchMode ? "退出批量" : "批量"}</button>`;
+    tog.innerHTML = `<button class="ghost" onclick="${batchMode ? "exitBatchMode()" : "enterBatchMode()"}">${batchMode ? t("退出批量") : t("批量")}</button>`;
   }
   // 表格下方：进入批量模式后才出现的操作栏
   const box = document.getElementById("batch-bar");
   if (!box) return;
   box.innerHTML = batchMode
     ? `<div style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap">
-        <span class="muted">已选 ${selectedTasks.size} 条</span>
+        <span class="muted">${tf("已选 {0} 条", [selectedTasks.size])}</span>
         <button class="ghost" onclick="compareTasks()" ${selectedTasks.size === 2 ? "" : "disabled"}
-                title="选中恰好 2 个同一基准的任务，可逐题对比">逐题对比</button>
-        <button class="ghost" style="color:var(--red);border-color:rgba(214,79,88,.4)" onclick="batchDelete()" ${selectedTasks.size ? "" : "disabled"}>批量删除</button>
-        <button class="ghost" onclick="clearTaskSel()" ${selectedTasks.size ? "" : "disabled"}>取消选择</button>
+                title="${t("选中恰好 2 个同一基准的任务，可逐题对比")}">${t("逐题对比")}</button>
+        <button class="ghost" style="color:var(--red);border-color:rgba(214,79,88,.4)" onclick="batchDelete()" ${selectedTasks.size ? "" : "disabled"}>${t("批量删除")}</button>
+        <button class="ghost" onclick="clearTaskSel()" ${selectedTasks.size ? "" : "disabled"}>${t("取消选择")}</button>
       </div>`
     : "";
 }
@@ -1470,13 +1737,13 @@ function clearTaskSel() {
 async function batchDelete() {
   const ids = [...selectedTasks];
   if (!ids.length) return;
-  if (!confirm(`确定删除选中的 ${ids.length} 条任务？此操作不可恢复。`)) return;
+  if (!confirm(tf("确定删除选中的 {0} 条任务？此操作不可恢复。", [ids.length]))) return;
   try {
     await api("/api/evaluations/batch-delete", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids }),
     });
-  } catch (e) { return alert("批量删除失败：" + e.message); }
+  } catch (e) { return alert(t("批量删除失败：") + e.message); }
   selectedTasks.clear();
   document.getElementById("items-box").innerHTML = "";
   refresh();
@@ -1489,15 +1756,15 @@ let compareOnlyDiff = false;  // 是否只看分歧题
 
 async function compareTasks() {
   const ids = [...selectedTasks];
-  if (ids.length !== 2) return alert("请恰好选中 2 个任务再对比（需要同一基准）");
-  document.getElementById("items-box").innerHTML = `<div class="card"><div class="empty">对比中…</div></div>`;
+  if (ids.length !== 2) return alert(t("请恰好选中 2 个任务再对比（需要同一基准）"));
+  document.getElementById("items-box").innerHTML = `<div class="card"><div class="empty">${t("对比中…")}</div></div>`;
   let d;
   try {
     d = await api(`/api/evaluations/compare?ids=${ids.join(",")}`);
   } catch (e) {
     document.getElementById("items-box").innerHTML =
-      `<div class="card"><span style="color:var(--red)">对比失败：${esc(e.message)}</span>
-       <button class="ghost" style="margin-left:12px" onclick="closeCompare()">关闭</button></div>`;
+      `<div class="card"><span style="color:var(--red)">${tf("对比失败：{0}", [esc(e.message)])}</span>
+       <button class="ghost" style="margin-left:12px" onclick="closeCompare()">${t("关闭")}</button></div>`;
     document.getElementById("items-box").scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
@@ -1529,16 +1796,16 @@ function renderCompareView() {
       <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
                    border-radius:7px;font-size:12px;font-weight:650;color:#fff;background:${color}">${tag}</span>
       <b>${esc(e.model_name)}</b>
-      <span class="muted">正确率 ${e.accuracy}%（${e.done}/${e.total}）</span></div>`;
+      <span class="muted">${tf("正确率 {0}%（{1}/{2}）", [e.accuracy, e.done, e.total])}</span></div>`;
 
   const cell = x => `<td class="tl" style="${x.correct ? "" : "background:rgba(214,79,88,.06)"}">${esc(x.predicted ?? "—")}</td>`;
 
   const rows = items.length ? items.map(it => {
     const diff = it.a.correct !== it.b.correct;
-    const mark = (it.a.correct && it.b.correct) ? `<span class="st-done">都对</span>`
-      : (!it.a.correct && !it.b.correct) ? `<span class="muted">都错</span>`
-      : it.a.correct ? `<span style="color:var(--accent2);font-weight:600">仅 A 对</span>`
-      : `<span style="color:var(--amber);font-weight:600">仅 B 对</span>`;
+    const mark = (it.a.correct && it.b.correct) ? `<span class="st-done">${t("都对")}</span>`
+      : (!it.a.correct && !it.b.correct) ? `<span class="muted">${t("都错")}</span>`
+      : it.a.correct ? `<span style="color:var(--accent2);font-weight:600">${t("仅 A 对")}</span>`
+      : `<span style="color:var(--amber);font-weight:600">${t("仅 B 对")}</span>`;
     const q = it.question || "";
     return `<tr style="${diff ? "background:rgba(185,126,30,.07)" : ""}">
         <td>${it.idx}</td>
@@ -1546,18 +1813,18 @@ function renderCompareView() {
         <td class="tl">${esc(String(it.expected ?? "—"))}</td>
         ${cell(it.a)}${cell(it.b)}
         <td>${mark}</td></tr>`;
-  }).join("") : `<tr><td colspan="6" class="empty">${compareOnlyDiff ? "两个模型没有分歧题（要么都对、要么都错）" : "没有可对比的题目"}</td></tr>`;
+  }).join("") : `<tr><td colspan="6" class="empty">${compareOnlyDiff ? t("两个模型没有分歧题（要么都对、要么都错）") : t("没有可对比的题目")}</td></tr>`;
 
   const warn = (s.a_only || s.b_only)
-    ? `<div class="muted" style="font-size:12px;margin-top:6px">注意：A 共 ${s.a_count} 题、B 共 ${s.b_count} 题，
-       仅对比两者都跑了的 ${s.common} 题（A 独有 ${s.a_only}、B 独有 ${s.b_only} 未计入）。</div>` : "";
+    ? `<div class="muted" style="font-size:12px;margin-top:6px">${tf("注意：A 共 {0} 题、B 共 {1} 题，", [s.a_count, s.b_count])}
+${tf("仅对比两者都跑了的 {0} 题（A 独有 {1}、B 独有 {2} 未计入）。", [s.common, s.a_only, s.b_only])}</div>` : "";
 
   document.getElementById("items-box").innerHTML = `
     <div class="card" style="border-color:var(--border2)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-        <b style="font-size:14.5px">逐题对比</b>
+        <b style="font-size:14.5px">${t("逐题对比")}</b>
         <span class="tag">${esc(d.benchmark)}</span>
-        <button class="ghost" style="margin-left:auto" onclick="closeCompare()">关闭</button>
+        <button class="ghost" style="margin-left:auto" onclick="closeCompare()">${t("关闭")}</button>
       </div>
       <div style="display:flex;gap:26px;flex-wrap:wrap;margin-bottom:14px">
         ${side("A", A, "var(--accent)")}
@@ -1565,21 +1832,21 @@ function renderCompareView() {
       </div>
       <div style="display:flex;gap:18px;flex-wrap:wrap;justify-content:center;
                   background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:11px 16px;margin-bottom:12px">
-        ${stat("共同题", s.common, "var(--text)")}
-        ${stat("都对", s.both_correct, "var(--green)")}
-        ${stat("都错", s.both_wrong, "var(--muted)")}
-        ${stat("仅 A 对", s.only_a, "var(--accent2)")}
-        ${stat("仅 B 对", s.only_b, "var(--amber)")}
+        ${stat(t("共同题"), s.common, "var(--text)")}
+        ${stat(t("都对"), s.both_correct, "var(--green)")}
+        ${stat(t("都错"), s.both_wrong, "var(--muted)")}
+        ${stat(t("仅 A 对"), s.only_a, "var(--accent2)")}
+        ${stat(t("仅 B 对"), s.only_b, "var(--amber)")}
       </div>
       ${warn}
       <label class="muted" style="display:flex;flex-direction:row;align-items:center;gap:7px;
                                   margin:12px 0 8px;cursor:pointer">
         <input type="checkbox" style="width:auto" ${compareOnlyDiff ? "checked" : ""}
-               onclick="toggleCompareDiff(this)"> 只看分歧题（${diffN} 题）
+               onclick="toggleCompareDiff(this)">${tf("只看分歧题（{0} 题）", [diffN])}
       </label>
       <table><thead><tr>
-        <th style="width:44px">#</th><th class="tl">题目</th><th class="tl" style="width:90px">期望</th>
-        <th class="tl" style="width:110px">A 回答</th><th class="tl" style="width:110px">B 回答</th><th style="width:84px">结果</th>
+        <th style="width:44px">#</th><th class="tl">${t("题目")}</th><th class="tl" style="width:90px">${t("期望")}</th>
+        <th class="tl" style="width:110px">${t("A 回答")}</th><th class="tl" style="width:110px">${t("B 回答")}</th><th style="width:84px">${t("结果")}</th>
       </tr></thead><tbody>${rows}</tbody></table>
     </div>`;
 }
@@ -1587,7 +1854,7 @@ function renderCompareView() {
 async function delEval(id) {
   try {
     await api("/api/evaluations/" + id, { method:"DELETE" });
-  } catch (e) { return alert("删除失败：" + e.message); }
+  } catch (e) { return alert(t("删除失败：") + e.message); }
   document.getElementById("items-box").innerHTML = "";
   refresh();
 }
@@ -1595,7 +1862,7 @@ async function delEval(id) {
 async function stopEval(id) {
   try {
     await api("/api/evaluations/" + id + "/stop", { method:"POST" });
-  } catch (e) { return alert("停止失败：" + e.message); }
+  } catch (e) { return alert(t("停止失败：") + e.message); }
   refresh();
 }
 
@@ -1603,8 +1870,8 @@ async function resumeEval(id) {
   // 续跑只补剩下的题，已完成的成果不重算（进程被杀 / 服务重启后用）
   try {
     const r = await api("/api/evaluations/" + id + "/resume", { method:"POST" });
-    alert(`任务 #${id} 已开始续跑：已完成 ${r.done}/${r.total}，本次补跑 ${r.total - r.done} 题`);
-  } catch (e) { return alert("续跑失败：" + e.message); }
+    alert(tf("任务 #{0} 已开始续跑：已完成 {1}/{2}，本次补跑 {3} 题", [id, r.done, r.total, r.total - r.done]));
+  } catch (e) { return alert(t("续跑失败：") + e.message); }
   refresh();
 }
 
@@ -1645,26 +1912,26 @@ async function showItems(id) {
   // 「有判定但结果不利」这一档在普通基准里叫「答错」；安全类里它根本不是答错，
   // 而是「越狱成功 / 过度拒绝」—— 措辞由基准元数据给（app/benchmarks/types.py 的
   // adverse_label），这里不硬编码基准名。
-  const adverse = (benchMeta[ev.benchmark] || {}).adverse_label || "答错";
-  const tally = done ? `<div class="muted" style="margin:4px 0 0">正确 <b class="st-done">${ok}</b> ·
-    ${adverse} ${done - ok - bad} · <span class="${bad ? "st-failed" : "muted"}">判分/执行失败 ${bad}</span>${
-    bad ? `<span class="muted">（失败 ≠ ${adverse}：这几题没得到有效结果，但按保守口径算在正确率分母里）</span>` : ""}</div>` : "";
+  const adverse = (benchMeta[ev.benchmark] || {}).adverse_label || t("答错");
+  const tally = done ? `<div class="muted" style="margin:4px 0 0">${t("正确")}<b class="st-done">${ok}</b> ·
+    ${adverse} ${done - ok - bad} · <span class="${bad ? "st-failed" : "muted"}">${tf("判分/执行失败 {0}", [bad])}</span>${
+    bad ? `<span class="muted">${tf("（失败 ≠ {0}：这几题没得到有效结果，但按保守口径算在正确率分母里）", [adverse])}</span>` : ""}</div>` : "";
   document.getElementById("items-box").innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
         <div>
-          <b>任务 #${id} 明细（前 ${items.length} 条）</b>
-          <div class="muted" style="margin:4px 0 0">完整逐题明细（含模型原始输出）已保存到本地文件 data/results/eval_${id}.jsonl</div>
+          <b>${tf("任务 #{0} 明细（前 {1} 条）", [id, items.length])}</b>
+          <div class="muted" style="margin:4px 0 0">${tf("完整逐题明细（含模型原始输出）已保存到本地文件 data/results/eval_{0}.jsonl", [id])}</div>
           ${tally}
         </div>
-        <button class="ghost" onclick="closeItems()">关闭</button>
+        <button class="ghost" onclick="closeItems()">${t("关闭")}</button>
       </div>
-      <table style="margin-top:10px"><thead><tr><th>#</th><th class="tl">题目</th><th class="tl">期望</th><th class="tl">模型答</th><th>判定</th><th>延迟</th><th style="width:90px">原始输出</th></tr></thead>
+      <table style="margin-top:10px"><thead><tr><th>#</th><th class="tl">${t("题目")}</th><th class="tl">${t("期望")}</th><th class="tl">${t("模型答")}</th><th>${t("判定")}</th><th>${t("延迟")}</th><th style="width:90px">${t("原始输出")}</th></tr></thead>
       <tbody>${items.map(it => `<tr>
         <td class="muted">${it.idx}</td>
         <td class="tl" style="max-width:300px">${esc((it.question||"").slice(0,60))}${(it.question||"").length>60?"…":""}</td>
         <td class="tl">${esc(it.expected)}</td><td class="tl">${esc(it.predicted ?? "-")}</td>
-        <td>${itemFailed(it) ? `<span class="st-failed" title="${esc(it.error || "")}">失败<span class="muted"> ⓘ</span></span>`
+        <td>${itemFailed(it) ? `<span class="st-failed" title="${esc(it.error || "")}">${t("失败")}<span class="muted"> ⓘ</span></span>`
                         : it.correct ? '<span class="st-done">✓</span>' : '<span class="st-failed">✗</span>'}</td>
         <td class="muted">${it.latency_ms}ms</td>
         <td><button class="ghost" onclick="toggleRaw(${it.idx}, this)">查看</button></td>
@@ -1681,17 +1948,17 @@ function closeItems() {
 function toggleRaw(idx, btn) {
   const tr = btn.closest("tr");
   const exist = document.getElementById("raw-" + idx);
-  if (exist) { exist.remove(); btn.textContent = "查看"; return; }
+  if (exist) { exist.remove(); btn.textContent = t("查看"); return; }
   const it = itemsCache.find(x => x.idx === idx) || {};
   const body = it.error
-    ? `【错误】\n${esc(it.error)}\n\n【原始输出】\n${esc(it.raw_response || "（空）")}`
-    : esc(it.raw_response || "（空）");
+    ? tf("【错误】\n{0}\n\n【原始输出】\n{1}", [esc(it.error), esc(it.raw_response || t("（空）"))])
+    : esc(it.raw_response || t("（空）"));
   const row = document.createElement("tr");
   row.id = "raw-" + idx;
   row.className = "raw-row";
   row.innerHTML = `<td colspan="7"><pre class="resp">${body}</pre></td>`;
   tr.after(row);
-  btn.textContent = "收起";
+  btn.textContent = t("收起");
 }
 
 // ---- AI 总结 ----
@@ -1738,8 +2005,8 @@ function startSummaryTicker() {
       const exp = st.expected_s || 45;
       // 百分比是估算的，所以把「真实已用秒数」放在显眼处；超时后不再显示预期值，免得像在报错误
       txt.textContent = used > exp * 1.6
-        ? `已用 ${used} 秒 · 比预计的 ${exp} 秒久一些，思考型模型遇到长总结会慢（进度百分比为估算）`
-        : `已用 ${used} 秒 · 预计 ${exp} 秒左右（模型是一次性返回的，进度百分比为估算）`;
+        ? `${tf("已用 {0} 秒 · 比预计的 {1} 秒久一些，思考型模型遇到长总结会慢（进度百分比为估算）", [used, exp])}`
+        : `${tf("已用 {0} 秒 · 预计 {1} 秒左右（模型是一次性返回的，进度百分比为估算）", [used, exp])}`;
     }
   };
   tick();                                   // 先画一次，别等到 500ms 后才动
@@ -1765,7 +2032,7 @@ function renderEntry(s, stats) {
   // 同时给出逐模型总览与逐基准明细 —— 「写全」是这份总结的价值所在，
   // 把「哪些比不出差别」讲清楚比笼统说谁领先有用得多。
   const modelsSec = (c.models || []).length
-    ? `<div style="font-weight:600;margin:12px 0 4px">各模型总览</div>`
+    ? `<div style="font-weight:600;margin:12px 0 4px">${t("各模型总览")}</div>`
       + (c.models || []).map(m => `<div style="margin:6px 0;padding:9px 12px;background:var(--card2);border-radius:8px">
           <div style="font-weight:600">${esc(m.model || "")}</div>
           <div style="margin-top:3px">${esc(m.note || "")}</div></div>`).join("")
@@ -1778,30 +2045,30 @@ function renderEntry(s, stats) {
       ${(cat.benchmarks || []).map(b => `<div style="margin:6px 0 6px 2px;font-size:13px">
         <b>${esc(b.benchmark || "")}</b>
         <div class="muted" style="margin-top:1px">${esc(stripLead(b.benchmark, b.note))}</div></div>`).join("")}
-      ${cat.insufficient ? `<div class="muted" style="margin-top:6px;font-size:12px">数据不足：${esc(cat.insufficient)}</div>` : ""}
+      ${cat.insufficient ? `<div class="muted" style="margin-top:6px;font-size:12px">${tf("数据不足：{0}", [esc(cat.insufficient)])}</div>` : ""}
     </div>`).join("");
   const diffs = (c.differences || []).map(d => `<div style="margin:6px 0;font-size:13px">
-      <b>${esc(d.a || "")}</b> 领先 <b>${esc(d.b || "")}</b>
+      <b>${esc(d.a || "")}</b>${t("领先")}<b>${esc(d.b || "")}</b>
       <span class="muted"> · ${esc(d.benchmark || "")}</span>
       <div class="muted" style="margin-top:1px">${esc(d.note || "")}</div></div>`).join("");
   return `<details class="card" style="padding:0"${lastGenModelId === s.model_id ? " open" : ""}>
     <summary style="cursor:pointer;padding:12px 16px">
       <span class="tag">${esc(s.model_name || "?")}</span>
       <span class="muted" style="font-size:12px"> ${esc(s.created_at || "")}</span>
-      ${s.stale ? `<span class="tag warn">基于旧数据</span>` : ""}
+      ${s.stale ? `<span class="tag warn">${t("基于旧数据")}</span>` : ""}
       <div style="font-weight:550;margin-top:6px;line-height:1.5">${esc(c.headline || "")}</div>
     </summary>
     <div style="padding:0 16px 14px">
       <div class="tags" style="margin-bottom:8px">
         <span class="tag">${s.completion_tokens || 0} tokens / ${((s.latency_ms || 0) / 1000).toFixed(1)}s</span>
-        ${stats.confidence ? `<span class="tag">数据置信度 ${esc(stats.confidence)}</span>` : ""}
+        ${stats.confidence ? `<span class="tag">${tf("数据置信度 {0}", [esc(stats.confidence)])}</span>` : ""}
       </div>
-      ${selfReport ? `<div class="muted" style="margin-bottom:8px">⚠ 本总结由 <b>${esc(s.model_name)}</b> 生成，而它自己也在被评测的模型之列，看的时候留意这一点。</div>` : ""}
+      ${selfReport ? `<div class="muted" style="margin-bottom:8px">${tf("⚠ 本总结由 <b>{0}</b> 生成，而它自己也在被评测的模型之列，看的时候留意这一点。", [esc(s.model_name)])}</div>` : ""}
       ${c.overview ? `<div style="margin-bottom:4px">${esc(c.overview)}</div>` : ""}
       ${modelsSec}
       ${cats}
       ${diffs ? `<div style="margin-top:12px">
-        <div style="font-weight:600;margin-bottom:4px">显著的模型间差异</div>${diffs}</div>` : ""}
+        <div style="font-weight:600;margin-bottom:4px">${t("显著的模型间差异")}</div>${diffs}</div>` : ""}
       ${(c.next_steps || []).length ? `<div style="margin-top:12px">
         <div style="font-weight:600;margin-bottom:6px">建议下一步</div>
         <ul style="margin:0;padding-left:20px">${c.next_steps.map(x =>
@@ -1829,24 +2096,24 @@ function renderSummary() {
     const pct = summaryProgressPct(st);
     html += `<div class="card gen-card">
       <div class="gen-head">
-        <span class="tag">生成中</span>
-        <span class="muted">${esc(st.model_name || "")} 正在写总结…</span>
+        <span class="tag">${t("生成中")}</span>
+        <span class="muted">${tf("{0} 正在写总结…", [esc(st.model_name || "")])}</span>
         <span class="gen-pct" id="s-pct">${pct}%</span>
       </div>
       <div class="gen-track"><i id="s-bar" class="gen-fill" style="width:${pct}%"></i></div>
       <div class="muted gen-note" id="s-elapsed"></div>
     </div>`;
   } else if (st.status === "failed") {
-    html += `<div class="card"><span class="tag warn">生成失败</span>
+    html += `<div class="card"><span class="tag warn">${t("生成失败")}</span>
       <span class="muted"> ${esc(st.message || "")}</span></div>`;
-  } else if (st.status === "done" && st.message && st.message.indexOf("缓存") >= 0) {
+  } else if (st.status === "done" && st.message && st.message.indexOf(t("缓存")) >= 0) {
     html += `<div class="card"><span class="tag">${esc(st.message)}</span></div>`;
   }
 
   if (entries.length) {
     html += entries.map(s => renderEntry(s, stats)).join("");
   } else if (st.status !== "running" && st.status !== "failed") {
-    html += `<div class="card"><div class="empty">还没有总结。选一个模型，点「生成总结」。</div></div>`;
+    html += `<div class="card"><div class="empty">${t("还没有总结。选一个模型，点「生成总结」。")}</div></div>`;
   }
 
   // 注：程序判定的「数据问题」（低于随机线、刷分假象、部分评测…）**刻意不在页面上展示**。
@@ -1856,7 +2123,7 @@ function renderSummary() {
   // 依据的数据：让人能核对总结，这是「可信」的前提
   if ((stats.rankings || []).length) {
     html += `<div class="card"><details><summary style="cursor:pointer;font-weight:600">
-      本次依据的数据（点开核对）</summary><div style="margin-top:10px">`
+${t("本次依据的数据（点开核对）")}</summary><div style="margin-top:10px">`
       + stats.rankings.map(r => {
           const ns = (r.comparisons || []).filter(x => !x.significant);
           return `<div style="margin-bottom:14px">
@@ -1866,7 +2133,7 @@ function renderSummary() {
               <td class="muted" style="width:22px">${i + 1}</td>
               <td>${esc(x.model)}</td>
               <td class="acc" style="width:70px">${x.accuracy}%</td>
-              <td class="muted" style="width:110px">${x.n} 题${x.partial ? " ⚠部分" : ""}</td></tr>`).join("")}
+              <td class="muted" style="width:110px">${tf("{0} 题", [x.n])}${x.partial ? t(" ⚠部分") : ""}</td></tr>`).join("")}
             </tbody></table>
             ${ns.length ? `<div class="muted" style="font-size:12px;margin-top:2px">分差未达显著：
               ${ns.map(x => `${esc(x.a)} vs ${esc(x.b)} 差 ${x.diff}（阈值 ${x.threshold}）`).join("；")}</div>` : ""}
@@ -1880,12 +2147,12 @@ function renderSummary() {
 
 async function genSummary() {
   const mid = +document.getElementById("s-model").value;
-  if (!mid) return alert("请先添加并选择一个模型");
+  if (!mid) return alert(t("请先添加并选择一个模型"));
   try {
     // 一律强制重新生成：数据没变时直接重跑就好，没必要给用户一个「要不要用缓存」的选择
     await api("/api/summary", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model_id: mid, force: true }) });
-  } catch (e) { return alert("生成失败：" + e.message); }
+  } catch (e) { return alert(t("生成失败：") + e.message); }
   lastGenModelId = mid;   // 完成后自动展开这个模型的条目
   await fetchSummary();
   renderSummary();

@@ -27,9 +27,20 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const HTML = path.join(ROOT, "app", "static", "index.html");
 
 const src = fs.readFileSync(HTML, "utf8");
+
 // 统一换行：文件是 CRLF，而下面靠 "\n}\n" 找函数结尾
 const script = src.slice(src.indexOf("<script>") + 8, src.lastIndexOf("</script>"))
   .replace(/\r\n/g, "\n");
+
+// i18n 运行时：被抠出来的渲染函数现在会调用 t()/tf()，所以测试里要先把它们装上。
+// 这里**直接求值页面里那份真实运行时**（EN 表 + t/tf），而不是打桩 —— 否则测的是假实现。
+// localStorage 在 node 里没有：给它一个返回 "zh" 的桩，测试默认跑中文模式；
+// 需要英文冒烟时调用 i18n.setLang("en")（t/tf 闭包里的 LANG 会跟着变）。
+globalThis.localStorage = { getItem: () => "zh", setItem: () => {} };
+const runtimeSrc = script.slice(script.indexOf("const EN = {"), script.indexOf("function applyI18n"));
+const i18n = new Function(runtimeSrc + "\nreturn { t, tf, setLang: l => { LANG = l; } };")();
+globalThis.t = i18n.t;
+globalThis.tf = i18n.tf;
 
 /** 抠出 index.html 里一个顶层函数的完整源码（靠行首的 } 找结尾）。 */
 function grab(name) {
@@ -428,7 +439,7 @@ check("模型管理：正文的模型 / base_url / Key 单元格都标了 tl",
   && /<td class="[^"]*\btl\b[^"]*muted">\$\{esc\(m\.api_key\)\}/.test(src));
 check("评测任务：正文的模型 / 基准单元格都标了 tl",
   /<td class="[^"]*\btl\b[^"]*" style="font-weight:550">\$\{esc\(e\.model_name\)\}/.test(src)
-  && /<td class="[^"]*\btl\b[^"]*" title="输出上限/.test(src));
+  && /<td class="[^"]*\btl\b[^"]*" title="\$\{tf\("输出上限/.test(src));
 
 // 通用守卫：文本列（表头 tl）在正文里也要标 tl —— 少标一处那一列就错位半格。
 // 两个注意点：① class 可能写成 "tl muted"，所以按词匹配而不是全等；
@@ -451,7 +462,7 @@ check("表内联渲染的表：文本列表头与正文的 tl 数量匹配", mis
 // 失败（模型没产出正文），若和答错混在一起，会被读成「能力差 5%」——数字没错、结论错。
 check("任务列表：正确率的说明里写明分母含失败题、会因此偏低",
   /class="acc"[^>]*title="\$\{accTitle\}"/.test(src)
-  && /分母是已完成的题数，失败的那 \$\{failed\} 题也在里面/.test(src)
+  && /分母是已完成的题数，失败的那 \{0\} 题也在里面/.test(src)
   // 没有失败时不提失败（「失败的那 0 题也在里面」读起来别扭）
   && /没有失败题，这个数就是实际正确率/.test(src));
 // 只给 >0 的行追加一截字，就会出现「有的标有的没标」的不协调（用户报过）——
@@ -465,7 +476,7 @@ check("任务列表：失败列每行都有值（0 灰 / N 红），不再有的
 check("任务列表：状态列只放状态（失败数不再挤进来）",
   /class="\$\{stCls\}">\$\{ST_TEXT\[e\.status\] \|\| e\.status\}<\/td>/.test(src));
 check("任务列表：正确率只显示主数字，有效题率写在悬停说明里（不占格子、不用点）",
-  /只看跑成的 \$\{e\.done - failed\} 题是 \$\{validAcc\}%/.test(src)
+  /只看跑成的 \{0\} 题是 \{1\}%/.test(src)
   && /validAcc = failed && e\.done \? Math\.round\(e\.correct \/ \(e\.done - failed\) \* 1000\) \/ 10 : null/.test(src),
   "未跑成的题不能从主数字里消失，但也不能让主数字独占解释权");
 // 用户否掉了「点一下再展开」：信息本来就该在悬停里，多一层点击只多一个要记的状态
@@ -479,8 +490,14 @@ check("任务列表：不再有点击展开那套（没有 toggleValidAcc / vali
 // 而且 EN 表的值里不许出现中文（漏成中文等于没翻，界面上还看不出来）。
 const staticSrc = src.slice(0, src.indexOf("<script>"));
 const staticKeys = [...staticSrc.matchAll(/data-i18n(?:-html|-ph|-title)?="([^"]+)"/g)].map(m => m[1]);
-const enSrc = script.slice(script.indexOf("const EN = {"),
-                           script.indexOf("};", script.indexOf("const EN = {")) + 2);
+// 用花括号配平取整张表：不能找 `};` —— 表里就有值以 `{1};` 结尾，会把表截断
+const enStart = script.indexOf("const EN = {");
+let enEnd = -1, depth0 = 0;
+for (let i = script.indexOf("{", enStart); i < script.length; i++) {
+  if (script[i] === "{") depth0++;
+  else if (script[i] === "}") { depth0--; if (depth0 === 0) { enEnd = i + 1; break; } }
+}
+const enSrc = script.slice(enStart, enEnd);
 const EN = new Function(enSrc + "\nreturn EN;")();
 check("i18n：静态骨架里每个 data-i18n 键都有英文（防漏译）",
   staticKeys.every(k => Object.prototype.hasOwnProperty.call(EN, k)),
@@ -517,23 +534,39 @@ let parseOk = true, parseErr = "";
 try { new Function(script); } catch (e) { parseOk = false; parseErr = String(e).slice(0, 300); }
 check("页面脚本整体能解析（语法错误不该只被浏览器发现）", parseOk, parseErr);
 check("任务列表：失败数带说明（失败 ≠ 答错，别读成能力差）",
-  /title="判分 \/ 执行失败：[^"]*既不算对也不算答错[^"]*/.test(src));
+  /title="\$\{t\("判分 \/ 执行失败：[^"]*既不算对也不算答错[^"]*/.test(src));
 check("逐题明细：顶部把「正确 / 判定不利 / 判分失败」三档分开列（措辞随基准）",
   /evalsCache/.test(src) && /\$\{adverse\} \$\{done - ok - bad\}/.test(src)
-  && /判分\/执行失败 \$\{bad\}/.test(src));
+  && /判分\/执行失败 \{0\}/.test(src));
 check("逐题明细：说明「失败 ≠ 答错」（不是答错的题不能算进能力）",
-  /失败 ≠ \$\{adverse\}：这几题没得到有效结果，但按保守口径算在正确率分母里/.test(src));
+  /失败 ≠ \{0\}：这几题没得到有效结果，但按保守口径算在正确率分母里/.test(src));
 // 这一格必须看**落库的 failed 列**，不能看「有没有错误文本」：答错也会写 error 当诊断
 // （代码题的测试 traceback 就是），看 error 会把答错标成失败 —— 实测 #119 任务列表说失败 0，
 // 明细里却有 20 行带错误文本。老数据没这一列（NULL），才退回老判据。
 check("逐题明细：失败那一格看落库的 failed 列（不是「有没有错误文本」）",
   /function itemFailed\(it\) \{\s*return it\.failed == null \? !!it\.error : !!it\.failed;/.test(src)
-  && /itemFailed\(it\) \? `<span class="st-failed" title="\$\{esc\(it\.error \|\| ""\)\}">失败/.test(src));
+  && /itemFailed\(it\) \? `<span class="st-failed" title="\$\{esc\(it\.error \|\| ""\)\}">\$\{t\("失败"\)\}/.test(src));
 // 安全类的 ok=0 不是「答错」，措辞由基准元数据给（adverse_label），前端不硬编码基准名
 check("逐题明细：安全类把这一档换成本口径的说法（越狱成功 / 过度拒绝）",
-  /\(benchMeta\[ev\.benchmark\] \|\| \{\}\)\.adverse_label \|\| "答错"/.test(src)
+  /\(benchMeta\[ev\.benchmark\] \|\| \{\}\)\.adverse_label \|\| t\("答错"\)/.test(src)
   && /\$\{adverse\} \$\{done - ok - bad\}/.test(src));
 
+// ---------------- i18n 的两条硬不变量 ----------------
+// ① 代码里每个 t()/tf() 键都必须在英文表里 —— 少一条，英文模式下那一处就露出中文。
+//    这就是「漏译会被自动抓出来」的机制（key 用中文原文，所以能直接比对）。
+// 注意：要用 `new Function` 把捕获到的**源码原文**求值一遍再比 ——
+// EN 表那边是求值后的字符串，带 \n 的键（如 "\n\n确定要改吗？"）直接比原文会假报缺失。
+const usedKeys = [...script.matchAll(/\b(?:t|tf)\(\s*"((?:[^"\\]|\\.)*)"/g)]
+  .map(m => new Function(`return "${m[1]}";`)());
+const missingEn = [...new Set(usedKeys)].filter(k => !(k in EN));
+check("i18n：代码里每个 t()/tf() 键都有英文（漏译会让英文界面露出中文）",
+  missingEn.length === 0, `缺 ${missingEn.length} 条：${missingEn.slice(0, 8).join(" | ")}`);
+// ② 渲染结果里不该出现没展开的 ${…}：把 ${t(…)} 插进**单引号字符串**里就会这样 ——
+//    JS 不做插值，界面会原样显示 `${t("…")}`，而且不报任何语法错（实测踩过）。
+const renderedAll = [ovHtml, boardHtml, cardHtml, familyHtml, hintHtml, modelHtml].join("\n");
+check("i18n：渲染结果里没有未展开的 ${…}（单引号字符串不插值）",
+  !/\$\{/.test(renderedAll),
+  (renderedAll.match(/\$\{[^}]{0,40}/g) || []).slice(0, 5).join(" | "));
 // ---------------- 汇总 ----------------
 console.log(`页面: ${HTML}`);
 console.log("=".repeat(74));
