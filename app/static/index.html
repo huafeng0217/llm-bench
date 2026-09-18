@@ -1492,7 +1492,7 @@ ${t("缺组时按已跑组的权重归一化，所以「加权总分」不是完
       </div>
       <table><thead><tr>
         <th style="width:56px">${t("名次")}</th><th class="tl">${t("模型")}</th><th style="width:150px">${t("官方加权总分")}</th><th style="width:130px">${t("权重覆盖")}</th>
-        ${activeGroups.map(g => `<th style="width:96px" title="${tf("{0} · 官方权重 {1}", [esc(g.name), pct(g.weight)])}">${esc(g.name.split("（")[0])}</th>`).join("")}
+        ${activeGroups.map(g => `<th style="width:96px" title="${tf("{0} · 官方权重 {1}", [esc(g.name), pct(g.weight)])}">${esc(g.name.split(/[（(]/)[0].trim())}</th>`).join("")}
       </tr></thead>
       <tbody>${f.rows.map((r, i) => {
         // 组定义（f.groups）只有权重与子集清单，分数在每行的 r.groups 里 ——

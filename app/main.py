@@ -744,6 +744,8 @@ def leaderboard():
                 if not comp:
                     continue
                 comp["model_name"] = m
+                # 行级分组名（前端把它和家族级的组定义按 id 对上）也要按语言取
+                comp["groups"] = _localize_groups(fid, comp["groups"])
                 fam_rows.append(comp)
                 # 家族在综合榜里算「一项」：分数用官方加权总分，
                 # 覆盖量用已跑组的官方权重之和（跑满 4 组 = 0.60；只跑 Non-Live = 0.10）
@@ -766,9 +768,12 @@ def leaderboard():
             families.append({
                 "id": fid,
                 "name": fid,
-                "note": FAMILIES[fid].note if fid in FAMILIES else "",
+                # 家族口径也是模块级中文，按语言取
+                "note": (FAMILIES[fid].note_en or FAMILIES[fid].note)
+                        if fid in FAMILIES and i18n.get_lang() == "en"
+                        else (FAMILIES[fid].note if fid in FAMILIES else ""),
                 "source": FAMILIES[fid].source if fid in FAMILIES else "",
-                "groups": groups_def,
+                "groups": _localize_groups(fid, groups_def),
                 "rows": fam_rows,
                 # 子集明细按官方分组顺序排（折叠块里就是按这个顺序列出来的）
                 "boards": sorted(fam_boards,
@@ -804,6 +809,18 @@ def leaderboard():
             "families": families,
         })
     return out
+
+
+def _localize_groups(fam_id: str, groups: list) -> list:
+    """分组行按语言取组名。
+
+    两个形态都要过这里：家族级的分组定义（`FAMILY_GROUPS`，含 subsets 清单）和
+    每个模型的 `comp["groups"]` 行（`app/scoring` 语言无关，只会带模块级中文名）。
+    只改 name 一项，其余字段原样带过去 —— 前端要靠 id 把两边的分数对上。
+    """
+    if i18n.get_lang() != "en":
+        return groups
+    return [{**g, "name": bm.group_name(fam_id, g["id"]) or g["name"]} for g in groups]
 
 
 # ---------- 成绩总览（基准 × 模型 矩阵）----------
@@ -861,12 +878,17 @@ def overview():
     for fid, gs in FAMILY_GROUPS.items():
         for g in gs:
             for sid in g["subsets"]:
-                subset_group[sid] = {"order": g["order"], "name": g["name"],
+                # 组名也在这里读一次（子集归属表要用），同样必须按语言取
+                subset_group[sid] = {"order": g["order"], "name": bm.group_name(fid, g["id"]),
                                      "weight": g["weight"], "family": fid}
     for c in CATEGORIES:
+        # 分类名按语言取（和 /api/benchmarks、排行榜一致）；分组用 **category_id**，
+        # 不能用中文分类名比对 —— 那样英文模式下一条都分不进来。
+        group_name = c["name_en"] if i18n.get_lang() == "en" and c.get("name_en") else c["name"]
         bms = []
-        for bid, meta in META.items():
-            if meta.get("category") != c["name"]:
+        for bid in META:
+            meta = get_meta(bid)          # ← 必须走 get_meta：名字/分类随语言变
+            if meta.get("category_id") != c["id"]:
                 continue
             gi = subset_group.get(bid, {})
             bms.append({
@@ -882,7 +904,7 @@ def overview():
         # 有成绩的基准排前面：这样「只看有数据的」时不必跳过空行
         bms.sort(key=lambda b: (not b["scores"], b["family"],
                                 subset_group.get(b["id"], {}).get("order", 0), b["name"]))
-        groups.append({"id": c["id"], "name": c["name"],
+        groups.append({"id": c["id"], "name": group_name,
                        "color": c["color"], "benchmarks": bms})
 
     return {

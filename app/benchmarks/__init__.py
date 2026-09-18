@@ -129,8 +129,8 @@ for _f in FAMILIES.values():
     _groups = []
     for _g in sorted(_f.groups, key=lambda g: g.order):
         _subs = [e.id for e in ENTRIES if e.family == _f.id and e.group == _g.id]
-        _groups.append({"id": _g.id, "name": _g.name, "weight": _g.weight,
-                        "order": _g.order, "subsets": _subs})
+        _groups.append({"id": _g.id, "name": _g.name, "name_en": _g.name_en,
+                        "weight": _g.weight, "order": _g.order, "subsets": _subs})
     FAMILY_GROUPS[_f.id] = _groups
 
 # 派生视图：保持既有调用方（main.py / 前端）用的形态不变
@@ -193,15 +193,32 @@ def get_meta(benchmark_id: str) -> dict:
     # 家族成员的标签信息一并给前端：卡片上要标出组别与官方权重
     fam = FAMILIES.get(meta.get("family") or "")
     if fam:
-        meta["family_note"] = fam.note
+        # 家族口径说明也是模块级中文，读取处按语言取
+        meta["family_note"] = (fam.note_en or fam.note) if i18n.get_lang() == "en" else fam.note
         meta["family_source"] = fam.source
         for g in FAMILY_GROUPS.get(fam.id, []):
             if g["id"] == meta.get("group"):
-                meta["group_name"] = g["name"]
+                meta["group_name"] = (g.get("name_en") or g["name"]) if i18n.get_lang() == "en" \
+                    else g["name"]
                 meta["group_weight"] = g["weight"]
                 meta["group_subsets"] = len(g["subsets"])
                 break
     return meta
+
+
+def group_name(family_id: str, group_id: str) -> str:
+    """官方分组名按当前语言取（`FAMILY_GROUPS` 是模块级中文版）。
+
+    为什么要有这个函数：分组名在**三个地方**被读出来 —— 家族级的分组定义、
+    每个模型的 comp["groups"] 行（`app/scoring` 是语言无关的，名字到组装响应时才换）、
+    成绩总览的子集归属表 —— 只要有一处直接读 `g["name"]`，英文模式下就会冒出中文。
+    实测漏过一处：`Agentic（Web Search + Memory）` 里**没有汉字**，只有全角括号，
+    用"找汉字"扫是扫不出来的（这条就是这么漏出去的），所以这里给一个统一入口。
+    """
+    for g in FAMILY_GROUPS.get(family_id, []):
+        if g["id"] == group_id:
+            return (g.get("name_en") or g["name"]) if i18n.get_lang() == "en" else g["name"]
+    return ""
 
 
 def download_one(name: str):

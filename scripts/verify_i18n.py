@@ -25,6 +25,11 @@ from app import i18n, main  # noqa: E402
 
 RESULTS: list = []
 
+# "是不是中文"的判据不能只认汉字：`Agentic（Web Search + Memory）` 里一个汉字都没有，
+# 只有全角括号 U+FF08/FF09 —— 曾用它测出过一次假绿（把分组名的英文化改回中文，断言照样通过）。
+# 所以判据要连中日韩标点、全角字符一起认。
+CJK_ANY = re.compile(r"[\u3000-\u303f\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]")
+
 
 def check(name: str, got, want) -> None:
     RESULTS.append((name, got == want, f"期望 {want!r}，实际 {got!r}"))
@@ -59,8 +64,8 @@ def main_() -> int:
     i18n.set_lang("zh")
 
     # ---- 3) 英文表本身 ----
-    bad = [k for k, v in i18n.EN.items() if re.search(r"[\u4e00-\u9fff]", v)]
-    check("英文表里不许出现中文（漏成中文等于没翻）", bad, [])
+    bad = [k for k, v in i18n.EN.items() if CJK_ANY.search(v)]
+    check("英文表里不许出现中文或全角标点（漏成中文等于没翻）", bad, [])
     check_true("英文表非空（stage 3 起会持续增长）", len(i18n.EN) > 0)
 
     # ---- 4) 漏译检查：代码里 t("…") 用到的每条中文都要在英文表里 ----
@@ -185,6 +190,96 @@ def main_() -> int:
     check_true("总结：中文模式的用户消息保持原样（零变化）",
                zh_msgs[1]["content"].startswith("以下是本次评测的统计结果"),
                zh_msgs[1]["content"][:30])
+
+    # ---- 4f) 接口层：英文模式下不许再出现中文 ----
+    # 这一条针对的 bug 很具体：成绩总览曾经直接用模块级 `META`（中文基准版）里的
+    # name / category，而语言切换在 get_meta() 里 —— 于是排行榜是英文、成绩总览是中文。
+    from app import main as _main
+
+    api_src = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
+    ov_src = api_src[api_src.index("def overview():"):api_src.index("# ---------- AI 总结")]
+    # 判据要盯住"值从哪来"：`meta["name"]` 本身没错（meta 来自 get_meta，是语言感知的），
+    # 错的是 `for bid, meta in META.items()` —— 那样 meta 是**中文基准版**。
+    check_true("成绩总览接口走 get_meta（不能从模块级 META 直接取值）",
+               "get_meta(bid)" in ov_src
+               and 'meta.get("category_id") != c["id"]' in ov_src
+               and "for bid, meta in META.items()" not in ov_src,
+               "直接从 META 取值会让英文模式下分类名/基准名仍是中文")
+
+    from app.benchmarks import META as BENCH_META  # noqa: PLC0415
+
+    lb_src = api_src[api_src.index("def leaderboard():"):api_src.index("def _localize_groups(")]
+    # 家族口径（FAMILIES[*].note「官方总分 = …」）和官方分组名同样曾经是模块级中文
+    # —— 成绩总览那个 bug 的同类，扫一遍才发现。结构断言保住"没数据的新 clone"也查得出。
+    check_true("分项榜家族口径与官方分组名按语言取（不能直接读模块级中文）",
+               "note_en" in lb_src and "_localize_groups" in lb_src,
+               "家族 note / 分组名直接从 FAMILIES 读，英文模式下会是中文")
+    # 分组名有三个读取处（家族级定义 / 每个模型的行级 comp["groups"] / 成绩总览的子集归属表），
+    # 任何一处漏掉都会在英文模式下冒中文。行级那一处就是这么漏的：它来自 app/scoring，
+    # 而 scoring 是语言无关的，名字必须在组装响应时换。
+    check_true("每个模型的行级分组名也过了语言切换（曾漏：只在家族级换）",
+               'comp["groups"] = _localize_groups(fid, comp["groups"])' in lb_src,
+               "行级 comp[\"groups\"] 直接用了 scoring 给的模块级中文名")
+    check_true("成绩总览的子集归属表用 bm.group_name 取组名（不问语言就是中文）",
+               "bm.group_name(fid, g[\"id\"])" in ov_src)
+
+    def _walk_cjk(obj, path="", out=None):
+        """递归收集 payload 里所有含中文的字符串（值 + 所在路径）。
+
+        判据是"整份 payload 不许有中文"，而不是手挑几个字段：手挑的字段名就是漏报的来源。
+        **列表不截断** —— 早先手写过一版扫 `obj[:3]`，而 BFCL 家族排在 families 的第 5 位
+        （Non-Live/Live/Multi-Turn/Hallucination/Agentic），它的 note 正好被切掉，
+        于是"英文模式无中文"是假绿，中文家族口径就这么漏了出去。宁可全扫。
+        判据用 CJK_ANY（含全角标点），不是只认汉字 —— 分组名 `Agentic（…）` 就是全角括号。
+        """
+        out = [] if out is None else out
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                _walk_cjk(v, f"{path}.{k}" if path else str(k), out)
+        elif isinstance(obj, list):
+            for i, v in enumerate(obj):
+                _walk_cjk(v, f"{path}[{i}]", out)
+        elif isinstance(obj, str) and CJK_ANY.search(obj):
+            out.append(f"{path} = {obj[:60]}")
+        return out
+
+    i18n.set_lang("en")
+    try:
+        bms = _main.list_benchmarks()
+        ov = _main.overview()
+        lb = _main.leaderboard()
+        evs = _main.list_evaluations()["items"]
+    finally:
+        i18n.set_lang("zh")
+
+    if not bms:
+        print("[提示] 基准列表为空，跳过接口英文化断言（clone 下来没数据时正常）")
+    else:
+        # 只扫内置基准：自定义数据集的 name/summary 来自用户自己的 dataset.json，没有英文版
+        # 可翻（FALLBACK_EN 只管状态/标签那几个枚举词），扫它属于误报。
+        builtin = [b for b in bms if b.get("id") in BENCH_META]
+        hits = _walk_cjk(builtin)
+        check_true("接口 /api/benchmarks：英文模式下整份 payload 没有中文（全量递归扫）",
+                   not hits, f"残留：{hits[:5]}")
+        # 防止"扫了个空集所以通过"：内置基准一个都不能被过滤掉。
+        check_true("接口 /api/benchmarks：内置基准全部纳入扫描（不是空集假通过）",
+                   len(builtin) == len(BENCH_META),
+                   f"只扫到 {len(builtin)}/{len(BENCH_META)} 个内置基准")
+    if ov.get("groups"):
+        hits = _walk_cjk(ov)
+        check_true("接口 /api/overview：英文模式下整份 payload 没有中文（全量递归扫）",
+                   not hits, f"残留：{hits[:5]}")
+    else:
+        print("[提示] 成绩总览没有数据，跳过该项（结构与上面那条断言已覆盖）")
+    if lb:
+        hits = _walk_cjk(lb)
+        check_true("接口 /api/leaderboard：英文模式下整份 payload 没有中文（含家族口径/官方分组名）",
+                   not hits, f"残留：{hits[:5]}")
+    # 任务列表只扫框架自己生成的 error：model_name/judge_name 是用户给模型起的名字，
+    # 中文界面下起中文名很正常，把它们算进来是误报。
+    err_hits = [h for it in evs for h in _walk_cjk({"error": it.get("error")})]
+    check_true("接口 /api/evaluations：英文模式下任务级 error 没有中文",
+               not err_hits, f"残留：{err_hits[:3]}")
 
     # ---- 5) 语言是从请求头来的（不是全局变量）----
     src = (ROOT / "app" / "main.py").read_text(encoding="utf-8")

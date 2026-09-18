@@ -21,6 +21,7 @@ class Group:
     name: str
     weight: float      # 官方权重：同一家族内各组合计为 1.0
     order: int         # 展示顺序：按官方顺序显式声明，不靠字母序
+    name_en: str = ""  # 英文组名（界面语言 = en 时用；空则回落 name）
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,7 @@ class Family:
     groups: tuple = ()                       # (Group, ...)
     note: str = ""                           # 权重口径的出处，免得以后自己都不记得
     source: str = ""
+    note_en: str = ""                        # 英文口径说明（空则回落 note）
 
 
 @dataclass(frozen=True)

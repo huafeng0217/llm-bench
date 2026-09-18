@@ -595,6 +595,37 @@ await enSmoke("成绩总览", () => {
 await enSmoke("排行榜", () => new Function("bds", "expandedCats", "esc",
   pctLine + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
 )(asciify(bds), { code: true, agent: true }, s2 => String(s2 ?? "")));
+// 家族表头只显示组名括号前的短名。中文的组名用**全角**括号（Agentic（Web Search + Memory）），
+// 英文用的是**半角**（Agentic (Web Search + Memory)）—— 只按全角「（」拆就拆不开，
+// 英文模式下表头会整串铺开（96px 的列被撑爆），而上面那条冒烟用的假数据是全角括号，
+// 测不出这个差别，所以要单独用半角括号的组名渲染一遍。
+{
+  const renderBoard = bd => new Function("bds", "expandedCats", "esc",
+    pctLine + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
+  )(bd, { agent: true }, s2 => String(s2 ?? ""));
+  const withParen = (p1, p2) => {
+    const bd = JSON.parse(JSON.stringify(asciify(bds)));
+    for (const cat of bd)
+      for (const f of cat.families || [])
+        for (const g of f.groups)
+          if (g.name.includes("（")) {
+            g.name = g.name.replace("（", p1).replace("）", p2);
+            // 表头只渲染「有子集的组」，而 Agentic 组在假数据里没提供子集
+            // —— 不给它子集的话这一列根本不画，断言就成了空跑。
+            if (!g.subsets.length) g.subsets = ["agentic_placeholder"];
+          }
+    return bd;
+  };
+  const hdrFull = renderBoard(withParen("（", "）"));
+  const hdrHalf = renderBoard(withParen(" (", ")"));
+  check("家族表头：组名带括号时只显示括号前的短名（中英两种括号都要能拆）",
+    hdrFull.includes(">Agentic</th>") && hdrHalf.includes(">Agentic</th>"),
+    `全角：${hdrFull.includes(">Agentic</th>")} 半角：${hdrHalf.includes(">Agentic</th>")}`);
+  check("家族表头：半角括号的长组名不会整串出现在表头里",
+    !hdrHalf.includes(">Agentic (Web Search + Memory)</th>")
+    && !hdrHalf.includes(">Agentic </th>"),
+    "半角括号拆不掉（或拆完没 trim），96px 的表头会被撑爆");
+}
 // 基准卡片 + 家族卡片
 await enSmoke("基准卡片", () => mkCard(asciify(plain)));
 await enSmoke("家族卡片", () => new Function("fid", "bms", "selBenchmark", "familySel", "downloadStates",

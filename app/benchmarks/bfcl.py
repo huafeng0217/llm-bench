@@ -42,10 +42,13 @@ FAMILY_DEFS = [
             Group(id="live", name="Live", weight=0.10, order=2),
             Group(id="multi_turn", name="Multi-Turn", weight=0.30, order=3),
             Group(id="hallucination", name="Hallucination", weight=0.10, order=4),
-            Group(id="agentic", name="Agentic（Web Search + Memory）", weight=0.40, order=5),
+            Group(id="agentic", name="Agentic（Web Search + Memory）", weight=0.40, order=5,
+                  name_en="Agentic (Web Search + Memory)"),
         ),
         note="官方总分 = Agentic×40% + Multi-Turn×30% + Live×10% + Non-Live×10%"
              " + Hallucination×10%（组内先取子集平均，再按组权重加权）",
+        note_en="Official total = Agentic×40% + Multi-Turn×30% + Live×10% + Non-Live×10% "
+                "+ Hallucination×10% (average within a group, then weight the groups)",
         source="https://gorilla.cs.berkeley.edu/blogs/16_bfcl_v4_memory.html",
     ),
 ]
