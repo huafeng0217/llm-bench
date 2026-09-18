@@ -69,7 +69,11 @@ def init_db():
             raw_response TEXT,
             correct INTEGER DEFAULT 0,
             latency_ms INTEGER DEFAULT 0,
-            error TEXT
+            error TEXT,
+            -- 「这题没得到有效结果」（超时 / 服务商拦截 / 空正文 / 判不出）记 1；
+            -- **答错记 0**（答错也会写 error 当诊断，所以光看 error 分不出这两种）。
+            -- 老数据留 NULL = 当年没记这个信息，前端会退回「有诊断文本就算失败」的老判据。
+            failed INTEGER
         );
         CREATE INDEX IF NOT EXISTS idx_items_eval ON eval_items(eval_id);
         -- AI 总结：落库是为了可追溯（谁生成的、依据哪份数据、什么时候），
@@ -109,6 +113,11 @@ def init_db():
     # 老库补列：模型级额外请求参数（老模型留空 = 行为和以前一样）
     if "extra_body" not in mcols:
         conn.execute("ALTER TABLE models ADD COLUMN extra_body TEXT NOT NULL DEFAULT ''")
+    # 老库补列：逐题的「没得到有效结果」标记。**故意不给默认值**：老行留 NULL，
+    # 表示「当年没记」，前端据此退回老判据；给 0 会把老任务里真正的失败题显示成答错。
+    icols = {r["name"] for r in conn.execute("PRAGMA table_info(eval_items)")}
+    if "failed" not in icols:
+        conn.execute("ALTER TABLE eval_items ADD COLUMN failed INTEGER")
     conn.commit()
 
 

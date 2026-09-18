@@ -129,6 +129,9 @@ async def run_evaluation(eval_id: int, resume: bool = False):
 
         async def work(idx: int, item: dict):
             raw, predicted, expected, err, latency, ok = None, None, None, None, 0, 0
+            # 「这题没得到有效结果」= 抛异常，或题型自己声明 failed。答错**不算**失败，
+            # 所以这个标记必须单独记：答错也会写 err 当诊断，光靠 error 分不出来。
+            item_failed = 0
             sbx_ms = 0  # 沙箱执行耗时，单列出来累加进 latency，便于看出哪步慢
             prog = PROGRESS.setdefault(eval_id, {"inflight": 0, "last_at": None})
             try:
@@ -149,12 +152,14 @@ async def run_evaluation(eval_id: int, resume: bool = False):
                     # 只靠异常计数的话，整场判分失败会被显示成「已完成」。
                     if getattr(res, "failed", False):
                         counters["failed"] += 1
+                        item_failed = 1
                     counters["ptok"] += resp["prompt_tokens"]
                     counters["ctok"] += resp["completion_tokens"]
                     counters["lat"] += latency
             except Exception as e:  # noqa: BLE001
                 err = str(e)[:500]
                 ok = 0
+                item_failed = 1
                 async with lock:
                     counters["failed"] += 1
             async with lock:
@@ -164,11 +169,12 @@ async def run_evaluation(eval_id: int, resume: bool = False):
                 prog["last_at"] = time.time()
                 counters["done"] += 1
                 conn.execute(
-                    "INSERT INTO eval_items(eval_id, idx, question, expected, predicted, raw_response, correct, latency_ms, error)"
-                    " VALUES(?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO eval_items(eval_id, idx, question, expected, predicted, raw_response, correct, latency_ms, error, failed)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?)",
                     (eval_id, idx,
                      item_question_text(item, fc, is_multi_turn(benchmark))[:2000],
-                     expected, predicted, (raw or "")[:4000] if raw else None, ok, latency, err),
+                     expected, predicted, (raw or "")[:4000] if raw else None, ok, latency, err,
+                     item_failed),
                 )
                 conn.execute(
                     "UPDATE evaluations SET done=?, correct=?, failed=?, prompt_tokens=?,"

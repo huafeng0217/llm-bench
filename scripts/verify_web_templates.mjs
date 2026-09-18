@@ -417,13 +417,21 @@ try { new Function(script); } catch (e) { parseOk = false; parseErr = String(e).
 check("页面脚本整体能解析（语法错误不该只被浏览器发现）", parseOk, parseErr);
 check("任务列表：失败数带说明（失败 ≠ 答错，别读成能力差）",
   /title="判分 \/ 执行失败：[^"]*既不算对也不算答错[^"]*/.test(src));
-check("逐题明细：顶部把「正确 / 答错 / 判分失败」三档分开列",
-  /evalsCache/.test(src) && /答错 \$\{done - ok - bad\}/.test(src)
+check("逐题明细：顶部把「正确 / 判定不利 / 判分失败」三档分开列（措辞随基准）",
+  /evalsCache/.test(src) && /\$\{adverse\} \$\{done - ok - bad\}/.test(src)
   && /判分\/执行失败 \$\{bad\}/.test(src));
 check("逐题明细：说明「失败 ≠ 答错」（不是答错的题不能算进能力）",
-  /失败 ≠ 答错：这几题没得到有效结果，但按保守口径算在正确率分母里/.test(src));
-check("逐题明细：失败那一格能看出原因（悬停显示错误原文）",
-  /it\.error \? `<span class="st-failed" title="\$\{esc\(it\.error\)\}">失败/.test(src));
+  /失败 ≠ \$\{adverse\}：这几题没得到有效结果，但按保守口径算在正确率分母里/.test(src));
+// 这一格必须看**落库的 failed 列**，不能看「有没有错误文本」：答错也会写 error 当诊断
+// （代码题的测试 traceback 就是），看 error 会把答错标成失败 —— 实测 #119 任务列表说失败 0，
+// 明细里却有 20 行带错误文本。老数据没这一列（NULL），才退回老判据。
+check("逐题明细：失败那一格看落库的 failed 列（不是「有没有错误文本」）",
+  /function itemFailed\(it\) \{\s*return it\.failed == null \? !!it\.error : !!it\.failed;/.test(src)
+  && /itemFailed\(it\) \? `<span class="st-failed" title="\$\{esc\(it\.error \|\| ""\)\}">失败/.test(src));
+// 安全类的 ok=0 不是「答错」，措辞由基准元数据给（adverse_label），前端不硬编码基准名
+check("逐题明细：安全类把这一档换成本口径的说法（越狱成功 / 过度拒绝）",
+  /\(benchMeta\[ev\.benchmark\] \|\| \{\}\)\.adverse_label \|\| "答错"/.test(src)
+  && /\$\{adverse\} \$\{done - ok - bad\}/.test(src));
 
 // ---------------- 汇总 ----------------
 console.log(`页面: ${HTML}`);

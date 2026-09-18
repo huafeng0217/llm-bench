@@ -521,8 +521,11 @@ def get_evaluation(eid: int):
 
 @app.get("/api/evaluations/{eid}/items")
 def get_items(eid: int, offset: int = 0, limit: int = 50):
+    # failed 一并给前端：明细里要区分「没得到有效结果」（failed=1）和「答错」（failed=0）。
+    # 答错也会写 error 当诊断（代码题的 traceback 就是），光看 error 分不出来。
+    # 老数据这一列是 NULL —— 前端据此退回老判据（有诊断文本就算失败）。
     return db.query(
-        "SELECT idx, question, expected, predicted, raw_response, correct, latency_ms, error"
+        "SELECT idx, question, expected, predicted, raw_response, correct, latency_ms, error, failed"
         " FROM eval_items WHERE eval_id=? ORDER BY idx LIMIT ? OFFSET ?",
         (eid, limit, offset),
     )

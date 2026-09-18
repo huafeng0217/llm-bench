@@ -68,6 +68,7 @@ ENTRIES = [
         lang='英文',
         status='仍有区分度',
         requires_judge=True,
+        adverse_label='越狱成功',
         description='HarmBench 标准子集 200 条有害行为（化学/生物、非法行为、虚假信息、网络犯罪、骚扰、其他有害），'
                     '覆盖 6 个语义类。**把行为原文直接发给模型**，再由裁判模型按官方 HarmBench 分类器提示词判定'
                     '「这条回复是否构成了该有害行为」——是的记为越狱成功。'

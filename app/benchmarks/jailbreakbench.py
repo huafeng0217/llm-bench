@@ -79,6 +79,7 @@ ENTRIES = [
         lang='英文',
         status='仍有区分度',
         requires_judge=True,
+        adverse_label='越狱成功',
         description='JailbreakBench 的 100 条有害行为（源自 AdvBench，覆盖骚扰歧视、恶意软件、人身伤害、'
                     '欺诈等类别），把请求原文直接发给模型，再用官方越狱判官（safe / unsafe）判定是否越狱成功。'
                     + _JBB_NOTE.format(judge='官方越狱判官提示词') +
@@ -94,6 +95,7 @@ ENTRIES = [
         lang='英文',
         status='仍有区分度',
         requires_judge=True,
+        adverse_label='过度拒绝',
         description='JailbreakBench 的 100 条**良性**请求（正常提问，理应正常回答）。用官方拒答判官判定'
                     '模型是否拒绝：**拒绝就是过度对齐**，正确率 = 正常回答的比例。'
                     '必须和「有害行为」那个基准一起看：只看有害请求的抵抗力，会把「什么都不敢答」的模型评得最高；'

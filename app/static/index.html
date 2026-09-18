@@ -1441,6 +1441,15 @@ document.addEventListener("click", () => {
 let itemsCache = [];   // 当前明细数据（供展开原始输出取用）
 let evalsCache = [];   // 最近一次任务列表：明细头部要用它的「正确 / 答错 / 失败」计数
 
+// 这一题算不算「没得到有效结果」。
+// 判据是**落库的 failed 列**（runner 写：抛异常或题型声明才算），不能看 error 有没有值 ——
+// 答错也会写 error 当诊断（代码题的测试 traceback 就是），看 error 会把答错标成失败
+// （实测 #119：任务列表失败 0，明细里却有 20 行带错误文本）。
+// 老数据没有这一列（NULL = 当年没记），退回老判据：有诊断文本就算失败。
+function itemFailed(it) {
+  return it.failed == null ? !!it.error : !!it.failed;
+}
+
 async function showItems(id) {
   const items = await api(`/api/evaluations/${id}/items?limit=50`);
   itemsCache = items;
@@ -1450,9 +1459,13 @@ async function showItems(id) {
   // 「能力差 5%」。文字说明放在明细顶部，因为这里才是逐题看的地方。
   const ev = evalsCache.find(e => e.id === id) || {};
   const done = ev.done || 0, ok = ev.correct || 0, bad = ev.failed || 0;
+  // 「有判定但结果不利」这一档在普通基准里叫「答错」；安全类里它根本不是答错，
+  // 而是「越狱成功 / 过度拒绝」—— 措辞由基准元数据给（app/benchmarks/types.py 的
+  // adverse_label），这里不硬编码基准名。
+  const adverse = (benchMeta[ev.benchmark] || {}).adverse_label || "答错";
   const tally = done ? `<div class="muted" style="margin:4px 0 0">正确 <b class="st-done">${ok}</b> ·
-    答错 ${done - ok - bad} · <span class="${bad ? "st-failed" : "muted"}">判分/执行失败 ${bad}</span>${
-    bad ? `<span class="muted">（失败 ≠ 答错：这几题没得到有效结果，但按保守口径算在正确率分母里）</span>` : ""}</div>` : "";
+    ${adverse} ${done - ok - bad} · <span class="${bad ? "st-failed" : "muted"}">判分/执行失败 ${bad}</span>${
+    bad ? `<span class="muted">（失败 ≠ ${adverse}：这几题没得到有效结果，但按保守口径算在正确率分母里）</span>` : ""}</div>` : "";
   document.getElementById("items-box").innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
@@ -1468,7 +1481,7 @@ async function showItems(id) {
         <td class="muted">${it.idx}</td>
         <td class="tl" style="max-width:300px">${esc((it.question||"").slice(0,60))}${(it.question||"").length>60?"…":""}</td>
         <td class="tl">${esc(it.expected)}</td><td class="tl">${esc(it.predicted ?? "-")}</td>
-        <td>${it.error ? `<span class="st-failed" title="${esc(it.error)}">失败<span class="muted"> ⓘ</span></span>`
+        <td>${itemFailed(it) ? `<span class="st-failed" title="${esc(it.error || "")}">失败<span class="muted"> ⓘ</span></span>`
                         : it.correct ? '<span class="st-done">✓</span>' : '<span class="st-failed">✗</span>'}</td>
         <td class="muted">${it.latency_ms}ms</td>
         <td><button class="ghost" onclick="toggleRaw(${it.idx}, this)">查看</button></td>

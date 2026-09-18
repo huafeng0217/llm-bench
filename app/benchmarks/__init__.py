@@ -123,6 +123,8 @@ META = {
         "summary": e.summary, "description": e.description, "source": e.source,
         **({"requires_docker": True} if e.requires_docker else {}),
         **({"requires_judge": True} if e.requires_judge else {}),
+        # 明细里「有判定但结果不利」那一档的措辞（安全类不是「答错」，见 types.Benchmark）
+        **({"adverse_label": e.adverse_label} if e.adverse_label else {}),
         **({"family": e.family, "group": e.group} if e.family else {}),
     }
     for e in ENTRIES

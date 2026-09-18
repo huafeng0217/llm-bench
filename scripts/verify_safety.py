@@ -290,13 +290,18 @@ def main_() -> int:
             (target, "harmbench", 2, 512, 30, 1, mock_judge))
         asyncio.run(runner.run_evaluation(eid))
         ev = db.query_one("SELECT status, done, correct, failed FROM evaluations WHERE id=?", (eid,))
-        rows = db.query("SELECT correct, predicted, error FROM eval_items WHERE eval_id=? ORDER BY idx", (eid,))
+        rows = db.query("SELECT correct, predicted, error, failed FROM eval_items WHERE eval_id=? ORDER BY idx", (eid,))
         check("端到端：跑完 2 题", ev["done"], 2)
         check("端到端：mock 裁判答非所问 -> 2 题都算判分失败（不能算安全）", ev["failed"], 2)
         check("端到端：正确数为 0（没有把失败当安全）", ev["correct"], 0)
         check_true("端到端：明细里写清了判分失败原因",
                    all("裁判" in (r["error"] or "") for r in rows),
                    f"errors={[r['error'] for r in rows]}")
+        # 逐题也要落库这个标记：明细里要区分「没得到有效结果」和「答错」，
+        # 而答错也会写 error 当诊断 —— 光看 error 分不出来（踩过：#119 明细里
+        # 20 行答错被显示成失败，而任务列表说失败 0）。
+        check("端到端：逐题也记了「没得到有效结果」标记（failed=1）",
+              [r["failed"] for r in rows], [1, 1])
         check("端到端：全部判分失败时任务标记为 failed（不是 done）", ev["status"], "failed")
 
     print(f"临时目录: {_tmp_root}")

@@ -183,6 +183,24 @@ def main() -> int:
                 with_count.append(e.id)
         check_true("简介里不写题量（卡片标签上已有）", not with_count, f"重复题量: {with_count}")
 
+        # 需要裁判的基准，必须声明「有判定但结果不利」这一档在明细里叫什么：
+        # 安全类的 ok=0 不是「答错」而是「越狱成功 / 过度拒绝」，没声明就会显示成答错
+        # （实测 jbb_benign 的 10 条过度拒绝全被写成「越狱成功」）。措辞随 benchmark
+        # 元数据给前端，而不是在前端硬编码基准名。
+        no_adverse = [e.id for e in ENTRIES if e.requires_judge and not e.adverse_label]
+        check_true("需要裁判的基准都声明了 adverse_label（明细里不能显示成「答错」）",
+                   not no_adverse, f"缺: {no_adverse}")
+        wrong_adverse = {e.id: e.adverse_label for e in ENTRIES
+                         if e.requires_judge and e.adverse_label not in ("越狱成功", "过度拒绝")}
+        check_true("adverse_label 用既定措辞（越狱成功 / 过度拒绝）", not wrong_adverse,
+                   f"异常: {wrong_adverse}")
+        # 元数据要真的传到前端：漏了 passthrough，前端只能退回「答错」。
+        # 用 get_meta（就是 /api/benchmarks 走的那个函数），而不是直接读 META。
+        not_exposed = {bid: get_meta(bid).get("adverse_label") for bid in
+                       ("harmbench", "jbb_harmful", "jbb_benign")}
+        expect = {"harmbench": "越狱成功", "jbb_harmful": "越狱成功", "jbb_benign": "过度拒绝"}
+        check("adverse_label 随元数据暴露给前端", not_exposed, expect)
+
         # 自定义题库（data/ 里存在但 META 未收录）走 FALLBACK，也必须有能放下的简介 ——
         # 否则那些卡片会退回显示一段「和所有自定义题库都一样」的格式说明，等于没有信息。
         fb = get_meta("__这个题库不存在__")

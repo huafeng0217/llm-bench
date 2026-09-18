@@ -45,6 +45,8 @@ class Benchmark:
     source: str = ""
     requires_docker: bool = False     # 需要沙箱执行模型代码（如 HumanEval）
     requires_judge: bool = False      # 需要裁判模型判分（安全类基准，如 HarmBench）
+    adverse_label: str = ""           # 「拿到了判定但结果不利」这档在明细里叫什么；空 = 答错
+                                      # （安全类里它不是「答错」而是「越狱成功 / 过度拒绝」）
     label: str = ""                   # 下载按钮/列表里的说明文字
     download: Optional[Callable[[], None]] = None   # None = 不支持自动下载
     family: str = ""                  # 所属家族 id；空 = 独立基准
