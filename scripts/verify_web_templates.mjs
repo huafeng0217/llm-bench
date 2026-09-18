@@ -373,6 +373,21 @@ const mismatch = [];
 });
 check("表内联渲染的表：文本列表头与正文的 tl 数量匹配", mismatch.length === 0, mismatch.join("；"));
 
+// 「判分/执行失败」和「答错」在页面上必须一眼可分：用户实测那条 jbb_benign 有 5% 是
+// 失败（模型没产出正文），若和答错混在一起，会被读成「能力差 5%」——数字没错、结论错。
+check("任务列表：正确率的说明里写明分母含失败题、会因此偏低",
+  /class="acc" title="[^"]*分母是已完成的题数，判分失败的那 \$\{e\.failed \|\| 0\} 题也在里面[^"]*"/.test(src));
+check("任务列表：失败题数带说明（失败 ≠ 答错，别读成能力差）",
+  /失败 \$\{e\.failed\} 题/.test(src)
+  && /title="判分 \/ 执行失败：[^"]*既不算对也不算答错[^"]*/.test(src));
+check("逐题明细：顶部把「正确 / 答错 / 判分失败」三档分开列",
+  /evalsCache/.test(src) && /答错 \$\{done - ok - bad\}/.test(src)
+  && /判分\/执行失败 \$\{bad\}/.test(src));
+check("逐题明细：说明「失败 ≠ 答错」（不是答错的题不能算进能力）",
+  /失败 ≠ 答错：这几题没得到有效结果，但按保守口径算在正确率分母里/.test(src));
+check("逐题明细：失败那一格能看出原因（悬停显示错误原文）",
+  /it\.error \? `<span class="st-failed" title="\$\{esc\(it\.error\)\}">失败/.test(src));
+
 // ---------------- 汇总 ----------------
 console.log(`页面: ${HTML}`);
 console.log("=".repeat(74));

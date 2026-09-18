@@ -881,6 +881,7 @@ async function refresh() {
   const _offset = tasksExpanded ? taskPage * TASK_PAGE_SIZE : 0;
   const _res = await api(`/api/evaluations?limit=${_limit}&offset=${_offset}`);
   const es = _res.items;
+  evalsCache = es;      // 明细头部要用它的「正确 / 答错 / 失败」三档计数
   document.getElementById("stat-evals").textContent = _res.total;
   const tb = document.getElementById("evals");
   // 展开中的「⋯」菜单：innerHTML 一换，节点就没了。
@@ -926,8 +927,8 @@ async function refresh() {
       <td class="muted">${e.id}</td><td class="tl" style="font-weight:550">${esc(e.model_name)}</td>
       <td class="tl" title="输出上限 ${e.max_tokens ?? 2048} tokens · 单题超时 ${e.timeout_s ?? 90}s · 并发 ${e.concurrency ?? 8}"><span style="font-weight:550">${esc(e.benchmark)}</span></td>
       <td><div class="score-cell"><div class="bar"><i style="width:${pct}%"></i></div><span class="muted" style="min-width:64px;text-align:right">${e.done}/${e.total}</span></div>${liveHtml}</td>
-      <td class="acc">${e.accuracy == null ? "-" : e.accuracy + "%"}</td>
-      <td class="${stCls}">${ST_TEXT[e.status] || e.status}${e.failed ? ` <span class="muted">(失败${e.failed})</span>` : ""}</td>
+      <td class="acc" title="正确 ${e.correct ?? 0}/${e.done} 题。分母是已完成的题数，判分失败的那 ${e.failed || 0} 题也在里面 —— 失败不是「答错」（见右边状态列的说明），按保守口径不算对，所以这个百分比会偏低。">${e.accuracy == null ? "-" : e.accuracy + "%"}</td>
+      <td class="${stCls}">${ST_TEXT[e.status] || e.status}${e.failed ? ` <span class="st-failed" style="font-size:12px" title="判分 / 执行失败：这几题没得到有效结果（被测模型没产出正文、裁判给不出可解析判定、服务商拦截、题目本身报错等）。既不算对也不算答错，但按保守口径计入了正确率分母 —— 别把它读成「能力差这么多」。">失败 ${e.failed} 题</span>` : ""}</td>
       <td><div class="menu-wrap">
         <button class="icon-btn" onclick="toggleMenu(event, ${e.id})" aria-label="更多操作" title="更多操作">
           <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
@@ -1410,16 +1411,27 @@ document.addEventListener("click", () => {
 });
 
 let itemsCache = [];   // 当前明细数据（供展开原始输出取用）
+let evalsCache = [];   // 最近一次任务列表：明细头部要用它的「正确 / 答错 / 失败」计数
 
 async function showItems(id) {
   const items = await api(`/api/evaluations/${id}/items?limit=50`);
   itemsCache = items;
+  // 三档必须分开写：**「判分/执行失败」不是「答错」**。失败是「这题没得到有效结果」
+  // （模型没产出正文 / 裁判给不出可解析判定 / 服务商拦截），但它按保守口径计进了
+  // 正确率的分母 —— 实测用户那条 jbb_benign 就有 5% 是这种，混在一起会被读成
+  // 「能力差 5%」。文字说明放在明细顶部，因为这里才是逐题看的地方。
+  const ev = evalsCache.find(e => e.id === id) || {};
+  const done = ev.done || 0, ok = ev.correct || 0, bad = ev.failed || 0;
+  const tally = done ? `<div class="muted" style="margin:4px 0 0">正确 <b class="st-done">${ok}</b> ·
+    答错 ${done - ok - bad} · <span class="${bad ? "st-failed" : "muted"}">判分/执行失败 ${bad}</span>${
+    bad ? `<span class="muted">（失败 ≠ 答错：这几题没得到有效结果，但按保守口径算在正确率分母里）</span>` : ""}</div>` : "";
   document.getElementById("items-box").innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
         <div>
           <b>任务 #${id} 明细（前 ${items.length} 条）</b>
           <div class="muted" style="margin:4px 0 0">完整逐题明细（含模型原始输出）已保存到本地文件 data/results/eval_${id}.jsonl</div>
+          ${tally}
         </div>
         <button class="ghost" onclick="closeItems()">关闭</button>
       </div>
@@ -1428,7 +1440,8 @@ async function showItems(id) {
         <td class="muted">${it.idx}</td>
         <td class="tl" style="max-width:300px">${esc((it.question||"").slice(0,60))}${(it.question||"").length>60?"…":""}</td>
         <td class="tl">${esc(it.expected)}</td><td class="tl">${esc(it.predicted ?? "-")}</td>
-        <td>${it.error ? '<span class="st-failed">错误</span>' : it.correct ? '<span class="st-done">✓</span>' : '<span class="st-failed">✗</span>'}</td>
+        <td>${it.error ? `<span class="st-failed" title="${esc(it.error)}">失败<span class="muted"> ⓘ</span></span>`
+                        : it.correct ? '<span class="st-done">✓</span>' : '<span class="st-failed">✗</span>'}</td>
         <td class="muted">${it.latency_ms}ms</td>
         <td><button class="ghost" onclick="toggleRaw(${it.idx}, this)">查看</button></td>
       </tr>`).join("")}</tbody></table>
