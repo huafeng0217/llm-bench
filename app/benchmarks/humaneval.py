@@ -50,13 +50,25 @@ def download_humaneval():
 ENTRIES = [
     Benchmark(order=23, id='humaneval',
         summary='给函数签名与 docstring 让模型补全函数体，官方单测真跑一遍，糊不过去',
+        summary_en="Signature plus docstring in, official unit tests really run — you cannot "
+                      "fake it",
         name='HumanEval',
         category='代码工程',
         lang='Python',
         status='仍有区分度',
+        status_en="still discriminating",
         requires_docker=True,
         description='OpenAI 的 164 道 Python 函数补全题：给函数签名和 docstring，模型写出完整实现，然后**在沙箱里真实运行官方单元测试**判分（这是本系统第一个真正执行模型代码的基准）。题目短、依赖少，适合快速看代码能力；前沿模型已到 90%+，区分度集中在中小模型。注意：个别题（如 HumanEval/47）docstring 示例与官方测试互相矛盾，照着 docstring 写反而会失败。',
+        description_en="OpenAI's 164 Python function-completion problems: the model gets a "
+                          "signature and docstring, writes the implementation, and the "
+                          "**official unit tests run for real in a sandbox** (the first "
+                          "benchmark here that actually executes model code). Short items and "
+                          "few dependencies make it a quick read on coding ability; frontier "
+                          "models are past 90%, so discrimination sits with smaller models. "
+                          "Note: a few items (e.g. HumanEval/47) have docstring examples that "
+                          "contradict the official tests, so following the docstring fails.",
         source='https://arxiv.org/abs/2107.03374',
         label='HumanEval（代码补全，需 Docker 沙箱，164 题）',
+        label_en="HumanEval (code completion, Docker sandbox, 164 items)",
         download=download_humaneval),
 ]

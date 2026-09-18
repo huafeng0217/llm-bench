@@ -38,12 +38,19 @@ def download_mmlu_pro():
 ENTRIES = [
     Benchmark(order=3, id='mmlu_pro',
         summary='MMLU 的加难版：10 选 1、推理链更长，用来区分「已饱和」之后还差多少',
+        summary_en="A harder MMLU: 10 options, longer reasoning; separates models past MMLU "
+                      "saturation",
         name='MMLU-Pro',
         category='通用知识',
         lang='英文',
         status='仍有区分度',
+        status_en="still discriminating",
         description='MMLU 的增强版：选项从 4 个增至 10 个，更强调推理而非记忆，难度明显更高，对前沿模型仍有区分度。',
+        description_en="An enhanced MMLU: options go from 4 to 10 and reasoning matters more "
+                          "than recall. Clearly harder, and still discriminative for frontier "
+                          "models.",
         source='https://arxiv.org/abs/2406.01574',
         label='MMLU-Pro（10 选 1，约 1.2 万题）',
+        label_en="MMLU-Pro (10-way, ~12k items)",
         download=download_mmlu_pro),
 ]

@@ -44,12 +44,21 @@ def download_truthfulqa():
 ENTRIES = [
     Benchmark(order=4, id='truthfulqa',
         summary='判断常见说法是真是假，选项数不固定；专测会不会复述网上的流行误解',
+        summary_en="Are common claims true? Option counts vary; it targets popular "
+                      "misconceptions",
         name='TruthfulQA',
         category='通用知识',
         lang='英文',
         status='仍有区分度',
+        status_en="still discriminating",
         description='776 道真实性选择题（4~10 选 1），专门针对人类常见的误解与伪科学（如「吃西瓜籽会在肚子里长西瓜」）。题目里混入多个听起来合理的错误说法，选对说明模型没有被预训练语料里的错误信息带偏，是衡量幻觉倾向的经典基准。',
+        description_en="776 truthfulness questions (4–10 options) aimed at common human "
+                          "misconceptions and pseudoscience (e.g. “swallowing watermelon seeds "
+                          "grows a watermelon”). Several plausible-but-wrong statements are "
+                          "mixed in, so a correct pick means the model was not misled by its "
+                          "pretraining corpus. A classic hallucination benchmark.",
         source='https://arxiv.org/abs/2109.07958',
         label='TruthfulQA（真实性/抗幻觉，776 题）',
+        label_en="TruthfulQA (truthfulness / anti-hallucination, 776 items)",
         download=download_truthfulqa),
 ]

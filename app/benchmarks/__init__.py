@@ -26,17 +26,19 @@ import pkgutil
 
 from .types import Benchmark, Family, Group  # noqa: F401  (Family/Group 供各基准模块声明)
 
+from .. import i18n
+
 # 统一分类体系（前端按此分组展示；顺序即展示顺序）
 CATEGORIES = [
-    {"id": "knowledge", "name": "通用知识", "color": "#4a7de0"},
-    {"id": "chinese", "name": "中文能力", "color": "#e05a4a"},
-    {"id": "science", "name": "科学推理", "color": "#7a5ae0"},
-    {"id": "commonsense", "name": "常识推理", "color": "#0f9b9b"},
-    {"id": "math", "name": "数学推理", "color": "#2fa36b"},
-    {"id": "agent", "name": "Agent / 工具调用", "color": "#e0952f"},
-    {"id": "code", "name": "代码工程", "color": "#2f9be0"},
-    {"id": "safety", "name": "安全 / 对齐", "color": "#c44b8a"},
-    {"id": "custom", "name": "自定义", "color": "#8a94a6"},
+    {"id": "knowledge", "name": "通用知识", "name_en": "Knowledge", "color": "#4a7de0"},
+    {"id": "chinese", "name": "中文能力", "name_en": "Chinese", "color": "#e05a4a"},
+    {"id": "science", "name": "科学推理", "name_en": "Science", "color": "#7a5ae0"},
+    {"id": "commonsense", "name": "常识推理", "name_en": "Commonsense", "color": "#0f9b9b"},
+    {"id": "math", "name": "数学推理", "name_en": "Math", "color": "#2fa36b"},
+    {"id": "agent", "name": "Agent / 工具调用", "name_en": "Agent / tool use", "color": "#e0952f"},
+    {"id": "code", "name": "代码工程", "name_en": "Code", "color": "#2f9be0"},
+    {"id": "safety", "name": "安全 / 对齐", "name_en": "Safety / alignment", "color": "#c44b8a"},
+    {"id": "custom", "name": "自定义", "name_en": "Custom", "color": "#8a94a6"},
 ]
 
 FALLBACK = {
@@ -49,6 +51,21 @@ FALLBACK = {
     "summary": "自己放进 data/ 的题库：没有官方口径说明，卡片只按文件名与题量显示",
     "description": "用户自定义或下载的题库（jsonl 格式：question/A/B/C/D/answer 字段）。",
     "source": "",
+}
+
+# 自定义题库的英文兜底。**不能塞进 FALLBACK**：FALLBACK 是所有基准的底座，
+# 一旦里面有 status_en，那些"还没写英文"的基准就会被它顶掉（实测 humaneval 变成 custom dataset）。
+# 枚举式文案的英文（lang / 「有判定但结果不利」那一档的措辞）
+LANG_EN = {"英文": "English", "中文": "Chinese", "多语": "Multilingual", "-": "-"}
+ADVERSE_EN = {"越狱成功": "jailbroken", "过度拒绝": "over-refusal"}
+
+FALLBACK_EN = {
+    "category": "Custom",
+    "status": "custom dataset",
+    "summary": "A dataset you put in data/ yourself: no official rubric, so the card shows only "
+               "the file name and item count",
+    "description": "A user-supplied or downloaded dataset (jsonl with question/A/B/C/D/answer "
+                   "fields).",
 }
 
 
@@ -121,10 +138,15 @@ META = {
     e.id: {
         "name": e.name, "category": e.category, "lang": e.lang, "status": e.status,
         "summary": e.summary, "description": e.description, "source": e.source,
+        "label": e.label,
         **({"requires_docker": True} if e.requires_docker else {}),
         **({"requires_judge": True} if e.requires_judge else {}),
         # 明细里「有判定但结果不利」那一档的措辞（安全类不是「答错」，见 types.Benchmark）
         **({"adverse_label": e.adverse_label} if e.adverse_label else {}),
+        # 英文文案（只有写了才带上；META 本身仍是中文基准版，语言切换在 get_meta 里做）
+        **({f"{k}_en": v for k, v in (("name", e.name_en), ("summary", e.summary_en),
+                                      ("description", e.description_en), ("label", e.label_en),
+                                      ("status", e.status_en)) if v}),
         **({"family": e.family, "group": e.group} if e.family else {}),
     }
     for e in ENTRIES
@@ -139,15 +161,35 @@ def get_meta(benchmark_id: str) -> dict:
     meta.update(META.get(benchmark_id, {}))
     meta.setdefault("name", benchmark_id)
     meta["id"] = benchmark_id
-    # 附带所属分类 id 与颜色，前端按此分组展示
+    # 自定义题库（data/ 里有、META 未收录）在英文模式下换成专门的英文兜底
+    if benchmark_id not in META and i18n.get_lang() == "en":
+        meta.update(FALLBACK_EN)
+    # 附带所属分类 id 与颜色，前端按此分组展示（**先用中文名定位分类**，
+    # 分类 id/颜色与语言无关；下面的英文化只改展示文案）
+    cat = None
     for c in CATEGORIES:
         if c["name"] == meta["category"]:
+            cat = c
             meta["category_id"] = c["id"]
             meta["category_color"] = c["color"]
             break
     else:
         meta["category_id"] = "custom"
         meta["category_color"] = "#8a94a6"
+    # 枚举式文案：取值有限，用映射表比逐条加字段省事，也不会漏
+    if i18n.get_lang() == "en":
+        meta["lang"] = LANG_EN.get(meta.get("lang"), meta.get("lang"))
+        if meta.get("adverse_label"):
+            meta["adverse_label"] = ADVERSE_EN.get(meta["adverse_label"], meta["adverse_label"])
+    # 界面语言 = 英文时换上英文文案；**哪一条没写就回落中文**（宁可显示中文，也别空白）
+    if i18n.get_lang() == "en":
+        for zh_key, en_key in (("name", "name_en"), ("summary", "summary_en"),
+                               ("description", "description_en"), ("status", "status_en"),
+                               ("label", "label_en")):
+            if meta.get(en_key):
+                meta[zh_key] = meta[en_key]
+        if cat and cat.get("name_en"):
+            meta["category"] = cat["name_en"]
     # 家族成员的标签信息一并给前端：卡片上要标出组别与官方权重
     fam = FAMILIES.get(meta.get("family") or "")
     if fam:

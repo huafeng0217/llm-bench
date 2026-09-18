@@ -47,6 +47,13 @@ class Benchmark:
     requires_judge: bool = False      # 需要裁判模型判分（安全类基准，如 HarmBench）
     adverse_label: str = ""           # 「拿到了判定但结果不利」这档在明细里叫什么；空 = 答错
                                       # （安全类里它不是「答错」而是「越狱成功 / 过度拒绝」）
+    # ---- 英文文案（界面语言 = en 时用；留空则回落中文）----
+    # 一个基准一个文件：中英并排写在同一条目里，改文案时不会漏掉另一半。
+    name_en: str = ""
+    summary_en: str = ""
+    description_en: str = ""
+    label_en: str = ""
+    status_en: str = ""
     label: str = ""                   # 下载按钮/列表里的说明文字
     download: Optional[Callable[[], None]] = None   # None = 不支持自动下载
     family: str = ""                  # 所属家族 id；空 = 独立基准

@@ -121,6 +121,145 @@ _SUBSET_META = [
 # 漏掉这个特例会直接报错退出，而不是判错 —— 所以写成一个集合，新增同类子集时只要加进来。
 NO_ANSWER_REFUSE = {"BFCL_v4_irrelevance", "BFCL_v4_live_irrelevance"}
 
+
+# 英文文案：BFCL 的条目是**循环生成**的（见文件末尾的 ENTRIES），所以英文单独一张表，
+# key 是子集 id。每组：(name_en, label_en, summary_en, description_en)。
+_SUBSET_EN = {
+    "BFCL_v4_simple_python": (
+        "single function",
+        "single function",
+        "Tool calling basics: one tool, one question — right function and right arguments?",
+        "BFCL v4 single-function subset: given a question and one tool definition, the model "
+        "must choose the right function and fill in correct arguments. Official scoring uses "
+        "AST matching.",
+    ),
+    "BFCL_v4_multiple": (
+        "multiple choice",
+        "multiple choice",
+        "Several tools offered, only one is right: does it pick correctly from the pile?",
+        "BFCL v4 multiple-function subset: several tools are given at once and the model must "
+        "pick the correct one — a test of function discrimination.",
+    ),
+    "BFCL_v4_parallel": (
+        "parallel calls",
+        "parallel",
+        "One question needs several functions at once (two cities' weather) — does it miss one?",
+        "BFCL v4 parallel subset: a single-turn request must call several different functions "
+        "at once, testing parallel tool orchestration.",
+    ),
+    "BFCL_v4_parallel_multiple": (
+        "parallel + multiple",
+        "parallel + multiple",
+        "Several questions × similar functions, parallel and each correct: hardest Non-Live "
+        "item",
+        "BFCL v4 parallel+multiple subset: several questions against several candidate "
+        "functions, all to be called in parallel and each paired correctly. The hardest item in "
+        "this group.",
+    ),
+    "BFCL_v4_irrelevance": (
+        "irrelevance",
+        "irrelevance",
+        "Tool unrelated to the question: the right move is not to call — does it call anyway?",
+        "BFCL v4 irrelevance subset: the question is unrelated to the tools offered, so the "
+        "correct behaviour is to refuse to call anything; it measures over-calling "
+        "(hallucination defence).",
+    ),
+    "BFCL_v4_simple_java": (
+        "single function (Java)",
+        "single function, Java",
+        "The Java version: tool definitions in Java — does the argument format follow along?",
+        "Java version of the single-function subset: a question plus a Java tool definition, "
+        "testing cross-language function calling.",
+    ),
+    "BFCL_v4_simple_javascript": (
+        "single function (JS)",
+        "single function, JS",
+        "The JavaScript version: does the model keep the argument format straight?",
+        "JavaScript version of the single-function subset: a question plus a JS tool "
+        "definition, testing cross-language function calling.",
+    ),
+    "BFCL_v4_multi_turn_base": (
+        "multi-turn",
+        "multi-turn",
+        "Every turn needs the right call; all turns must pass, so scoring is strict",
+        "BFCL v4 multi-turn base subset: one evaluation contains several user turns "
+        "(filesystem, trading, travel, messaging…), and the model must pick the right function "
+        "and arguments each turn. Every turn is AST-matched and the whole item passes only if "
+        "all turns do.",
+    ),
+    "BFCL_v4_multi_turn_long_context": (
+        "multi-turn, long context",
+        "multi-turn long context",
+        "Multi-turn plus longer tool docs: does it still remember which function to call?",
+        "BFCL v4 multi-turn long-context subset: multi-turn dialogue with longer tool "
+        "documentation and context, testing whether tool-call correctness survives a long "
+        "context.",
+    ),
+    "BFCL_v4_multi_turn_miss_func": (
+        "multi-turn, missing function",
+        "multi-turn missing function",
+        "The needed function is not in the list: do not call or ask, do not invent one",
+        "BFCL v4 missing-function subset: the function a turn needs is absent from the "
+        "available tools, so the correct behaviour is to make no call (or ask for "
+        "clarification) — it tests inventing tools that do not exist.",
+    ),
+    "BFCL_v4_multi_turn_miss_param": (
+        "multi-turn, missing parameter",
+        "multi-turn missing parameter",
+        "A parameter is simply absent — the right move is to ask first, not to invent a value",
+        "BFCL v4 missing-parameter subset: the arguments a turn needs are missing, so asking "
+        "the user is correct rather than calling anyway — it tests clarification in multi-turn "
+        "settings.",
+    ),
+    "BFCL_v4_live_simple": (
+        "Live single function",
+        "Live single function",
+        "Real user questions against real API docs (not synthetic), with mixed-language "
+        "questions",
+        "BFCL v4 Live single-function subset: real user questions paired with real API "
+        "documentation (not synthetic items); the model must pick the right function and "
+        "arguments. The questions are multilingual (Chinese included), making this closer to "
+        "real use than Non-Live.",
+    ),
+    "BFCL_v4_live_multiple": (
+        "Live multiple choice",
+        "Live multiple choice",
+        "Real questions plus many similar endpoints from one API: picking a function out of "
+        "real docs",
+        "BFCL v4 Live multiple-function subset: real questions with many similar candidate "
+        "functions (several endpoints of the same API), testing function identification in real "
+        "documentation. The largest Live subset by item count.",
+    ),
+    "BFCL_v4_live_parallel": (
+        "Live parallel",
+        "Live parallel",
+        "Real questions needing several calls at once; too few items, so read the trend, not "
+        "the rank",
+        "BFCL v4 Live parallel subset: a real question that needs several functions at once "
+        "(e.g. the weather in two cities). Only 16 items — one item is 6 percentage points — so "
+        "use it for trends, not ranking.",
+    ),
+    "BFCL_v4_live_parallel_multiple": (
+        "Live parallel + multiple",
+        "Live parallel + multiple",
+        "Real questions × similar endpoints, parallel and each correct; too few items to rank",
+        "BFCL v4 Live parallel+multiple subset: several real questions with several similar "
+        "candidate functions, all to be called in parallel and each paired correctly. Only 24 "
+        "items, about 4 points each.",
+    ),
+    "BFCL_v4_live_irrelevance": (
+        "Live irrelevance",
+        "Live irrelevance",
+        "Real questions unrelated to the given functions — the evidence for knowing when not to "
+        "call",
+        "BFCL v4 Live irrelevance subset: real questions unrelated to the given functions (or "
+        "where those functions are not the right solution), where refusing to call is correct. "
+        "The largest item set in the Hallucination group, and the main evidence for “know when "
+        "not to call”.",
+    ),
+}
+
+
 SUBSETS = [m[0] for m in _SUBSET_META]
 
 
@@ -215,13 +354,18 @@ ENTRIES = [
         order=order,
         id=sid,
         name=f"BFCL v4 · {name_cn}",
+        name_en=f"BFCL v4 · {_SUBSET_EN[sid][0]}",
         category="Agent / 工具调用",
         lang="多语" if group == "live" else "英文",   # Live 用的是真实用户提问，语言混杂
         status="仍有区分度",
+        status_en="still discriminating",
         description=desc,
+        description_en=_SUBSET_EN[sid][3],
         summary=summary,
+        summary_en=_SUBSET_EN[sid][2],
         source="https://gorilla.cs.berkeley.edu/leaderboard",
         label=f"BFCL v4 {label_cn}（{n} 题）",
+        label_en=f"BFCL v4 {_SUBSET_EN[sid][1]} ({n} items)",
         download=partial(download, [sid]),
         family="BFCL v4",
         group=group,

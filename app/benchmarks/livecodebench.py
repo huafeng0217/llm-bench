@@ -85,13 +85,26 @@ def download_livecodebench():
 ENTRIES = [
     Benchmark(order=24, id='livecodebench',
         summary='2025 年竞赛新题、防污染；模型代码真跑官方测试用例来判分',
+        summary_en="2025 contest problems, contamination-resistant; the code really runs the "
+                      "tests",
         name='LiveCodeBench v6',
         category='代码工程',
         lang='Python',
         status='仍有区分度',
+        status_en="still discriminating",
         requires_docker=True,
         description='竞赛编程题（AtCoder 112 道 + LeetCode 63 道，共 175 道，2025 年新增），全部在沙箱里**逐条跑官方测试用例**判分，全部用例通过才算做对。两种题型：AtCoder 是标准输入/输出式，LeetCode 是函数调用式（须保持类名 Solution 与方法名）。本系统只取 v6：题目足够新、几乎不可能进过训练数据，这正是它作为「无污染」基准的核心价值。注意：单条用例 6 秒超时、单题总预算 90 秒，超出的用例记为未通过。',
+        description_en="Competitive-programming problems (112 AtCoder + 63 LeetCode = 175 "
+                          "items, new in 2025), all judged by **running the official test cases "
+                          "one by one** in a sandbox — every case must pass. Two shapes: "
+                          "AtCoder is stdin/stdout style, LeetCode is function-call style (keep "
+                          "the class name Solution and the method name). We ship v6 only: the "
+                          "problems are new enough to be almost certainly unseen, which is the "
+                          "whole point of a contamination-free benchmark. Note: 6s per case and "
+                          "a 90s per-item budget; anything beyond that counts as a failure.",
         source='https://arxiv.org/abs/2403.07974',
         label='LiveCodeBench v6（竞赛编程，需 Docker 沙箱，约 175 题，约 130MB）',
+        label_en="LiveCodeBench v6 (competitive programming, Docker sandbox, ~175 items, "
+                    "~130MB)",
         download=download_livecodebench),
 ]

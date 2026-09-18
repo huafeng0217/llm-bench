@@ -46,22 +46,40 @@ def download_aime(only: str | None = None):
 ENTRIES = [
     Benchmark(order=10, id='aime',
         summary='美国数学邀请赛真题、答案都是整数；难度高，但年份早、可能已进训练数据',
+        summary_en="Real AIME problems, integer answers; hard, but old enough to risk "
+                      "contamination",
         name='AIME 2022-2024',
         category='数学推理',
         lang='英文',
         status='仍有区分度',
+        status_en="still discriminating",
         description='美国数学邀请赛（AIME）2022~2024 年真题共 90 题，答案都是 0~999 的整数。难度远高于 GSM8K / MATH-500，当前前沿模型正确率通常只有 10%~30%，是最能拉开差距的数学基准之一。注意：题目年份较早，可能已被部分纳入训练数据。',
+        description_en="90 real AIME problems from 2022–2024; every answer is an integer "
+                          "from 0 to 999. Far harder than GSM8K / MATH-500 — frontier models "
+                          "typically score 10%–30%, making it one of the most discriminative "
+                          "math benchmarks. Note: the years are early enough that some items "
+                          "may have entered training data.",
         source='https://huggingface.co/datasets/AI-MO/aimo-validation-aime',
         label='AIME 2022-2024（数学竞赛真题，90 题）',
+        label_en="AIME 2022-2024 (real contest problems, 90 items)",
         download=partial(download_aime, "aime")),
     Benchmark(order=11, id='aime2025',
         summary='2025 年 AIME 新题，几乎不可能在训练数据里；最能反映真实数学水平',
+        summary_en="2025 AIME problems, almost certainly unseen; the cleanest read on real "
+                      "math",
         name='AIME 2025',
         category='数学推理',
         lang='英文',
         status='仍有区分度',
+        status_en="still discriminating",
         description='AIME 2025 年真题共 30 题（I 卷 + II 卷），同样要求整数答案。因为年份最新、几乎不可能出现在训练数据里，这个分数最能反映模型的真实数学推理水平。题量少（30 题），每对一题准确率跳 3.3%，建议与 AIME 2022-2024 对比看。',
+        description_en="All 30 problems from AIME 2025 (papers I and II), again with integer "
+                          "answers. Being the newest set it is the least likely to appear in "
+                          "training data, so this score best reflects real math reasoning. Only "
+                          "30 items — each is worth 3.3 points — so read it alongside AIME "
+                          "2022-2024.",
         source='https://huggingface.co/datasets/yentinglin/aime_2025',
         label='AIME 2025（最新真题，30 题）',
+        label_en="AIME 2025 (latest set, 30 items)",
         download=partial(download_aime, "aime2025")),
 ]

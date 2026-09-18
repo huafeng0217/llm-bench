@@ -70,12 +70,19 @@ def download_gpqa():
 ENTRIES = [
     Benchmark(order=7, id='gpqa',
         summary='研究生级理科四选一，Google-Proof：难到搜不到答案，前沿模型也就六七十分',
+        summary_en="Graduate-level science, Google-Proof: frontier models score only in the "
+                      "60s–70s",
         name='GPQA Diamond',
         category='科学推理',
         lang='英文',
         status='仍有区分度',
+        status_en="still discriminating",
         description='198 道研究生级理化生选择题（GPQA Diamond 子集），由领域专家编写且无法通过搜索作弊，是当前区分前沿模型推理能力的主力基准。',
+        description_en="198 graduate-level physics/chemistry/biology questions (the GPQA "
+                          "Diamond subset), written by domain experts and impossible to look up "
+                          "— currently the main benchmark that separates frontier reasoning.",
         source='https://arxiv.org/abs/2311.12022',
         label='GPQA Diamond（198 题）',
+        label_en="GPQA Diamond (198 items)",
         download=download_gpqa),
 ]

@@ -76,14 +76,25 @@ ENTRIES = [
     Benchmark(order=28, id='arc_challenge',
         name='ARC-Challenge',
         summary='小学科学 4 选 1：要靠常识与推理选出解释，不是查知识',
+        summary_en="Grade-school science, 4-way: you have to reason to the explanation, not "
+                      "recall a fact",
         category='科学推理',
         lang='英文',
         status='接近饱和',
+        status_en="near saturation",
         description='AI2 Reasoning Challenge 的 Challenge 子集 1172 题，小学科学选择题，'
                     '需要把科学常识与题目情境结合起来推理（不是背知识点）。前沿模型已到 90% 上下，'
                     '适合当科学推理的基本盘；想要区分度请看 GPQA。'
                     '注意：部分题目的选项标签在原始数据里是 1/2/3/4，下载时已按标签下标对齐答案字母。',
+        description_en="1,172 items from the Challenge subset of the AI2 Reasoning "
+                          "Challenge: grade-school science questions that require combining "
+                          "everyday science knowledge with the situation described (not fact "
+                          "recall). Frontier models sit around 90%, so treat it as a baseline; "
+                          "for discrimination use GPQA. Note: some items label their options "
+                          "1/2/3/4 in the raw data; the downloader maps them onto answer "
+                          "letters by index.",
         source='https://arxiv.org/abs/1803.05457',
         label='ARC-Challenge（1172 题）',
+        label_en="ARC-Challenge (1172 items)",
         download=download_arc),
 ]

@@ -74,10 +74,14 @@ _JBB_NOTE = ('判分由裁判模型完成（{judge}），得分口径：**正确
 ENTRIES = [
     Benchmark(order=34, id='jbb_harmful',
         name='JailbreakBench 有害行为',
+        name_en="JailbreakBench harmful",
         summary='100 条有害请求直接发问，测有没有被照做（裁判判分）',
+        summary_en="100 harmful requests asked directly, to see whether the model complies "
+                      "(judge-scored)",
         category='安全 / 对齐',
         lang='英文',
         status='仍有区分度',
+        status_en="still discriminating",
         requires_judge=True,
         adverse_label='越狱成功',
         description='JailbreakBench 的 100 条有害行为（源自 AdvBench，覆盖骚扰歧视、恶意软件、人身伤害、'
@@ -85,15 +89,30 @@ ENTRIES = [
                     + _JBB_NOTE.format(judge='官方越狱判官提示词') +
                     '注意：它和 HarmBench 有重叠（JBB 的有害行为就取自 AdvBench/HarmBench 一族），'
                     '两者一起看时别把重叠当成「两个独立证据」。',
+        description_en="JailbreakBench's 100 harmful behaviours (from AdvBench: harassment "
+                          "and discrimination, malware, physical harm, fraud…), sent as-is and "
+                          "then judged by the official jailbreak judge (safe / unsafe). "
+                          "Scoring: **accuracy = the share not judged a jailbreak**. JBB "
+                          "targets jailbreak *attacks*; we do direct requests only, so scores "
+                          "are not comparable with the official leaderboard, and switching "
+                          "judges also makes them incomparable — each result records which "
+                          "judge ran. Note: it overlaps HarmBench (JBB's behaviours come from "
+                          "the AdvBench/HarmBench family), so do not treat the two as "
+                          "independent evidence.",
         source='https://arxiv.org/abs/2404.01318',
         label='JBB 有害行为（100 题，需裁判模型）',
+        label_en="JBB harmful behaviours (100 items, needs a judge)",
         download=download_jbb_harmful),
     Benchmark(order=35, id='jbb_benign',
         name='JailbreakBench 良性请求',
+        name_en="JailbreakBench benign",
         summary='100 条正常请求，测会不会「对齐过头」什么都不敢答',
+        summary_en="100 ordinary requests, to see whether alignment overshoots and it "
+                      "refuses everything",
         category='安全 / 对齐',
         lang='英文',
         status='仍有区分度',
+        status_en="still discriminating",
         requires_judge=True,
         adverse_label='过度拒绝',
         description='JailbreakBench 的 100 条**良性**请求（正常提问，理应正常回答）。用官方拒答判官判定'
@@ -101,7 +120,20 @@ ENTRIES = [
                     '必须和「有害行为」那个基准一起看：只看有害请求的抵抗力，会把「什么都不敢答」的模型评得最高；'
                     '只看这一项，又会奖励「什么都敢答」。两个数字合起来才是对齐的实际状态。'
                     + _JBB_NOTE.format(judge='官方拒答判官提示词'),
+        description_en="JailbreakBench's 100 **benign** requests (normal questions that "
+                          "deserve normal answers). The official refusal judge decides whether "
+                          "the model refused: **a refusal is over-alignment**, and accuracy = "
+                          "the share of normal answers. It must be read together with the "
+                          "harmful set: looking only at resistance to harmful requests rewards "
+                          "a model that refuses everything, while looking only at this one "
+                          "rewards a model that answers anything. Only the two numbers together "
+                          "describe the alignment state. Scoring: **accuracy = the share not "
+                          "judged a refusal**. JBB targets jailbreak attacks; we do direct "
+                          "requests only, so scores are not comparable with the official "
+                          "leaderboard, and switching judges also makes them incomparable — "
+                          "each result records which judge ran.",
         source='https://arxiv.org/abs/2404.01318',
         label='JBB 良性请求（100 题，需裁判模型）',
+        label_en="JBB benign requests (100 items, needs a judge)",
         download=download_jbb_benign),
 ]

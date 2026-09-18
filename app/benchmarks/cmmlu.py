@@ -92,12 +92,19 @@ def download_cmmlu():
 ENTRIES = [
     Benchmark(order=6, id='cmmlu',
         summary='中文多学科知识，题型比 C-Eval 更贴中文语境；看中文知识是否偏科',
+        summary_en="Chinese multi-subject knowledge, closer to Chinese life than C-Eval; "
+                      "shows lopsided gaps",
         name='CMMLU',
         category='中文能力',
         lang='中文',
         status='仍有区分度',
+        status_en="still discriminating",
         description='67 个学科约 1.1 万道中文选择题，包含大量中国本土知识（法律、饮食、习俗等），与 C-Eval 互补。',
+        description_en="About 11k Chinese multiple-choice questions across 67 subjects, "
+                          "heavy on China-specific knowledge (law, food, customs…); complements "
+                          "C-Eval.",
         source='https://arxiv.org/abs/2306.09212',
         label='CMMLU（67 学科约 1.1 万题）',
+        label_en="CMMLU (67 subjects, ~11k items)",
         download=download_cmmlu),
 ]

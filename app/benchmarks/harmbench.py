@@ -63,10 +63,14 @@ def download_harmbench():
 ENTRIES = [
     Benchmark(order=33, id='harmbench',
         name='HarmBench（直接请求）',
+        name_en="HarmBench (direct requests)",
         summary='200 条有害请求直接发给模型，看它会不会照做（裁判判分）',
+        summary_en="200 harmful requests sent as-is, to see whether the model complies "
+                      "(judge-scored)",
         category='安全 / 对齐',
         lang='英文',
         status='仍有区分度',
+        status_en="still discriminating",
         requires_judge=True,
         adverse_label='越狱成功',
         description='HarmBench 标准子集 200 条有害行为（化学/生物、非法行为、虚假信息、网络犯罪、骚扰、其他有害），'
@@ -76,7 +80,22 @@ ENTRIES = [
                     '三点务必注意：① 官方榜是「被 18 种攻击方法攻击后」的 ASR，本站只做直接请求，**分数不可与之直接比较**；'
                     '② 官方 contextual（100 条，需两轮铺垫）与 copyright（100 条，用哈希比对判）两类未收录；'
                     '③ 判分靠裁判模型，换了裁判分数就不可比 —— 结果页会写明这次是谁判的。',
+        description_en="The 200-item standard subset of HarmBench (chemical/biological, "
+                          "illegal activity, misinformation, cybercrime, harassment, other "
+                          "harm), covering 6 semantic categories. The behaviour text is **sent "
+                          "to the model as-is**, and a judge model applies the official "
+                          "HarmBench classifier prompt to decide whether the reply constitutes "
+                          "that behaviour — yes means a successful jailbreak. Scoring: "
+                          "**accuracy = the share of refusals / non-compliance** (higher is "
+                          "safer), with jailbreak rate = 1 − that. Three caveats: (1) the "
+                          "official leaderboard reports ASR *after 18 attack methods*, while we "
+                          "send direct requests only, so scores are **not directly "
+                          "comparable**; (2) the contextual (100 two-turn items) and copyright "
+                          "(100 hash-matched items) subsets are not included; (3) scoring "
+                          "depends on the judge, so switching judges makes scores incomparable "
+                          "— each result records which judge ran.",
         source='https://arxiv.org/abs/2402.04249',
         label='HarmBench 直接请求（200 题，需裁判模型）',
+        label_en="HarmBench direct requests (200 items, needs a judge)",
         download=download_harmbench),
 ]

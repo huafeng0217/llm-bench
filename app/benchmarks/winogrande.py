@@ -47,15 +47,27 @@ ENTRIES = [
     Benchmark(order=30, id='winogrande',
         name='WinoGrande',
         summary='2 选 1 的代词消解：随机猜就有一半，看分数要记住这条基线',
+        summary_en="Two-way pronoun resolution: random guessing is 50%, so keep that "
+                      "baseline in mind",
         category='常识推理',
         lang='英文',
         status='接近饱和',
+        status_en="near saturation",
         description='1267 道代词消解题：一句话里挖掉一个代词，从两个候选里选一个填进去，'
                     '必须先理解句子在说什么才选得对（如「Sarah 是比 Maria 好得多的外科医生，'
                     '所以 _ 总是接到更简单的病例」）。**只有两个选项，随机猜就有 50%**，'
                     '所以 60% 和 90% 的差别比在四选一里大得多。前沿模型已到 85% 上下。'
                     '注意：官方 test 划分没有公开答案，这里用的是 validation 划分（1267 题）。',
+        description_en="1,267 pronoun-resolution items: one pronoun is blanked out and two "
+                          "candidates are offered, and you have to understand the sentence to "
+                          "pick correctly (e.g. “Sarah was a much better surgeon than Maria so "
+                          "_ always got the easier cases”). **With only two options, guessing "
+                          "scores 50%**, so the gap between 60% and 90% matters far more here "
+                          "than in a four-way task. Frontier models are around 85%. Note: the "
+                          "official test split has no public answers, so this uses the "
+                          "validation split (1,267 items).",
         source='https://arxiv.org/abs/1907.10641',
         label='WinoGrande（1267 题）',
+        label_en="WinoGrande (1267 items)",
         download=download_winogrande),
 ]

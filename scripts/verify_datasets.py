@@ -33,7 +33,11 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from app import datasets, scoring  # noqa: E402
-from app.benchmarks import ENTRIES, get_meta  # noqa: E402
+
+import re  # noqa: E402
+
+CJK = re.compile(r"[\u4e00-\u9fff]")
+from app.benchmarks import CATEGORIES, ENTRIES, get_meta  # noqa: E402
 from app.benchmarks._util import write_jsonl  # noqa: E402
 
 
@@ -182,6 +186,44 @@ def main() -> int:
             if m and f"{m.group(1)} 题" in e.summary:
                 with_count.append(e.id)
         check_true("简介里不写题量（卡片标签上已有）", not with_count, f"重复题量: {with_count}")
+
+        # ---- 英文文案（stage 4）：完整性 + 不含中文 + 卡片宽度 ----
+        # 判据是「英文模式下 get_meta 里不许再出现中文」—— 这比逐字段检查更狠：
+        # 漏翻一个字段就会被抓出来。分类名、状态、adverse_label 这些枚举也一起管。
+        from app import i18n as _i18n
+        no_en = [e.id for e in ENTRIES
+                 if not (e.summary_en and e.description_en and e.status_en)]
+        check_true("每个基准都有英文 summary / description / status",
+                   not no_en, f"缺: {no_en}")
+        cat_no_en = [c["id"] for c in CATEGORIES if not c.get("name_en")]
+        check_true("每个分类都有英文名", not cat_no_en, f"缺: {cat_no_en}")
+
+        _i18n.set_lang("en")
+        try:
+            cjk_left = []
+            for e in ENTRIES:
+                m = get_meta(e.id)
+                for k in ("name", "summary", "description", "status", "category", "label", "lang"):
+                    v = m.get(k)
+                    if isinstance(v, str) and CJK.search(v):
+                        cjk_left.append(f"{e.id}.{k}")
+            check_true("英文模式下基准元数据里不再出现中文", not cjk_left,
+                       f"残留: {cjk_left[:8]}")
+
+            # 英文卡片的宽度：320px 卡片、12.5px 字号，英文平均字宽约 6.2px → 一行约 46 字符。
+            # 中文那套阈值是按「一个字 = 两格」算的，对英文不成立，所以单独一条。
+            EN_CHARS_PER_LINE = 46
+            too_long_en = [f"{e.id}({len(e.summary_en)} 字符)"
+                           for e in ENTRIES if len(e.summary_en) > 2 * EN_CHARS_PER_LINE]
+            check_true("英文简介能在卡片两行内放下", not too_long_en, f"超长: {too_long_en}")
+        finally:
+            _i18n.set_lang("zh")
+
+        # 中文模式必须一点没变（这一步只是加英文，不该动中文）
+        m_zh = get_meta("humaneval")
+        check_true("中文模式下取到的仍是中文文案",
+                   "给函数签名" in m_zh["summary"] and m_zh["category"] == "代码工程",
+                   f"summary={m_zh['summary'][:20]!r} category={m_zh['category']!r}")
 
         # 需要裁判的基准，必须声明「有判定但结果不利」这一档在明细里叫什么：
         # 安全类的 ok=0 不是「答错」而是「越狱成功 / 过度拒绝」，没声明就会显示成答错

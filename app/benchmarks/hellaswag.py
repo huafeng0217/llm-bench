@@ -52,15 +52,29 @@ ENTRIES = [
     Benchmark(order=29, id='hellaswag',
         name='HellaSwag',
         summary='给一段情境选最合理的后续：干扰项语法通顺但常识上不对',
+        summary_en="Pick the most plausible continuation; the distractors are fluent but "
+                      "commonsense-wrong",
         category='常识推理',
         lang='英文',
         status='已饱和',
+        status_en="saturated",
         description='10042 道常识续写题：题干是情境前缀（如「一个人坐在屋顶上。他…」），'
                     '四个候选后续里只有一个是常识上合理的，其余三个由对抗式方法生成 —— 读起来通顺、'
                     '但明显不合常理。因此它测的是「常识判断」而不是语言流畅度。前沿模型已超过 95%，'
                     '主要价值是确认模型没有基本的常识缺陷（低分通常意味着接口或抽取有问题，而不是「不懂常识」）。'
                     '注意：题干与选项按官方口径拼（题干用原始 ctx，选项就是四个后续），没有额外改写。',
+        description_en="10,042 commonsense continuation items: a context prefix (e.g. “A man "
+                          "sits on the roof. He…”) with four candidate continuations, only one "
+                          "of which is commonsensically plausible — the other three are "
+                          "adversarially generated, so they read fluently but are clearly "
+                          "wrong. It therefore measures commonsense judgement rather than "
+                          "fluency. Frontier models exceed 95%, so its main value is confirming "
+                          "there is no basic commonsense defect (a low score usually means a "
+                          "broken API or extraction, not a model that lacks common sense). "
+                          "Note: context and options follow the official format (the raw ctx "
+                          "plus the four continuations), with no rewriting.",
         source='https://arxiv.org/abs/1905.07830',
         label='HellaSwag（10042 题）',
+        label_en="HellaSwag (10042 items)",
         download=download_hellaswag),
 ]

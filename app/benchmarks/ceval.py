@@ -77,20 +77,33 @@ def download_ceval():
 ENTRIES = [
     Benchmark(order=1, id='ceval_sample',
         summary='12 题中文演示样例：不下载完整题库，也能先跑通流程',
+        summary_en="12-item Chinese sample: dry-run the pipeline without the full dataset",
         name='C-Eval 演示样例',
+        name_en="C-Eval sample",
         category='中文能力',
         lang='中文',
         status='演示样例',
+        status_en="sample",
         description='内置 12 道 C-Eval 风格中文选择题，用于快速跑通流程。正式评测请用下载脚本拉取完整 C-Eval。',
+        description_en="12 C-Eval-style Chinese multiple-choice questions built in, so you "
+                          "can try the whole pipeline end to end. For real numbers, download "
+                          "the full C-Eval.",
         source='https://arxiv.org/abs/2305.08322'),
     Benchmark(order=5, id='ceval',
         summary='中文 52 学科考试题，中文能力基线；与 CMMLU 搭配看中文知识广度',
+        summary_en="Chinese exam questions, 52 subjects — a Chinese-knowledge baseline; read "
+                      "with CMMLU",
         name='C-Eval',
         category='中文能力',
         lang='中文',
         status='仍有区分度',
+        status_en="still discriminating",
         description='约 1.4 万道中文选择题，覆盖 52 个学科、从中学到专业级别，是中文模型知识能力的事实标准。',
+        description_en="About 14k Chinese multiple-choice questions across 52 subjects, from "
+                          "middle school to professional level; the de-facto standard for "
+                          "Chinese knowledge.",
         source='https://arxiv.org/abs/2305.08322',
         label='C-Eval（val 划分 1346 题）',
+        label_en="C-Eval (val split, 1346 items)",
         download=download_ceval),
 ]

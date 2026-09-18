@@ -80,20 +80,34 @@ def download_mmlu():
 ENTRIES = [
     Benchmark(order=0, id='mmlu_sample',
         summary='12 题演示样例：不下载任何题库，也能把整条评测流程先跑通',
+        summary_en="12-item sample: dry-run the whole pipeline without downloading a dataset",
         name='MMLU 演示样例',
+        name_en="MMLU sample",
         category='通用知识',
         lang='英文',
         status='演示样例',
+        status_en="sample",
         description='内置 12 道 MMLU 风格选择题，用于快速跑通流程。正式评测请用下载脚本拉取完整 MMLU。',
+        description_en="12 MMLU-style multiple-choice questions built in, so you can try the "
+                          "whole pipeline end to end. For real numbers, download the full MMLU "
+                          "with the script.",
         source='https://arxiv.org/abs/2009.03300'),
     Benchmark(order=2, id='mmlu',
         summary='57 学科 4 选 1 的通识基线；前沿模型已 88%+，适合筛查、不适合拉开差距',
+        summary_en="57 subjects, 4-way; frontier models pass 88% now, so it screens rather "
+                      "than separates",
         name='MMLU',
         category='通用知识',
         lang='英文',
         status='已饱和',
+        status_en="saturated",
         description='57 个学科约 1.4 万道选择题，衡量模型的通用知识广度，是使用最广泛的基准。前沿模型已普遍超过 88%，区分度低，适合作基线筛查。',
+        description_en="About 14k multiple-choice questions across 57 subjects — the most "
+                          "widely used measure of general knowledge breadth. Frontier models "
+                          "now exceed 88%, so discrimination is low and it works best as a "
+                          "baseline screen.",
         source='https://arxiv.org/abs/2009.03300',
         label='MMLU（完整约 1.4 万题）',
+        label_en="MMLU (~14k items in full)",
         download=download_mmlu),
 ]
