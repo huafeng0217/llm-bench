@@ -26,7 +26,7 @@ import math
 import re
 import time
 
-from . import db, engine, scoring
+from . import db, engine, i18n, scoring
 from .benchmarks import CATEGORIES, META, get_meta
 
 # 覆盖率与「挑哪一次成绩」的口径统一放在 app/scoring.py ——
@@ -588,7 +588,7 @@ def build_messages(stats: dict) -> list:
 def parse_result(text: str) -> dict:
     """从模型回复里取出 JSON（容忍代码围栏和前后废话）。"""
     if not text:
-        raise ValueError("模型返回为空")
+        raise ValueError(i18n.t("模型返回为空"))
     s = text.strip()
     fence = re.search(r"```(?:json)?[ \t]*\n(.*?)(?:```|\Z)", s, re.DOTALL | re.IGNORECASE)
     if fence:
@@ -600,7 +600,7 @@ def parse_result(text: str) -> dict:
     # 退而求其次：找第一段平衡的 {...}
     start = s.find("{")
     if start < 0:
-        raise ValueError("回复里没有 JSON")
+        raise ValueError(i18n.t("回复里没有 JSON"))
     depth = 0
     for i in range(start, len(s)):
         if s[i] == "{":
@@ -609,7 +609,7 @@ def parse_result(text: str) -> dict:
             depth -= 1
             if depth == 0:
                 return json.loads(s[start:i + 1])
-    raise ValueError("JSON 不完整（可能被 max_tokens 截断）")
+    raise ValueError(i18n.t("JSON 不完整（可能被 max_tokens 截断）"))
 
 
 def _numbers(obj, out: set):
@@ -718,5 +718,5 @@ async def generate(model_cfg: dict, stats: dict, timeout_s: int = 300) -> dict:
             last_err = e
             if finish != "length":
                 break  # 没被截断还解析不出 → 模型没按格式走，加大额度也没用
-    raise RuntimeError(f"模型没有返回可解析的 JSON：{last_err}"
+    raise RuntimeError(i18n.t("模型没有返回可解析的 JSON：{err}", err=last_err)
                        + ("（已放大额度仍未成功）" if ctok else ""))

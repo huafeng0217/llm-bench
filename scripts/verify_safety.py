@@ -50,7 +50,7 @@ db.init_db()
 
 from fastapi import HTTPException  # noqa: E402
 
-from app import main, qtypes, runner, safety  # noqa: E402
+from app import i18n, main, qtypes, runner, safety  # noqa: E402
 
 main.MODELS_FILE = _tmp_root / "models.json"     # 别覆盖用户真实的 data/models.json
 
@@ -303,6 +303,24 @@ def main_() -> int:
         check("端到端：逐题也记了「没得到有效结果」标记（failed=1）",
               [r["failed"] for r in rows], [1, 1])
         check("端到端：全部判分失败时任务标记为 failed（不是 done）", ev["status"], "failed")
+
+        # 第三步：库里存的是中文原文，**明细接口按请求语言返回**（历史数据也能翻）
+        zh_items = main.get_items(eid, 0, 5)
+        i18n.set_lang("en")
+        try:
+            en_items = main.get_items(eid, 0, 5)
+        finally:
+            i18n.set_lang("zh")
+        check_true("端到端：中文模式下明细仍是中文",
+                   all("判分失败" in (r["predicted"] or "") for r in zh_items),
+                   f"predicted={[r['predicted'] for r in zh_items]}")
+        check_true("端到端：英文模式下明细翻成英文（库里存的是中文）",
+                   all("not scored" in (r["predicted"] or "") for r in en_items)
+                   and all("判分失败" not in (r["predicted"] or "") for r in en_items),
+                   f"predicted={[r['predicted'] for r in en_items]}")
+        check_true("端到端：期望值也跟着翻（裁判判定：… → judge verdict: …）",
+                   all("judge verdict" in (r["expected"] or "") for r in en_items),
+                   f"expected={[r['expected'] for r in en_items]}")
 
     print(f"临时目录: {_tmp_root}")
     print("=" * 74)

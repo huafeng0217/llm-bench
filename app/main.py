@@ -176,6 +176,8 @@ def eval_view(row: dict) -> dict:
     last_at = prog.get("last_at")
     return {
         **row,
+        # 任务级错误也是落库的中文原文，同样在响应时翻
+        "error": i18n.t_stored(row["error"]),
         "accuracy": round(row["correct"] / done * 100, 2) if done else None,
         "avg_latency_ms": round(row["total_latency_ms"] / done) if done else None,
         "inflight": prog.get("inflight", 0),
@@ -209,18 +211,18 @@ def valid_extra_body(raw: str) -> str:
     try:
         obj = json.loads(s)
     except json.JSONDecodeError as e:
-        raise HTTPException(400, f"额外请求参数不是合法 JSON：{e}")
+        raise HTTPException(400, i18n.t("额外请求参数不是合法 JSON：{err}", err=e))
     if not isinstance(obj, dict):
-        raise HTTPException(400, '额外请求参数必须是 JSON 对象，例如 {"enable_thinking": false}')
+        raise HTTPException(400, i18n.t('额外请求参数必须是 JSON 对象，例如 {"enable_thinking": false}'))
     return json.dumps(obj, ensure_ascii=False)
 
 
 @app.post("/api/models", status_code=201)
 def create_model(m: ModelIn):
     if not m.name.strip() or not m.base_url.strip():
-        raise HTTPException(400, "name 和 base_url 不能为空")
+        raise HTTPException(400, i18n.t("name 和 base_url 不能为空"))
     if m.kind not in MODEL_KINDS:
-        raise HTTPException(400, f"kind 只能是 {sorted(MODEL_KINDS)}")
+        raise HTTPException(400, i18n.t("kind 只能是 {kinds}", kinds=sorted(MODEL_KINDS)))
     mid = db.execute(
         "INSERT INTO models(name, base_url, api_key, kind, extra_body) VALUES(?,?,?,?,?)",
         (m.name.strip(), m.base_url.strip().rstrip("/"), m.api_key.strip(), m.kind,
@@ -239,10 +241,10 @@ def update_model_kind(mid: int, body: KindIn):
     （数据是真的，不该因为角色变了就消失）。
     """
     if body.kind not in MODEL_KINDS:
-        raise HTTPException(400, f"kind 只能是 {sorted(MODEL_KINDS)}")
+        raise HTTPException(400, i18n.t("kind 只能是 {kinds}", kinds=sorted(MODEL_KINDS)))
     row = db.query_one("SELECT id, name, kind FROM models WHERE id=?", (mid,))
     if not row:
-        raise HTTPException(404, "模型不存在")
+        raise HTTPException(404, i18n.t("模型不存在"))
     n = db.query_one("SELECT COUNT(*) AS n FROM evaluations WHERE model_id=?", (mid,))["n"]
     if row["kind"] == body.kind:
         return {"ok": True, "kind": body.kind, "evaluations": n, "changed": False}
@@ -313,7 +315,7 @@ async def sandbox_status():
 @app.post("/api/benchmarks/{benchmark_id}/download")
 async def download_benchmark(benchmark_id: str):
     if benchmark_id not in bm.DOWNLOADERS:
-        raise HTTPException(400, "该题库不支持自动下载")
+        raise HTTPException(400, i18n.t("该题库不支持自动下载"))
     cur = DOWNLOAD_STATE.get(benchmark_id)
     if cur and cur["status"] == "running":
         return {"ok": True, "status": "running", "message": "正在下载中"}
@@ -340,7 +342,7 @@ async def download_family(family_id: str):
     """
     subsets = [e.id for e in bm.ENTRIES if e.family == family_id]
     if not subsets:
-        raise HTTPException(404, f"没有这个家族: {family_id}")
+        raise HTTPException(404, i18n.t("没有这个家族: {fid}", fid=family_id))
     todo = [s for s in subsets if s in bm.DOWNLOADERS
             and not (DOWNLOAD_STATE.get(s) or {}).get("status") == "running"]
     if not todo:
@@ -372,7 +374,8 @@ def list_downloads():
         state = DOWNLOAD_STATE.get(bid, {"status": "idle", "message": ""})
         out[bid] = {
             "status": state["status"],
-            "message": state["message"],
+            # 共享状态里存的是中文原文（谁触发的下载不一定等于谁在看），响应时按当前语言翻
+            "message": i18n.t_stored(state["message"]),
             "downloaded": bid in existing,
         }
     return out
@@ -384,7 +387,7 @@ def list_downloads():
 async def create_evaluation(e: EvalIn):
     m = db.query_one("SELECT id, name, kind FROM models WHERE id=?", (e.model_id,))
     if not m:
-        raise HTTPException(404, "模型不存在")
+        raise HTTPException(404, i18n.t("模型不存在"))
     # 判别器不能被评测：前端不会把它列进下拉，但直接调 API 也得拦住
     # （不信任 UI 的约定，和后端沙箱自检是同一个思路）。
     if m["kind"] == "judge":
@@ -396,23 +399,23 @@ async def create_evaluation(e: EvalIn):
     try:
         items = engine.load_dataset(e.benchmark, e.limit or None)
     except FileNotFoundError:
-        raise HTTPException(404, "题库不存在")
+        raise HTTPException(404, i18n.t("题库不存在"))
 
     # 安全类基准要选裁判。三条约束都在这儿拦住（前端也会拦，但不信任 UI）：
     #   ① 必须选；② 必须是 kind='judge' 的模型；③ 不能是被测模型自己（自偏袒）。
     judge_id = None
     if get_meta(e.benchmark).get("requires_judge"):
         if not e.judge_model_id:
-            raise HTTPException(400, "这个基准由裁判模型判分，请先选择一个「判别器」再开始")
+            raise HTTPException(400, i18n.t("这个基准由裁判模型判分，请先选择一个「判别器」再开始"))
         j = db.query_one("SELECT id, name, kind FROM models WHERE id=?", (e.judge_model_id,))
         if not j:
-            raise HTTPException(404, "裁判模型不存在")
+            raise HTTPException(404, i18n.t("裁判模型不存在"))
         if j["kind"] != "judge":
             raise HTTPException(
                 400, f"{j['name']} 的用途是「被测模型」，不能当裁判。"
                      f"请先在模型管理里把要当裁判的模型设为「判别器」。")
         if e.judge_model_id == e.model_id:
-            raise HTTPException(400, "裁判不能是被测模型自己 —— 自己判自己会让分数失去意义")
+            raise HTTPException(400, i18n.t("裁判不能是被测模型自己 —— 自己判自己会让分数失去意义"))
         judge_id = e.judge_model_id
     max_tokens = min(max(e.max_tokens, 16), 32768)
     timeout_s = min(max(e.timeout_s, 5), 600)
@@ -463,9 +466,9 @@ def compare_evaluations(ids: str):
     try:
         pair = [int(x) for x in ids.split(",") if x.strip()]
     except ValueError:
-        raise HTTPException(400, "ids 需为逗号分隔的数字，如 ids=77,79")
+        raise HTTPException(400, i18n.t("ids 需为逗号分隔的数字，如 ids=77,79"))
     if len(pair) != 2:
-        raise HTTPException(400, "对比需要恰好 2 个任务 id")
+        raise HTTPException(400, i18n.t("对比需要恰好 2 个任务 id"))
     a_id, b_id = pair
     rows = db.query(
         "SELECT e.*, m.name AS model_name FROM evaluations e"
@@ -473,11 +476,11 @@ def compare_evaluations(ids: str):
     )
     found = {r["id"]: r for r in rows}
     if a_id not in found or b_id not in found:
-        raise HTTPException(404, "任务不存在（可能已被删除）")
+        raise HTTPException(404, i18n.t("任务不存在（可能已被删除）"))
     a, b = found[a_id], found[b_id]
     if a["benchmark"] != b["benchmark"]:
-        raise HTTPException(
-            400, f"两个任务的基准不同（{a['benchmark']} vs {b['benchmark']}），逐题对比需要同一基准")
+        raise HTTPException(400, i18n.t("两个任务的基准不同（{a} vs {b}），逐题对比需要同一基准",
+                                      a=a["benchmark"], b=b["benchmark"]))
 
     def load_items(eid: int) -> dict:
         return {r["idx"]: r for r in db.query(
@@ -502,12 +505,12 @@ def compare_evaluations(ids: str):
         items.append({
             "idx": i,
             "question": ra["question"],
-            "expected": ra["expected"],
-            "a": {"predicted": ra["predicted"], "correct": ca,
-                  "raw_response": ra["raw_response"], "error": ra["error"],
+            "expected": i18n.t_stored(ra["expected"]),
+            "a": {"predicted": i18n.t_stored(ra["predicted"]), "correct": ca,
+                  "raw_response": ra["raw_response"], "error": i18n.t_stored(ra["error"]),
                   "latency_ms": ra["latency_ms"]},
-            "b": {"predicted": rb["predicted"], "correct": cb,
-                  "raw_response": rb["raw_response"], "error": rb["error"],
+            "b": {"predicted": i18n.t_stored(rb["predicted"]), "correct": cb,
+                  "raw_response": rb["raw_response"], "error": i18n.t_stored(rb["error"]),
                   "latency_ms": rb["latency_ms"]},
         })
     stats.update({
@@ -527,7 +530,7 @@ def get_evaluation(eid: int):
         " JOIN models m ON m.id=e.model_id WHERE e.id=?", (eid,),
     )
     if not row:
-        raise HTTPException(404, "任务不存在")
+        raise HTTPException(404, i18n.t("任务不存在"))
     return eval_view(row)
 
 
@@ -536,11 +539,19 @@ def get_items(eid: int, offset: int = 0, limit: int = 50):
     # failed 一并给前端：明细里要区分「没得到有效结果」（failed=1）和「答错」（failed=0）。
     # 答错也会写 error 当诊断（代码题的 traceback 就是），光看 error 分不出来。
     # 老数据这一列是 NULL —— 前端据此退回老判据（有诊断文本就算失败）。
-    return db.query(
+    rows = db.query(
         "SELECT idx, question, expected, predicted, raw_response, correct, latency_ms, error, failed"
         " FROM eval_items WHERE eval_id=? ORDER BY idx LIMIT ? OFFSET ?",
         (eid, limit, offset),
     )
+    # 库里存的是**中文原文**（语言是"看的人"的选择，不是跑评测那天的选择），
+    # 所以响应时按当前语言翻一遍 —— 好处是**历史数据也能翻**，不需要迁移或重跑。
+    # 只翻 expected/predicted/error 这类程序生成的短文案；question 与 raw_response 是原文，不动。
+    if i18n.get_lang() != "zh":
+        for r in rows:
+            for k in ("expected", "predicted", "error"):
+                r[k] = i18n.t_stored(r[k])
+    return rows
 
 
 @app.post("/api/evaluations/{eid}/resume")
@@ -552,13 +563,13 @@ async def resume_evaluation(eid: int):
     """
     row = db.query_one("SELECT status, done, total, benchmark FROM evaluations WHERE id=?", (eid,))
     if not row:
-        raise HTTPException(404, "任务不存在")
+        raise HTTPException(404, i18n.t("任务不存在"))
     if eid in engine.RUNNING:
-        raise HTTPException(400, "该任务正在运行中")
+        raise HTTPException(400, i18n.t("该任务正在运行中"))
     if row["total"] and row["done"] >= row["total"]:
-        raise HTTPException(400, "该任务已全部完成，无需续跑")
+        raise HTTPException(400, i18n.t("该任务已全部完成，无需续跑"))
     if row["done"] == 0:
-        raise HTTPException(400, "该任务还没有任何已完成题目，请直接新建评测")
+        raise HTTPException(400, i18n.t("该任务还没有任何已完成题目，请直接新建评测"))
     task = asyncio.create_task(engine.run_evaluation(eid, resume=True))
     engine.RUNNING[eid] = task
     return {"ok": True, "id": eid, "done": row["done"], "total": row["total"]}
@@ -572,7 +583,7 @@ def stop_evaluation(eid: int):
         return {"ok": True}
     row = db.query_one("SELECT status FROM evaluations WHERE id=?", (eid,))
     if not row:
-        raise HTTPException(404, "任务不存在")
+        raise HTTPException(404, i18n.t("任务不存在"))
     if row["status"] in ("running", "pending"):
         # 任务在跑但未注册（如服务重启后残留的僵尸任务），直接标记为停止
         db.execute(
@@ -887,7 +898,7 @@ def overview():
 # 和题库下载用的是同一套模式，不阻塞 HTTP 请求。
 # started_at / expected_s 是给前端画进度条用的：进度本身无法真实获知（模型是一次性返回的），
 # 只能按历史耗时估一个预期值，前端据此做**模拟**进度。所以字段名叫 expected 而不是 progress。
-SUMMARY_STATE: dict = {"status": "idle", "message": "", "model_id": None,
+SUMMARY_STATE: dict = {"status": "idle", "message": "", "model_id": None, "cached": False,
                        "model_name": None, "started_at": None, "expected_s": 45}
 
 
@@ -968,7 +979,8 @@ def get_summary():
     stats = summary.collect()
     fp = summary.fingerprint(stats)
     rows = db.query("SELECT * FROM summaries WHERE error IS NULL ORDER BY created_at DESC, id DESC")
-    return {"state": SUMMARY_STATE, "fingerprint": fp,
+    return {"state": {**SUMMARY_STATE, "message": i18n.t_stored(SUMMARY_STATE.get("message") or "")},
+            "fingerprint": fp,
             "entries": [_summary_view(r, fp) for r in rows]}
 
 
@@ -981,7 +993,7 @@ async def _run_summary(model_id: int, force: bool, fingerprint: str):
                 "SELECT id FROM summaries WHERE fingerprint=? AND model_id=? AND error IS NULL"
                 " ORDER BY id DESC LIMIT 1", (fingerprint, model_id))
             if cached:
-                SUMMARY_STATE = dict(SUMMARY_STATE, status="done",
+                SUMMARY_STATE = dict(SUMMARY_STATE, status="done", cached=True,
                                      message="数据没有变化，直接用了上次生成的总结")
                 return
         model_cfg = db.query_one("SELECT * FROM models WHERE id=?", (model_id,))
@@ -1013,7 +1025,7 @@ async def create_summary(body: SummaryIn):
         return {"ok": True, "status": "running", "message": "正在生成中"}
     model = db.query_one("SELECT id, name FROM models WHERE id=?", (body.model_id,))
     if not model:
-        raise HTTPException(404, "模型不存在")
+        raise HTTPException(404, i18n.t("模型不存在"))
     fingerprint = summary.fingerprint(summary.collect())
     SUMMARY_STATE = {"status": "running", "message": "正在生成…",
                      "model_id": body.model_id, "model_name": model["name"],

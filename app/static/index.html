@@ -2106,7 +2106,7 @@ function renderSummary() {
   } else if (st.status === "failed") {
     html += `<div class="card"><span class="tag warn">${t("生成失败")}</span>
       <span class="muted"> ${esc(st.message || "")}</span></div>`;
-  } else if (st.status === "done" && st.message && st.message.indexOf(t("缓存")) >= 0) {
+  } else if (st.status === "done" && st.message && st.cached) {
     html += `<div class="card"><span class="tag">${esc(st.message)}</span></div>`;
   }
 

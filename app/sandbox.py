@@ -41,6 +41,8 @@ import time
 import uuid
 from pathlib import Path
 
+from . import i18n
+
 TMP_ROOT = Path(__file__).resolve().parent.parent / ".sandbox"
 
 IMAGE = "python:3.11-slim"
@@ -82,21 +84,23 @@ def _probe_docker() -> tuple:
         r = subprocess.run(["docker", "version", "--format", "{{.Server.Version}}"],
                            capture_output=True, text=True, timeout=30)
     except FileNotFoundError:
-        return False, "未找到 docker 命令（Docker 未安装或不在 PATH）"
+        return False, i18n.t("未找到 docker 命令（Docker 未安装或不在 PATH）")
     except subprocess.TimeoutExpired:
-        return False, "docker version 超时"
+        return False, i18n.t("docker version 超时")
     if r.returncode != 0:
         msg = (r.stderr or r.stdout or "").strip().splitlines()
-        return False, "Docker 引擎未运行：" + (msg[0] if msg else "未知错误")
+        return False, i18n.t("Docker 引擎未运行：{err}",
+                             err=(msg[0] if msg else "unknown error"))
     ver = (r.stdout or "").strip()
     try:
         img = subprocess.run(["docker", "image", "inspect", IMAGE, "--format", "{{.Size}}"],
                              capture_output=True, text=True, timeout=30)
         if img.returncode != 0:
-            return False, f"Docker 可用（{ver}）但缺少镜像 {IMAGE}，请先执行：docker pull {IMAGE}"
+            return False, i18n.t("Docker 可用（{ver}）但缺少镜像 {image}，请先执行：docker pull {image}",
+                            ver=ver, image=IMAGE)
     except Exception:  # noqa: BLE001
         pass
-    return True, f"Docker {ver} · 镜像 {IMAGE} 就绪"
+    return True, i18n.t("Docker {ver} · 镜像 {image} 就绪", ver=ver, image=IMAGE)
 
 
 def _docker_run(files: dict, argv: list, timeout: int, env: dict | None = None,

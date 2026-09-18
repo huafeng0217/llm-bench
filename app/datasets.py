@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from . import db
+from . import db, i18n
 from .config import BFCL_DIR, DATA_DIR, RESULTS_DIR
 
 
@@ -96,7 +96,7 @@ def _dataset_path(benchmark: str) -> Path:
     for p in (DATA_DIR / f"{benchmark}.jsonl", BFCL_DIR / f"{benchmark}.jsonl"):
         if p.exists():
             return p
-    raise FileNotFoundError(f"题库不存在: {benchmark}")
+    raise FileNotFoundError(i18n.t("题库不存在: {bid}", bid=benchmark))
 
 
 def load_dataset(benchmark: str, limit: int | None = None):

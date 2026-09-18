@@ -77,6 +77,42 @@ def main_() -> int:
     check_true("app/ 里 i18n.t(...) 用到的中文都在英文表里", not missing,
                "; ".join(missing[:6]))
 
+    # ---- 4b) 已存文本的显示期翻译（历史数据也能翻）----
+    # 库里存的是**中文原文**（语言是"看的人"的选择），所以翻在响应时做。
+    # 三种情况都要覆盖：固定文案（查表）、带参数（正则）、**翻不了就原样返回**。
+    i18n.set_lang("en")
+    check("已存文本：固定文案走查表", i18n.t_stored("通过"), "passed")
+    check("已存文本：带参数的走正则（全部通过（N 条））",
+          i18n.t_stored("全部通过（43 条）"), "all 43 cases passed")
+    check("已存文本：带参数的走正则（未通过（exit N））",
+          i18n.t_stored("未通过（exit 1）"), "failed (exit 1)")
+    check("已存文本：裁判判词带换行也能翻（DOTALL）",
+          i18n.t_stored("正常回答（No\n\nThe response does not refuse the）"),
+          "normal answer (No\n\nThe response does not refuse the)")
+    check("已存文本：逐条用例诊断",
+          i18n.t_stored("第 3 条用例答案错误：期望 '0.07'，实际 '0.08'"),
+          "case 3 answer mismatch: expected '0.07', got '0.08'")
+    check("已存文本：BFCL 的「拒绝调用」", i18n.t_stored("拒绝调用"), "refuse the call")
+    check("已存文本：多轮的「共 N 轮」", i18n.t_stored("共 3 轮"), "3 turns")
+    # 模型原话（A / 42 / LaTeX）绝不能被"翻译"掉
+    for raw in ("A", "42", "\\frac{1}{2}", "Ellipse"):
+        check(f"已存文本：模型原话原样返回（{raw}）", i18n.t_stored(raw), raw)
+    check("已存文本：不认识的文案原样返回（不猜、不崩）",
+          i18n.t_stored("这句话没有英文"), "这句话没有英文")
+    i18n.set_lang("zh")
+    check("已存文本：中文模式不做任何改动",
+          i18n.t_stored("全部通过（43 条）"), "全部通过（43 条）")
+
+    # ---- 4c) 后端消息的英文表（漏译扫描会自动覆盖新调用点，这里再钉几条关键的）----
+    i18n.set_lang("en")
+    check("后端消息：HTTP 错误有英文", i18n.t("任务不存在"), "run not found")
+    check("后端消息：带占位符的（kind 只能是 …）",
+          i18n.t("kind 只能是 {kinds}", kinds=["test", "judge"]),
+          "kind must be one of ['test', 'judge']")
+    check("后端消息：占位符对不上时返回原文而不是抛异常",
+          i18n.t("只有 {a}", b=1), "只有 {a}")
+    i18n.set_lang("zh")
+
     # ---- 5) 语言是从请求头来的（不是全局变量）----
     src = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
     check_true("main.py 有语言中间件（X-Lang / Accept-Language）",
