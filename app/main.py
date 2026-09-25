@@ -142,22 +142,24 @@ class ModelIn(BaseModel):
     # 复用已有模型的连接信息：填这个模型的 id，base_url / api_key / extra_body
     # **留空**的那几项就用它的值（显式填了的以填的为准）。
     # 为什么必须在后端复制而不是前端带过来：API Key 在接口里是脱敏的（mask_key），
-    # 前端根本拿不到真 key —— 想"同一个 key、换个模型名"就只能由服务端去取。
-    copy_from: int | None = None
+    # 前端根本拿不到真 key —— 想"同一套 API、换个模型名"就只能由服务端去取。
+    # 语义上这是"复用这套 API"：前端按 (base_url, api_key) 分组（见 /api/api-groups），
+    # 回传组内任一模型的 id 即可 —— 同一组的连接信息完全相同。
+    copy_api_from: int | None = None
 
 
-def _apply_copy_from(m: ModelIn) -> tuple[str, str, str]:
-    """按 `copy_from` 把留空的 base_url / api_key / extra_body 补上（显式填的优先）。
+def _apply_copy_api(m: ModelIn) -> tuple[str, str, str]:
+    """按 `copy_api_from` 把留空的 base_url / api_key / extra_body 补上（显式填的优先）。
 
-    返回 (base_url, api_key, extra_body)。`copy_from` 指向不存在的模型时报 404 ——
+    返回 (base_url, api_key, extra_body)。`copy_api_from` 指向不存在的模型时报 404 ——
     静默忽略会让用户以为"复用成功了"，实际拿到一个空 key 的模型。
     """
     base_url, api_key = m.base_url.strip(), m.api_key.strip()
     extra_body = m.extra_body or ""
-    if m.copy_from is None:
+    if m.copy_api_from is None:
         return base_url, api_key, extra_body
     src = db.query_one("SELECT name, base_url, api_key, extra_body FROM models WHERE id=?",
-                       (m.copy_from,))
+                       (m.copy_api_from,))
     if not src:
         raise HTTPException(404, i18n.t("要复用的模型不存在"))
     return (base_url or src["base_url"], api_key or src["api_key"],
@@ -183,9 +185,9 @@ class EvalIn(BaseModel):
 async def test_model(m: ModelIn):
     """保存前测试连接：用最小 prompt 实际调一次模型接口。
 
-    也支持 `copy_from`（表单里 key 留空、沿用别的模型时，"测试连接"照样能点）。
+    也支持 `copy_api_from`（表单里选了「复用 API」、key 留空时，"测试连接"照样能点）。
     """
-    base_url, api_key, _ = _apply_copy_from(m)
+    base_url, api_key, _ = _apply_copy_api(m)
     cfg = {"name": m.name.strip(), "base_url": base_url.rstrip("/"), "api_key": api_key}
     if not cfg["name"] or not cfg["base_url"]:
         return {"ok": False, "error": "模型名和 base_url 不能为空"}
@@ -233,6 +235,35 @@ def list_models():
     return rows
 
 
+@app.get("/api/api-groups")
+def list_api_groups():
+    """已添加模型按**连接信息**（base_url + api_key）分组，供「复用 API」下拉使用。
+
+    为什么按这一组分组、而不是按模型：同一个 key 上通常挂着好几个模型
+    （qwen3.8-flash / qwen3.8-max / qwen3.8-turbo…），要复用复用的是**这套 API**，
+    不是某一个模型。所以相同 (base_url, api_key) 的模型合成一项，
+    并在这一项里列出"已经有哪些模型在用它"。
+
+    分组在**服务端**按真 key 做：前端的 key 是脱敏的（sk-w****5VcY），
+    两个不同的 key 有可能撞出同一个脱敏串 —— 那样前端分组会把它们错并成一项，
+    而且合并后拿谁的真 key 去复制也说不清。真实 key 不出接口，前端也不需要它。
+    每组给一个 `model_id`（组内任一模型）作为代表：前端回传它，服务端就知道是哪套 API。
+    """
+    groups: dict = {}
+    for m in db.query("SELECT id, name, base_url, api_key, extra_body FROM models ORDER BY id"):
+        key = (m["base_url"], m["api_key"])
+        g = groups.get(key)
+        if g is None:
+            groups[key] = {"model_id": m["id"], "base_url": m["base_url"],
+                           "api_key": mask_key(m["api_key"]), "models": [m["name"]],
+                           "has_extra_body": bool(m["extra_body"])}
+        else:
+            g["models"].append(m["name"])
+            # 组内只要有一个模型带额外参数，就说明这套 API 需要它（复制时按代表模型取）
+            g["has_extra_body"] = g["has_extra_body"] or bool(m["extra_body"])
+    return list(groups.values())
+
+
 def valid_extra_body(raw: str) -> str:
     """校验 extra_body：必须是空、或一个 JSON 对象。返回规范化后的字符串。
 
@@ -253,9 +284,9 @@ def valid_extra_body(raw: str) -> str:
 
 @app.post("/api/models", status_code=201)
 def create_model(m: ModelIn):
-    # 先按 copy_from 补全（留空的才补），再校验 —— 顺序很重要：只填了模型名的
-    # "同 key 换模型名"必须靠补来的 base_url 才不为空。
-    base_url, api_key, extra_body = _apply_copy_from(m)
+    # 先按 copy_api_from 补全（留空的才补），再校验 —— 顺序很重要：只填了模型名的
+    # "复用这套 API"必须靠补来的 base_url 才不为空。
+    base_url, api_key, extra_body = _apply_copy_api(m)
     if not m.name.strip() or not base_url:
         raise HTTPException(400, i18n.t("name 和 base_url 不能为空"))
     if m.kind not in MODEL_KINDS:

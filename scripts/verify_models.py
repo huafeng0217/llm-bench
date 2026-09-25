@@ -94,12 +94,12 @@ def raises(name: str, fn, status: int) -> None:
 
 
 def add_model(name: str, kind: str = "test", base_url: str = "mock://local",
-              api_key: str = "k", extra_body: str = "", copy_from: int | None = None) -> int:
+              api_key: str = "k", extra_body: str = "", copy_api_from: int | None = None) -> int:
     """建模型。默认 base_url 是 mock://local（演示模型）——
     注意：mock 模型**不进排行榜**（见本脚本最后一节），要上排行榜的测试模型必须传真实 base_url。"""
     return main.create_model(main.ModelIn(
         name=name, base_url=base_url, api_key=api_key, kind=kind,
-        extra_body=extra_body, copy_from=copy_from))["id"]
+        extra_body=extra_body, copy_api_from=copy_api_from))["id"]
 
 
 def insert_eval(mid: int, benchmark: str = "mmlu_sample") -> int:
@@ -413,34 +413,66 @@ def main_() -> int:
         raises("删不存在的模型 -> 404",
                lambda: asyncio.run(main.delete_model(999999)), 404)
 
-        # ---- 7) 复用已有模型的连接信息（copy_from）--------------------------------
-        # 场景：同一个 key、换个模型名再加一个模型 —— 不用把 key 再粘一遍。
+        # ---- 7) 复用 API（copy_api_from）+ 连接信息分组 ---------------------------
+        # 场景：同一套 API（base_url + key）上再挂一个模型名 —— 不用把 key 再粘一遍。
         # 为什么必须在后端复制：API Key 在接口里是脱敏的（sk-w****5VcY），前端拿不到真 key。
         src_id = add_model("__来源模型__", base_url="https://example.test/v1",
                            api_key="sk-src-1234567890", extra_body='{"enable_thinking": false}')
-        # 注意 api_key 要显式传空串：helper 的默认值是 "k"，非空就按"显式优先"走，
+        # api_key 要显式传空串：helper 的默认值是 "k"，非空就按"显式优先"走，
         # 那样测的就不是"留空才补"了（第一版就是这么写错的）。
-        copied = add_model("__同源新模型__", base_url="", api_key="", copy_from=src_id)
+        copied = add_model("__复用API新模型__", base_url="", api_key="", copy_api_from=src_id)
         crow = db.query_one("SELECT * FROM models WHERE id=?", (copied,))
-        check("copy_from：base_url 从来源模型补上", crow["base_url"], "https://example.test/v1")
-        check("copy_from：api_key 从来源模型补上", crow["api_key"], "sk-src-1234567890")
-        check("copy_from：额外参数也一起补（界面上没这个入口，只能靠复制）",
+        check("copy_api_from：base_url 从那一组补上", crow["base_url"], "https://example.test/v1")
+        check("copy_api_from：api_key 从那一组补上", crow["api_key"], "sk-src-1234567890")
+        check("copy_api_from：额外参数也一起补（界面上没这个入口，只能靠复制）",
               crow["extra_body"], '{"enable_thinking": false}')
 
         explicit = add_model("__显式优先__", base_url="https://explicit.test/v1",
-                             api_key="sk-mine-99999999", copy_from=src_id)
+                             api_key="sk-mine-99999999", copy_api_from=src_id)
         erow = db.query_one("SELECT * FROM models WHERE id=?", (explicit,))
-        check("copy_from：自己填的 base_url 优先（留空才补）", erow["base_url"], "https://explicit.test/v1")
-        check("copy_from：自己填的 key 优先（留空才补）", erow["api_key"], "sk-mine-99999999")
+        check("copy_api_from：自己填的 base_url 优先（留空才补）",
+              erow["base_url"], "https://explicit.test/v1")
+        check("copy_api_from：自己填的 key 优先（留空才补）", erow["api_key"], "sk-mine-99999999")
 
-        raises("copy_from 指向不存在的模型 -> 404（不能静默给个空 key 的模型）",
-               lambda: add_model("__无来源__", base_url="", copy_from=999999), 404)
+        raises("copy_api_from 指向不存在的模型 -> 404（不能静默给个空 key 的模型）",
+               lambda: add_model("__无来源__", base_url="", copy_api_from=999999), 404)
 
         listed = {m["id"]: m for m in main.list_models()}
-        check_true("copy_from 之后接口里的 key 仍然脱敏（不外泄明文）",
+        check_true("copy_api_from 之后接口里的 key 仍然脱敏（不外泄明文）",
                    "****" in listed[copied]["api_key"]
                    and listed[copied]["api_key"] != "sk-src-1234567890",
                    f"列表里是 {listed[copied]['api_key']!r}")
+
+        # 分组接口：按 (base_url, api_key) 分组 —— 分组的单位是**一套 API**，不是模型
+        add_model("__同API甲__", base_url="https://example.test/v1", api_key="sk-src-1234567890")
+        add_model("__同API乙__", base_url="https://example.test/v1", api_key="sk-src-1234567890")
+        groups = main.list_api_groups()
+        grp = next((g for g in groups if g["base_url"] == "https://example.test/v1"
+                    and g["api_key"] == "sk-s****7890"), None)
+        check_true("分组接口：相同 (base_url, key) 的模型合成一项", grp is not None,
+                   f"现有分组：{[(g['base_url'], g['api_key']) for g in groups]}")
+        if grp:
+            check_true("分组接口：这一项里列出全部已添加模型",
+                       {"__来源模型__", "__复用API新模型__", "__同API甲__", "__同API乙__"} <= set(grp["models"]),
+                       f"{grp['models']}")
+            check_true("分组接口：给出代表 model_id（前端回传它就能复用这套 API）",
+                       isinstance(grp["model_id"], int) and grp["model_id"] > 0)
+            check_true("分组接口：只给脱敏 key（真实 key 不出接口）",
+                       "****" in grp["api_key"] and grp["api_key"] != "sk-src-1234567890")
+
+        # 同端点、不同 key 必须是两项（否则"复用 API"会拿错 key）
+        add_model("__同端点另一把key__", base_url="https://example.test/v1", api_key="sk-other-0000000000")
+        same_url = [g for g in main.list_api_groups() if g["base_url"] == "https://example.test/v1"]
+        check_true("分组接口：同 base_url 不同 key 分成两项（不能混成一项）",
+                   len(same_url) >= 2, f"{[(g['api_key'], g['models']) for g in same_url]}")
+
+        # 脱敏串撞车：两把 key 只差中间几位、首尾相同 → 脱敏后一模一样。
+        # 分组必须按**真 key** 分，否则会把它们错并成一项，并拿错 key 去复制。
+        add_model("__撞串甲__", base_url="https://collide.test/v1", api_key="sk-AAAA-mid1-BBBB")
+        add_model("__撞串乙__", base_url="https://collide.test/v1", api_key="sk-AAAA-mid2-BBBB")
+        collide = [g for g in main.list_api_groups() if g["base_url"] == "https://collide.test/v1"]
+        check_true("分组接口：脱敏串相同但真 key 不同的两把 key 不会被并成一项",
+                   len(collide) == 2, f"{[(g['api_key'], g['models']) for g in collide]}")
 
         # ---- 8) 演示/mock 模型的成绩不进排行榜与总览 ------------------------------
         # 口径：app/scoring.is_mock_model（base_url 以 mock:// 开头）。

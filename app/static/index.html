@@ -287,7 +287,19 @@
   <div id="add-model-box" style="display:none">
     <div class="card">
       <div class="row" style="margin-bottom:10px">
-        <select id="m-preset" onchange="applyPreset()" style="flex:0 0 220px">
+        <!-- 「复用 API」：选项是已添加模型的**连接信息分组**（base_url + api_key 相同即同一项），
+             不是按模型分组 —— 同一套 API 上往往挂着好几个模型（qwen3.8-flash / qwen3.8-max…），
+             要复用复用的是**这套 API**。分组在后端按真 key 做（前端只有脱敏串，
+             两个不同 key 可能撞出同一个脱敏串，那样前端分组会错并成一项）；
+             每组给一个代表 model_id，选中它就等于"用这套 API"。
+             key 只以脱敏形式出现在标签里（sk-w****5VcY）：既够区分同一端点下的多把 key，
+             也不外泄真值（真值本来就不出接口）。 -->
+        <select id="m-api" onchange="applyApiChoice()" style="flex:1 1 330px"
+                title="新增模型：自己填一套连接信息；复用 API：沿用已添加过的某套 base_url + Key"
+                data-i18n-title="新增模型：自己填一套连接信息；复用 API：沿用已添加过的某套 base_url + Key">
+          <option value="" data-i18n="新增模型（自己填 base_url 和 Key）">新增模型（自己填 base_url 和 Key）</option>
+        </select>
+        <select id="m-preset" onchange="applyPreset()" style="flex:0 0 200px">
           <option value="" data-i18n="选择服务商（自动填 base_url）…">选择服务商（自动填 base_url）…</option>
           <option value="https://api.deepseek.com">DeepSeek</option>
           <option value="https://dashscope.aliyuncs.com/compatible-mode/v1" data-i18n="通义千问（阿里）">通义千问（阿里）</option>
@@ -297,13 +309,6 @@
           <option value="https://openrouter.ai/api/v1">OpenRouter</option>
           <option value="http://localhost:11434/v1" data-i18n="本地 Ollama">本地 Ollama</option>
           <option value="custom" data-i18n="自定义（手动填写）">自定义（手动填写）</option>
-        </select>
-        <!-- 复用已有模型的连接信息：同一个 key 换模型名时，不用再把 key 粘一遍。
-             key 是脱敏的、前端拿不到，所以真正复制在后端做（POST 里带 copy_from）。 -->
-        <select id="m-copy" onchange="applyCopyFrom()" style="flex:0 0 300px"
-                title="复用已有模型的 base_url / Key / 额外参数（只有留空的项才用它的）"
-                data-i18n-title="复用已有模型的 base_url / Key / 额外参数（只有留空的项才用它的）">
-          <option value="" data-i18n="不从已有模型复用">不从已有模型复用</option>
         </select>
       </div>
       <div class="row">
@@ -420,11 +425,14 @@ const EN = {
   "base_url（必填），如 https://api.deepseek.com": "base_url (required), e.g. https://api.deepseek.com",
   "判别器只用于给安全类基准判分，不会出现在被测模型里":
     "A judge model only scores safety benchmarks; it never shows up as a model under test",
-  "不从已有模型复用": "Don't reuse an existing model",
-  "复用已有模型的 base_url / Key / 额外参数（只有留空的项才用它的）":
-    "Reuse an existing model's base_url / Key / extra parameters (only the fields you leave empty)",
-  "base_url / Key / 额外参数留空则沿用「{0}」（显式填写的优先）":
-    "Empty base_url / Key / extra parameters will reuse “{0}” (what you type wins)",
+  "新增模型（自己填 base_url 和 Key）": "New model (fill in base_url and Key yourself)",
+  "新增模型：自己填一套连接信息；复用 API：沿用已添加过的某套 base_url + Key":
+    "New model: fill in a new set of connection info; Reuse API: reuse a base_url + Key you already added",
+  "复用 API：{0} · {1}（已添加：{2}）": "Reuse API: {0} · {1} (already added: {2})",
+  "（无 Key）": "(no Key)",
+  "沿用这套 API 的 Key（{0}）": "Reuse this API's Key ({0})",
+  "将复用 {0} 这套 API（已添加：{1}）；只需填新的模型名":
+    "Will reuse the API {0} (already added: {1}); you only need to enter the new model name",
   "演示模型（{0}）的成绩不计入排行榜与成绩总览（AI 总结同样排除）":
     "Results from demo model(s) {0} are excluded from the leaderboard and overview (the AI summary excludes them too)",
   "被测模型": "Test",
@@ -1036,18 +1044,6 @@ async function loadModels() {
        </span></td></tr>`;
   }).join("")
     : `<tr><td colspan="5" class="empty">${t("暂无模型")}</td></tr>`;
-  // 「复用已有模型的连接信息」下拉：选项来自当前模型列表。
-  // 注意这里**只带得走 base_url**：api_key 在接口里是脱敏的（sk-w****5VcY），
-  // 真正复制 key 与额外参数的动作在后端按 copy_from 做（见 app/main.py）。
-  const csel = document.getElementById("m-copy");
-  if (csel) {
-    const keepCopy = csel.value;
-    csel.innerHTML = `<option value="">${t("不从已有模型复用")}</option>`
-      + ms.map(m => `<option value="${m.id}">${esc(m.name)} · ${esc(m.base_url)}</option>`).join("");
-    csel.value = ms.some(m => String(m.id) === keepCopy) ? keepCopy : "";
-    // 列表变了（比如来源模型被删了）→ 同步一次提示。typeof 守卫同上：模板自检会单独 eval 这段。
-    if (typeof applyCopyFrom === "function") applyCopyFrom();
-  }
   // 评测的模型下拉**排除判别器**：判别器不能被测（后端也会拦，这里只是别让人白选一场）
   const testable = ms.filter(m => m.kind !== "judge");
   const esel = document.getElementById("e-model");
@@ -1093,20 +1089,48 @@ function applyPreset() {
   else if (v) urlInput.value = v;
 }
 
-// 复用已有模型的连接信息（同一个 key 换模型名时不用再粘 key）。
-// 这里只把 base_url 填进可见的输入框 —— **Key 拿不到也绝不显示**（接口里是脱敏的），
-// 真正复制 key / 额外参数由后端按 copy_from 做；也只在输入框留空时才填，不覆盖你已填的。
-function applyCopyFrom() {
-  const sel = document.getElementById("m-copy");
+// 「复用 API」下拉：选项是**连接信息分组**（base_url + api_key 相同即一项），不是按模型。
+// 分组来自 /api/api-groups（服务端按真 key 分组；前端只有脱敏串，两个真 key 可能撞成同一串，
+// 那样前端分组会错并成一项，也说不清该复制谁的 key）。
+// 选中某组后：base_url / Key 禁用并显示该组的值（Key 只显示脱敏串，真 key 由后端按
+// 代表 model_id 复制），用户只需填新的模型名。
+let apiGroups = [];     // /api/api-groups 的结果（表单打开时才取，避免每次轮询都请求）
+
+async function loadApiGroups() {
+  try { apiGroups = await api("/api/api-groups"); } catch (_) { apiGroups = []; }
+  const sel = document.getElementById("m-api");
+  if (!sel) return;
+  const keep = sel.value;
+  sel.innerHTML = `<option value="">${t("新增模型（自己填 base_url 和 Key）")}</option>`
+    + apiGroups.map(g => `<option value="${g.model_id}">${tf("复用 API：{0} · {1}（已添加：{2}）",
+        [esc(g.base_url), esc(g.api_key || t("（无 Key）")), esc(g.models.join("、"))])}</option>`).join("");
+  sel.value = apiGroups.some(g => String(g.model_id) === keep) ? keep : "";
+  applyApiChoice();
+}
+
+// 选了「复用 API」就锁住 base_url / Key（值来自那一组），并说明在复用哪套 API；
+// 选「新增模型」则放开。base_url 可见、Key 只显示脱敏串 —— 真 key 本来就不出接口。
+function applyApiChoice() {
+  const sel = document.getElementById("m-api");
+  const g = (typeof apiGroups !== "undefined" ? apiGroups : []).find(x => String(x.model_id) === String(sel?.value));
+  const url = document.getElementById("m-url"), key = document.getElementById("m-key");
+  const preset = document.getElementById("m-preset");
   const hint = document.getElementById("m-copy-hint");
-  if (!sel || !hint) return;
-  // typeof 守卫：模板自检是把这个函数单独 eval 的，那里没有 modelList 这个模块级全局
-  const ms = (typeof modelList !== "undefined" && modelList) ? modelList : [];
-  const src = ms.find(m => String(m.id) === String(sel.value));
-  if (!src) { hint.textContent = ""; return; }
-  const url = document.getElementById("m-url");
-  if (!url.value.trim()) url.value = src.base_url;
-  hint.textContent = tf("base_url / Key / 额外参数留空则沿用「{0}」（显式填写的优先）", [src.name]);
+  if (!url || !key) return;
+  if (g) {
+    url.value = g.base_url;  url.disabled = true;
+    key.value = "";          key.disabled = true;
+    key.placeholder = tf("沿用这套 API 的 Key（{0}）", [g.api_key || t("（无 Key）")]);
+    if (preset) { preset.value = ""; preset.disabled = true; }
+    if (hint) hint.textContent = tf("将复用 {0} 这套 API（已添加：{1}）；只需填新的模型名",
+                                    [esc(g.base_url), esc(g.models.join("、"))]);
+  } else {
+    url.disabled = false;
+    key.disabled = false;
+    key.placeholder = "API Key";
+    if (preset) preset.disabled = false;
+    if (hint) hint.textContent = "";
+  }
 }
 
 function modelForm() {
@@ -1115,7 +1139,8 @@ function modelForm() {
     base_url: document.getElementById("m-url").value.trim(),
     api_key: document.getElementById("m-key").value.trim(),
     kind: document.getElementById("m-kind").value,
-    copy_from: Number(document.getElementById("m-copy")?.value) || null,
+    // 复用 API：回传该组的代表 model_id（同组连接信息完全相同，服务端按它复制 key）
+    copy_api_from: Number(document.getElementById("m-api")?.value) || null,
   };
 }
 
@@ -1140,8 +1165,8 @@ async function addModel() {
   } catch (e) { return alert(t("添加失败：") + e.message); }
   document.getElementById("m-name").value = document.getElementById("m-url").value = document.getElementById("m-key").value = "";
   document.getElementById("m-kind").value = "test";
-  document.getElementById("m-copy").value = "";
-  applyCopyFrom();                       // 清掉「沿用 …」的提示
+  document.getElementById("m-api").value = "";    // 回到「新增模型」模式
+  applyApiChoice();
   document.getElementById("m-test-result").textContent = "";
   setAddModelOpen(false);   // 添加成功后自动收起表单
   loadModels();
@@ -1152,7 +1177,10 @@ function setAddModelOpen(open) {
   document.getElementById("add-model-box").style.display = open ? "" : "none";
   document.getElementById("add-model-toggle").innerHTML =
     `<button class="ghost" onclick="toggleAddModel()">${open ? t("收起") : t("＋ 添加模型")}</button>`;
-  if (open) document.getElementById("m-name").focus();
+  if (open) {
+    document.getElementById("m-name").focus();
+    loadApiGroups();      // 表单打开时才取「复用 API」的分组（不必每次轮询都请求一次）
+  }
 }
 function toggleAddModel() {
   setAddModelOpen(document.getElementById("add-model-box").style.display === "none");

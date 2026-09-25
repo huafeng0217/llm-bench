@@ -656,14 +656,22 @@ await enSmoke("成绩总览", () => {
 await enSmoke("排行榜", () => new Function("bds", "expandedCats", "esc",
   pctLine + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
 )(asciify(bds), { code: true, agent: true }, s2 => String(s2 ?? "")));
-// 复用已有模型的连接信息：key 在接口里是脱敏的（sk-w****5VcY），前端拿不到真 key，
-// 所以"同一个 key 换个模型名"必须在后端按 copy_from 复制。
-check("添加模型：表单有「复用已有模型的连接信息」下拉",
-  /<select id="m-copy"[^>]*data-i18n-title="复用已有模型的 base_url/.test(src));
-check("添加模型：下拉选项来自模型列表（名称 · base_url）",
-  /csel\.innerHTML = `<option value="">\$\{t\("不从已有模型复用"\)\}<\/option>`[\s\S]{0,140}?ms\.map\(m => `<option value="\$\{m\.id\}">\$\{esc\(m\.name\)\} · \$\{esc\(m\.base_url\)\}<\/option>`\)/.test(script));
-check("添加模型：提交与「测试连接」都带 copy_from（复制 key 只能在后端做）",
-  /copy_from: Number\(document\.getElementById\("m-copy"\)\?\.value\) \|\| null/.test(script));
+// 复用 API：选项必须是**连接信息分组**（base_url + api_key 相同即一项），不是按模型 ——
+// 同一套 API 上往往挂着好几个模型。分组由后端按真 key 做（前端只有脱敏串），
+// 前端只负责渲染分组 + 回传代表 model_id。
+check("添加模型：有「新增模型 / 复用 API」下拉",
+  /<select id="m-api"[^>]*data-i18n-title="新增模型：自己填一套连接信息/.test(src));
+check("添加模型：下拉默认项是「新增模型（自己填 base_url 和 Key）」",
+  /<select id="m-api"[\s\S]{0,400}?<option value="" data-i18n="新增模型（自己填 base_url 和 Key）"/.test(src));
+check("添加模型：分组选项文案带 base_url · 脱敏 Key（已添加：…）",
+  /tf\("复用 API：\{0\} · \{1\}（已添加：\{2\}）",\s*\[esc\(g\.base_url\), esc\(g\.api_key/.test(script));
+check("添加模型：分组来自 /api/api-groups（服务端按真 key 分组，前端分不准）",
+  /api\("\/api\/api-groups"\)/.test(script) && /let apiGroups = \[\];/.test(script));
+check("添加模型：选了「复用 API」就锁住 base_url/Key/预设，并说明在复用哪套",
+  /url\.disabled = true;[\s\S]{0,200}?key\.disabled = true;[\s\S]{0,260}?preset\.disabled = true;/.test(script)
+  && /将复用 \{0\} 这套 API（已添加：\{1\}）；只需填新的模型名/.test(script));
+check("添加模型：提交时带 copy_api_from（复制真 key 只能在后端做）",
+  /copy_api_from: Number\(document\.getElementById\("m-api"\)\?\.value\) \|\| null/.test(script));
 
 // 排行榜页脚：只在「真有 mock 模型、且它跑过成绩」时说明它为什么不在榜上
 // （后端把它们过滤掉了，不解释一句会被当成 bug；没有 mock 时不占地方）。
