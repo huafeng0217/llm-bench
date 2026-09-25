@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import datasets, engine
+from .benchmarks import META
 from .config import CHOICES
 
 # 覆盖率低于这个比例就算「部分评测」，不与其他完整评测直接比较
@@ -27,6 +28,25 @@ COVERAGE_OK = 0.9
 
 # 采样多少条题目来估算随机基线（不读全量，MMLU 有 1.2 万行）
 BASELINE_SAMPLE = 200
+
+# ==================== 哪些成绩**不算数**（不进排名与聚合）====================
+# 演示/mock 模型（模型名随便，base_url 以 mock:// 开头 —— README 里写的 demo 就是它）：
+# 它是用来「没有 key 也能跑通全流程」的假模型，成绩混进「谁最强」只会制造噪声。
+# 口径只在这里定义一次：排行榜、成绩总览、AI 总结三处都调它
+# —— 以前只有 AI 总结排除了它，排行榜和总览把它当真实模型排名（实测 demo 上过榜）。
+MOCK_URL_PREFIX = "mock://"
+
+# 演示样例题库（META 里 status == "演示样例"，如 mmlu_sample / ceval_sample）。
+# **注意：这三个消费者的范围刻意不同**（用户明确要求）：
+#   - 排行榜 / 成绩总览：仍然展示样例题库的成绩（用户想看到它们）
+#   - AI 总结：排除，因为总结做的是「谁最强」的分析，而 6 题样本拿来分析是纯噪声
+# 所以这个集合只给 summary 用；别顺手加到排行榜里，那会推翻用户的选择。
+DEMO_BENCHMARKS = {bid for bid, meta in META.items() if meta.get("status") == "演示样例"}
+
+
+def is_mock_model(base_url: str) -> bool:
+    """这个模型是不是演示/mock 模型（成绩不进排名与聚合）。"""
+    return str(base_url or "").startswith(MOCK_URL_PREFIX)
 
 
 # 随机基线的缓存：路径 -> (mtime_ns, 文件大小, 计算结果)

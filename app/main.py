@@ -139,6 +139,29 @@ class ModelIn(BaseModel):
     kind: str = "test"
     # 额外请求参数（JSON 对象字符串，可选）。例：关掉 Qwen3 的思考 {"enable_thinking": false}
     extra_body: str = ""
+    # 复用已有模型的连接信息：填这个模型的 id，base_url / api_key / extra_body
+    # **留空**的那几项就用它的值（显式填了的以填的为准）。
+    # 为什么必须在后端复制而不是前端带过来：API Key 在接口里是脱敏的（mask_key），
+    # 前端根本拿不到真 key —— 想"同一个 key、换个模型名"就只能由服务端去取。
+    copy_from: int | None = None
+
+
+def _apply_copy_from(m: ModelIn) -> tuple[str, str, str]:
+    """按 `copy_from` 把留空的 base_url / api_key / extra_body 补上（显式填的优先）。
+
+    返回 (base_url, api_key, extra_body)。`copy_from` 指向不存在的模型时报 404 ——
+    静默忽略会让用户以为"复用成功了"，实际拿到一个空 key 的模型。
+    """
+    base_url, api_key = m.base_url.strip(), m.api_key.strip()
+    extra_body = m.extra_body or ""
+    if m.copy_from is None:
+        return base_url, api_key, extra_body
+    src = db.query_one("SELECT name, base_url, api_key, extra_body FROM models WHERE id=?",
+                       (m.copy_from,))
+    if not src:
+        raise HTTPException(404, i18n.t("要复用的模型不存在"))
+    return (base_url or src["base_url"], api_key or src["api_key"],
+            extra_body or src["extra_body"] or "")
 
 
 class KindIn(BaseModel):
@@ -158,12 +181,12 @@ class EvalIn(BaseModel):
 
 @app.post("/api/models/test")
 async def test_model(m: ModelIn):
-    """保存前测试连接：用最小 prompt 实际调一次模型接口。"""
-    cfg = {
-        "name": m.name.strip(),
-        "base_url": m.base_url.strip().rstrip("/"),
-        "api_key": m.api_key.strip(),
-    }
+    """保存前测试连接：用最小 prompt 实际调一次模型接口。
+
+    也支持 `copy_from`（表单里 key 留空、沿用别的模型时，"测试连接"照样能点）。
+    """
+    base_url, api_key, _ = _apply_copy_from(m)
+    cfg = {"name": m.name.strip(), "base_url": base_url.rstrip("/"), "api_key": api_key}
     if not cfg["name"] or not cfg["base_url"]:
         return {"ok": False, "error": "模型名和 base_url 不能为空"}
     try:
@@ -230,7 +253,10 @@ def valid_extra_body(raw: str) -> str:
 
 @app.post("/api/models", status_code=201)
 def create_model(m: ModelIn):
-    if not m.name.strip() or not m.base_url.strip():
+    # 先按 copy_from 补全（留空的才补），再校验 —— 顺序很重要：只填了模型名的
+    # "同 key 换模型名"必须靠补来的 base_url 才不为空。
+    base_url, api_key, extra_body = _apply_copy_from(m)
+    if not m.name.strip() or not base_url:
         raise HTTPException(400, i18n.t("name 和 base_url 不能为空"))
     if m.kind not in MODEL_KINDS:
         raise HTTPException(400, i18n.t("kind 只能是 {kinds}", kinds=sorted(MODEL_KINDS)))
@@ -238,8 +264,8 @@ def create_model(m: ModelIn):
     # 分配规则是"挑用得最少的"，所以删掉模型后它空出来的颜色会被下一个新模型捡回。
     mid = db.execute(
         "INSERT INTO models(name, base_url, api_key, kind, extra_body, color) VALUES(?,?,?,?,?,?)",
-        (m.name.strip(), m.base_url.strip().rstrip("/"), m.api_key.strip(), m.kind,
-         valid_extra_body(m.extra_body), _next_model_color()),
+        (m.name.strip(), base_url.rstrip("/"), api_key, m.kind,
+         valid_extra_body(extra_body), _next_model_color()),
     )
     sync_models_file()
     return {"id": mid, "kind": m.kind}
@@ -682,9 +708,13 @@ def leaderboard():
     供前端折叠展示（见 app/benchmarks/bfcl.py 的 FAMILY_DEFS）。
     """
     rows = db.query(
-        "SELECT e.*, m.name AS model_name, m.color AS model_color FROM evaluations e"
+        "SELECT e.*, m.name AS model_name, m.color AS model_color,"
+        " m.base_url AS model_base_url FROM evaluations e"
         " JOIN models m ON m.id=e.model_id WHERE e.status='done' AND e.done>0"
     )
+    # 演示/mock 模型（base_url 是 mock://）的成绩不进排行榜：它是"没有 key 也能跑通流程"
+    # 的假模型，跟真实模型比排名只会制造噪声。口径定义在 app/scoring（三处共用）。
+    rows = [r for r in rows if not scoring.is_mock_model(r["model_base_url"])]
     # 1) 每个 (模型, 基准) 取「代表成绩」——
     #    口径来自 app/scoring，与成绩总览、AI 总结共用：
     #    **优先完整评测**，只有部分评测时才用它并标记 partial。
@@ -884,9 +914,11 @@ def overview():
     （含暂无数据的，scores 为空 dict），是否隐藏空行交给前端过滤。
     """
     rows = db.query(
-        "SELECT e.*, m.name AS model_name FROM evaluations e"
+        "SELECT e.*, m.name AS model_name, m.base_url AS model_base_url FROM evaluations e"
         " JOIN models m ON m.id=e.model_id WHERE e.status='done' AND e.done>0"
     )
+    # 同排行榜：演示/mock 模型不进成绩总览（口径在 app/scoring）
+    rows = [r for r in rows if not scoring.is_mock_model(r["model_base_url"])]
     runs: dict = {}         # (model_id, benchmark) -> 该模型在该基准的所有 done 评测
     model_names: dict = {}  # model_id -> 模型名
     for r in rows:

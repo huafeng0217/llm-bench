@@ -44,6 +44,7 @@ EN: dict[str, str] = {
     '额外请求参数必须是 JSON 对象，例如 {"enable_thinking": false}':
         'extra request parameters must be a JSON object, e.g. {"enable_thinking": false}',
     "kind 只能是 {kinds}": "kind must be one of {kinds}",
+    "要复用的模型不存在": "the model whose connection info is being copied does not exist",
     # 「先让人看见后果」的两处确认/拦截文案（响应时翻：前端把 detail 直接拿给用户看）
     "{name} 已有 {n} 条历史评测。改成「判别器」后不能再发起新评测，"
     "但已有的成绩仍然保留在排行榜上（数据是真的，不该因为角色变了就消失）。确认要改吗？":

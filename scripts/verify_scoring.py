@@ -136,10 +136,13 @@ def main_() -> int:
         # ---- 接口层：排行榜与总览必须给出同一答案 ---------------------------
         # 模型 A：先跑了 6 题冒烟（100%），后跑完整 163/164（99.39%）
         # 模型 B：只有 6 题冒烟（100%）—— 必须仍然可见，但带 partial
+        # base_url 用真实值（不是 mock://local）：mock 模型**不进排行榜/总览**（见 app/scoring
+        # 的 is_mock_model），拿它当夹具会让本节拿到空榜单 —— 这里测的是取数口径，不是 mock 排除。
+        TEST_URL = "https://example.test/v1"
         mid_a = db.execute("INSERT INTO models(name, base_url, api_key) VALUES(?,?,?)",
-                           ("__scoring_complete__", "mock://local", ""))
+                           ("__scoring_complete__", TEST_URL, ""))
         mid_b = db.execute("INSERT INTO models(name, base_url, api_key) VALUES(?,?,?)",
-                           ("__scoring_partial__", "mock://local", ""))
+                           ("__scoring_partial__", TEST_URL, ""))
         add_eval(mid_a, 6, 6)          # 部分
         add_eval(mid_a, 163, 162)      # 完整
         add_eval(mid_b, 6, 6)          # 只有部分
@@ -240,7 +243,7 @@ def main_() -> int:
 
         # ---- 排行榜 / 总览：家族折叠后的口径 ---------------------------------
         mid_f = db.execute("INSERT INTO models(name, base_url, api_key) VALUES(?,?,?)",
-                           ("__family__", "mock://local", ""))
+                           ("__family__", "https://example.test/v1", ""))
         non_live = next(g for g in gs if g["id"] == "non_live")["subsets"]
         live = next(g for g in gs if g["id"] == "live")["subsets"]
         for sid in non_live[:2]:                     # 只跑 Non-Live 的两个子集，都拿 50%

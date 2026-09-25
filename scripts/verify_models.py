@@ -40,7 +40,7 @@ import tempfile
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app import db, model_colors  # noqa: E402
+from app import db, model_colors, summary  # noqa: E402
 
 
 def _pick_tmp() -> pathlib.Path:
@@ -93,9 +93,13 @@ def raises(name: str, fn, status: int) -> None:
         RESULTS.append((name, False, "居然没抛异常"))
 
 
-def add_model(name: str, kind: str = "test") -> int:
-    return main.create_model(main.ModelIn(name=name, base_url="mock://local",
-                                          api_key="k", kind=kind))["id"]
+def add_model(name: str, kind: str = "test", base_url: str = "mock://local",
+              api_key: str = "k", extra_body: str = "", copy_from: int | None = None) -> int:
+    """建模型。默认 base_url 是 mock://local（演示模型）——
+    注意：mock 模型**不进排行榜**（见本脚本最后一节），要上排行榜的测试模型必须传真实 base_url。"""
+    return main.create_model(main.ModelIn(
+        name=name, base_url=base_url, api_key=api_key, kind=kind,
+        extra_body=extra_body, copy_from=copy_from))["id"]
 
 
 def insert_eval(mid: int, benchmark: str = "mmlu_sample") -> int:
@@ -246,7 +250,7 @@ def main_() -> int:
 
         # 核心承诺 ①：加模型**不会**改变别人的颜色
         # （前端原来按名字排序取色，这里就是那次 bug 的回归位）
-        fresh = add_model("__新模型__")
+        fresh = add_model("__新模型__", base_url="https://example.test/v1")
         after_new = colors_now()
         check("加一个模型后，已有模型的颜色一个都没变",
               {k: v for k, v in after_new.items() if k != fresh}, before_new)
@@ -408,6 +412,59 @@ def main_() -> int:
 
         raises("删不存在的模型 -> 404",
                lambda: asyncio.run(main.delete_model(999999)), 404)
+
+        # ---- 7) 复用已有模型的连接信息（copy_from）--------------------------------
+        # 场景：同一个 key、换个模型名再加一个模型 —— 不用把 key 再粘一遍。
+        # 为什么必须在后端复制：API Key 在接口里是脱敏的（sk-w****5VcY），前端拿不到真 key。
+        src_id = add_model("__来源模型__", base_url="https://example.test/v1",
+                           api_key="sk-src-1234567890", extra_body='{"enable_thinking": false}')
+        # 注意 api_key 要显式传空串：helper 的默认值是 "k"，非空就按"显式优先"走，
+        # 那样测的就不是"留空才补"了（第一版就是这么写错的）。
+        copied = add_model("__同源新模型__", base_url="", api_key="", copy_from=src_id)
+        crow = db.query_one("SELECT * FROM models WHERE id=?", (copied,))
+        check("copy_from：base_url 从来源模型补上", crow["base_url"], "https://example.test/v1")
+        check("copy_from：api_key 从来源模型补上", crow["api_key"], "sk-src-1234567890")
+        check("copy_from：额外参数也一起补（界面上没这个入口，只能靠复制）",
+              crow["extra_body"], '{"enable_thinking": false}')
+
+        explicit = add_model("__显式优先__", base_url="https://explicit.test/v1",
+                             api_key="sk-mine-99999999", copy_from=src_id)
+        erow = db.query_one("SELECT * FROM models WHERE id=?", (explicit,))
+        check("copy_from：自己填的 base_url 优先（留空才补）", erow["base_url"], "https://explicit.test/v1")
+        check("copy_from：自己填的 key 优先（留空才补）", erow["api_key"], "sk-mine-99999999")
+
+        raises("copy_from 指向不存在的模型 -> 404（不能静默给个空 key 的模型）",
+               lambda: add_model("__无来源__", base_url="", copy_from=999999), 404)
+
+        listed = {m["id"]: m for m in main.list_models()}
+        check_true("copy_from 之后接口里的 key 仍然脱敏（不外泄明文）",
+                   "****" in listed[copied]["api_key"]
+                   and listed[copied]["api_key"] != "sk-src-1234567890",
+                   f"列表里是 {listed[copied]['api_key']!r}")
+
+        # ---- 8) 演示/mock 模型的成绩不进排行榜与总览 ------------------------------
+        # 口径：app/scoring.is_mock_model（base_url 以 mock:// 开头）。
+        # 用户明确要求：**只排 mock 模型，样例题库照旧参与排名** —— 后者刻意不动，
+        # 所以这里同时钉住"该排的排掉、不该动的没动"。
+        mock_m = add_model("__演示模型__", base_url="mock://local")
+        real_m = add_model("__真实模型__", base_url="https://example.test/v2")
+        for mid, correct in ((mock_m, 12), (real_m, 6)):
+            db.execute("INSERT INTO evaluations(model_id, benchmark, total, status, done, correct)"
+                       " VALUES(?,?,?,?,?,?)", (mid, "mmlu_sample", 12, "done", 12, correct))
+        lb_models = {r["model_name"] for cat in main.leaderboard() for r in cat["combined"]}
+        ov_models = {m["name"] for m in main.overview()["models"]}
+        check_true("排行榜里没有 mock 模型（demo 不上榜）", "__演示模型__" not in lb_models,
+                   f"榜单模型：{sorted(lb_models)}")
+        check_true("成绩总览里也没有 mock 模型", "__演示模型__" not in ov_models,
+                   f"总览模型：{sorted(ov_models)}")
+        check_true("真实模型照旧上榜（没有误伤）",
+                   "__真实模型__" in lb_models and "__真实模型__" in ov_models)
+        lb_benches = {b["benchmark"] for cat in main.leaderboard() for b in cat.get("boards", [])}
+        check_true("样例题库仍参与排名（用户明确选了不动它）", "mmlu_sample" in lb_benches,
+                   f"分项榜基准：{sorted(lb_benches)}")
+        stats = summary.collect()
+        check_true("AI 总结照旧统计被排除的 mock 成绩条数（它一直排 mock）",
+                   stats["skipped"]["mock_models"] >= 1, f"{stats['skipped']}")
 
         print(f"临时目录: {_tmp_root}")
         print("=" * 74)

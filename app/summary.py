@@ -39,7 +39,13 @@ Z95 = 1.96  # 95% 置信
 # 演示样例题库（mmlu_sample / ceval_sample）不该进总结：只有 12 题，
 # 混进来会把「覆盖度分母」撑大，还会产生「39 个百分点以内差距无法区分」这种
 # 技术上正确但毫无意义的提示。
-DEMO_BENCHMARKS = {b for b, m in META.items() if m.get("status") == "演示样例"}
+#
+# 定义已移到 app/scoring（和 mock 模型那条口径放一起），这里只做**同义引用**：
+# ① 三处消费者的口径集中在一个文件里，不会再各自漂移；
+# ② `summary.DEMO_BENCHMARKS` 这个名字被 verify_summary.py 用着，保留它免得改测试。
+# 注意范围是**刻意不同**的：排行榜/总览仍然展示样例题库的成绩，只有总结排除它们
+# （总结做的是「谁最强」的分析，6 题样本进来是纯噪声）。
+DEMO_BENCHMARKS = scoring.DEMO_BENCHMARKS
 
 
 def _interval(pct: float, n: int) -> float:
@@ -62,20 +68,19 @@ def _interval(pct: float, n: int) -> float:
 def collect() -> dict:
     """汇总所有评测，返回结构化统计。"""
     rows = db.query(
-        "SELECT e.*, m.name AS model_name FROM evaluations e"
+        "SELECT e.*, m.name AS model_name, m.base_url AS model_base_url FROM evaluations e"
         " JOIN models m ON m.id=e.model_id WHERE e.status='done' AND e.done>0"
         " ORDER BY e.id"
     )
     # 排除 mock 模型（base_url 是 mock://local）：它是用来跑通流程的假模型，
-    # 混进「谁最强」的分析里只会制造噪声
-    mock_ids = {m["id"] for m in db.query("SELECT id FROM models WHERE base_url LIKE 'mock://%'")}
+    # 混进「谁最强」的分析里只会制造噪声。口径来自 app/scoring（排行榜/总览/总结三处共用）。
     skipped = {"mock_models": 0, "demo_benchmarks": 0}
     filtered = []
     for r in rows:
-        if r["model_id"] in mock_ids:
+        if scoring.is_mock_model(r["model_base_url"]):
             skipped["mock_models"] += 1
             continue
-        if r["benchmark"] in DEMO_BENCHMARKS:
+        if r["benchmark"] in scoring.DEMO_BENCHMARKS:
             skipped["demo_benchmarks"] += 1
             continue
         filtered.append(r)

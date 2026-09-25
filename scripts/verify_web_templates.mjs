@@ -656,6 +656,29 @@ await enSmoke("成绩总览", () => {
 await enSmoke("排行榜", () => new Function("bds", "expandedCats", "esc",
   pctLine + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
 )(asciify(bds), { code: true, agent: true }, s2 => String(s2 ?? "")));
+// 复用已有模型的连接信息：key 在接口里是脱敏的（sk-w****5VcY），前端拿不到真 key，
+// 所以"同一个 key 换个模型名"必须在后端按 copy_from 复制。
+check("添加模型：表单有「复用已有模型的连接信息」下拉",
+  /<select id="m-copy"[^>]*data-i18n-title="复用已有模型的 base_url/.test(src));
+check("添加模型：下拉选项来自模型列表（名称 · base_url）",
+  /csel\.innerHTML = `<option value="">\$\{t\("不从已有模型复用"\)\}<\/option>`[\s\S]{0,140}?ms\.map\(m => `<option value="\$\{m\.id\}">\$\{esc\(m\.name\)\} · \$\{esc\(m\.base_url\)\}<\/option>`\)/.test(script));
+check("添加模型：提交与「测试连接」都带 copy_from（复制 key 只能在后端做）",
+  /copy_from: Number\(document\.getElementById\("m-copy"\)\?\.value\) \|\| null/.test(script));
+
+// 排行榜页脚：只在「真有 mock 模型、且它跑过成绩」时说明它为什么不在榜上
+// （后端把它们过滤掉了，不解释一句会被当成 bug；没有 mock 时不占地方）。
+{
+  const noteHtml = new Function("modelList", grab("mockNoteHtml") + "\nreturn mockNoteHtml();");
+  const withRuns = noteHtml([{ id: 9, name: "demo", base_url: "mock://local", evaluations: 2 }]);
+  const noRuns = noteHtml([{ id: 9, name: "demo", base_url: "mock://local", evaluations: 0 }]);
+  const noMock = noteHtml([{ id: 9, name: "真模型", base_url: "https://api.example.com/v1", evaluations: 3 }]);
+  check("排行榜页脚：mock 模型有成绩时说明它不计入排行",
+    withRuns.includes("不计入排行榜与成绩总览") && withRuns.includes("demo"),
+    `渲染出来的是：${withRuns.slice(0, 90)}`);
+  check("排行榜页脚：mock 没成绩 / 没有 mock 时不加这句说明",
+    noRuns === "" && noMock === "", `noRuns=${noRuns.slice(0, 40)} noMock=${noMock.slice(0, 40)}`);
+}
+
 // 家族表头只显示组名括号前的短名。中文的组名用**全角**括号（Agentic（Web Search + Memory）），
 // 英文用的是**半角**（Agentic (Web Search + Memory)）—— 只按全角「（」拆就拆不开，
 // 英文模式下表头会整串铺开（96px 的列被撑爆），而上面那条冒烟用的假数据是全角括号，
