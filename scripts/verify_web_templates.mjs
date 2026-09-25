@@ -453,6 +453,14 @@ check("模型管理：正文的模型 / base_url / Key 单元格都标了 tl",
   && /<td class="[^"]*\btl\b[^"]*muted">\$\{esc\(m\.api_key\)\}/.test(src));
 check("模型管理：模型名前面画身份色点（和排行榜上的点是同一个颜色）",
   /class="mdot" style="background:\$\{esc\(m\.color/.test(script));
+// 删模型会连它的评测成绩一起删（留在库里却看不见的孤儿成绩是原来的隐患），
+// 所以有成绩时必须先让人看见代价：后端回 409 + 条数，前端 confirm 之后带
+// ?confirm=true 重发。这条钉住"前端有没有这个确认流程"。
+const delSrc = script.slice(script.indexOf("async function delModel"),
+                            script.indexOf("async function delModel") + 900);
+check("删模型：有成绩时先确认再删（?confirm=true 重发），不是直接发 DELETE",
+  delSrc.includes("?confirm=true") && delSrc.includes("确定要删除吗") && /if \(!confirm\(/.test(delSrc),
+  `delModel 里没找到确认流程：${delSrc.slice(0, 120)}`);
 check("评测任务：正文的模型 / 基准单元格都标了 tl",
   /<td class="[^"]*\btl\b[^"]*" style="font-weight:550">\$\{esc\(e\.model_name\)\}/.test(src)
   && /<td class="[^"]*\btl\b[^"]*" title="\$\{tf\("输出上限/.test(src));

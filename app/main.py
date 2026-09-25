@@ -274,10 +274,36 @@ def update_model_kind(mid: int, body: KindIn):
 
 
 @app.delete("/api/models/{mid}")
-def delete_model(mid: int):
+async def delete_model(mid: int, confirm: bool = False):
+    """删模型。**会连它的评测成绩一起删**，所以有成绩时要求 ``confirm=true``。
+
+    为什么不像「改用途」那样把成绩留着：成绩离了模型就哪儿都去不了 ——
+    任务列表、排行榜、AI 总结全是 JOIN models 取模型名，join 不上就不显示，
+    于是这些行只是躺在库里占地方，还让「有几个评测任务」的数字对不上
+    （原来 total 数的是原始表 COUNT(*)，实测出现过卡片 2、列表 1 行）。
+    但**不能默默删**：跑一次基准是要花钱花时间的，所以先让人看见要删掉多少，
+    确认了才动（沿用改用途那套 409 + confirm 的写法）。
+
+    删除走 ``_delete_one_evaluation``：会先取消还在跑的任务（否则它会继续烧 token，
+    并往一个已经删掉的任务里写数据），再删逐题明细、主记录和 data/results 里的导出文件。
+    """
+    row = db.query_one("SELECT id, name FROM models WHERE id=?", (mid,))
+    if not row:
+        raise HTTPException(404, i18n.t("模型不存在"))
+    runs = db.query("SELECT id FROM evaluations WHERE model_id=? ORDER BY id", (mid,))
+    if runs and not confirm:
+        n_items = db.query_one(
+            "SELECT COUNT(*) AS n FROM eval_items WHERE eval_id IN"
+            " (SELECT id FROM evaluations WHERE model_id=?)", (mid,))["n"]
+        raise HTTPException(409, i18n.t(
+            "{name} 有 {n} 条评测任务（共 {m} 题逐题明细，含模型原始输出）。"
+            "删除模型会一并删掉这些成绩与明细文件（无法恢复）。确认要删除吗？",
+            name=row["name"], n=len(runs), m=n_items))
+    for r in runs:
+        await _delete_one_evaluation(r["id"])
     db.execute("DELETE FROM models WHERE id=?", (mid,))
     sync_models_file()
-    return {"ok": True}
+    return {"ok": True, "deleted_evaluations": len(runs)}
 
 
 # ---------- 题库 ----------

@@ -15,6 +15,11 @@
 榜上其他模型集体变色），删掉一个模型也不能让别人的颜色变。色板本身也校核：
 圆点坐的浅灰轨道上对比度要够（WCAG 对图形对象要求 3:1），两两不能撞色。
 
+**删模型**要连成绩一起删干净（evaluations / eval_items / data/results 的导出文件），
+而且删之前必须让人看见代价（有成绩时先 409 + 条数，确认了才动）；
+没成绩的模型不该拦。原来只删 models 一行，剩下的成绩**界面上看不见但一直躺在库里**，
+还让「评测任务」那个数字对不上列表。
+
 **特别小心**：`sync_models_file()` 会写真实的 `data/models.json`（里面有 API key），
 所以这里必须把 `main.MODELS_FILE` 指到临时目录 —— 否则跑一次自检就把用户的 key 文件覆盖了。
 
@@ -250,7 +255,7 @@ def main_() -> int:
         # 核心承诺 ②：删模型也不改变别人的颜色（这是「存颜色」比「按创建顺序取色」强的地方）
         victim = add_model("__待删除__")
         with_victim = colors_now()
-        main.delete_model(victim)
+        asyncio.run(main.delete_model(victim))   # 接口是 async（要等运行中的任务停掉）
         after_del = colors_now()
         check("删掉一个模型后，其余模型的颜色不变",
               after_del, {k: v for k, v in with_victim.items() if k != victim})
@@ -332,6 +337,78 @@ def main_() -> int:
         check("第 17 个模型复用用得最少的颜色（不是随便挑一个）",
               colors_now()[overflow], model_colors.pick(full_house))
 
+        # ---- 6) 删模型：成绩必须一起删干净，而且删之前要让人看见代价 ----------
+        # 这一节针对的 bug：原来 `DELETE /api/models/{id}` 只删 models 一行，
+        # 它的 evaluations / eval_items / data/results 里的导出文件全都留着 ——
+        # 界面上看不见（任务列表和排行榜都 JOIN models），但库里越积越多，
+        # 而且「评测任务」那个数字数的是原始表 COUNT(*)，于是卡片显示 2、列表只有 1 行。
+        doomed = add_model("__要删的__")
+        keep = add_model("__别动我__")
+        d_eval = db.execute("INSERT INTO evaluations(model_id, benchmark, total, status, done, correct)"
+                            " VALUES(?,?,?,?,?,?)", (doomed, "mmlu_sample", 12, "done", 12, 9))
+        k_eval = db.execute("INSERT INTO evaluations(model_id, benchmark, total, status, done, correct)"
+                            " VALUES(?,?,?,?,?,?)", (keep, "mmlu_sample", 12, "done", 12, 6))
+        for eid in (d_eval, k_eval):
+            for idx in (0, 1):
+                db.execute("INSERT INTO eval_items(eval_id, idx, question, predicted, correct)"
+                           " VALUES(?,?,?,?,?)", (eid, idx, "q", "p", 1))
+        # 导出的明细文件：用一个临时目录，别碰用户的 data/results。
+        # 注意要补 `datasets.RESULTS_DIR`：`engine.delete_items_file` 是从 datasets 导入的
+        # **绑定引用**，删文件时读的是 datasets 模块里那个常量（补 engine.RESULTS_DIR 没用）。
+        import app.datasets as _datasets  # noqa: PLC0415
+        old_results = _datasets.RESULTS_DIR
+        _datasets.RESULTS_DIR = _tmp_root / "results"
+        _datasets.RESULTS_DIR.mkdir(exist_ok=True)
+        export = _datasets.RESULTS_DIR / f"eval_{d_eval}.jsonl"
+        export.write_text("{}\n", encoding="utf-8")
+        try:
+            raises("删有成绩的模型 -> 409（先让人看见要删掉什么）",
+                   lambda: asyncio.run(main.delete_model(doomed)), 409)
+            check_true("409 里没有把模型删掉（确认前不动数据）",
+                       db.query_one("SELECT COUNT(*) AS n FROM models WHERE id=?", (doomed,))["n"] == 1)
+            # 提示里必须带条数与题数：只说"要删吗"等于没说
+            detail = ""
+            try:
+                asyncio.run(main.delete_model(doomed))
+            except HTTPException as e:
+                detail = str(e.detail)
+            check_true("409 的说明里带了任务条数与题明细数",
+                       "1 条评测任务" in detail and "2 题" in detail, detail)
+
+            res = asyncio.run(main.delete_model(doomed, confirm=True))
+            check("确认后真的删掉了这个模型",
+                  db.query_one("SELECT COUNT(*) AS n FROM models WHERE id=?", (doomed,))["n"], 0)
+            check("它名下的评测任务也删了", res["deleted_evaluations"], 1)
+            check("逐题明细也删了",
+                  db.query_one("SELECT COUNT(*) AS n FROM eval_items WHERE eval_id=?", (d_eval,))["n"], 0)
+            check("主记录也删了",
+                  db.query_one("SELECT COUNT(*) AS n FROM evaluations WHERE id=?", (d_eval,))["n"], 0)
+            check_true("导出的 jsonl 也删了", not export.exists())
+            # 别人的东西一根汗毛都不能动
+            check("别人的评测任务还在",
+                  db.query_one("SELECT COUNT(*) AS n FROM evaluations WHERE id=?", (k_eval,))["n"], 1)
+            check("别人的逐题明细还在",
+                  db.query_one("SELECT COUNT(*) AS n FROM eval_items WHERE eval_id=?", (k_eval,))["n"], 2)
+            check_true("别的模型还在",
+                       db.query_one("SELECT COUNT(*) AS n FROM models WHERE id=?", (keep,))["n"] == 1)
+
+            # 没有成绩的模型不该被拦（没什么可确认的，别让人白点两次）
+            empty_model = add_model("__没成绩的__")
+            res2 = asyncio.run(main.delete_model(empty_model))
+            check("没成绩的模型直接删掉（不用确认）", res2["deleted_evaluations"], 0)
+            check("确实删掉了",
+                  db.query_one("SELECT COUNT(*) AS n FROM models WHERE id=?", (empty_model,))["n"], 0)
+
+            # 数字口径：/api/evaluations 的 total 必须等于列表实际条数
+            #（原来 total 数的是原始表 COUNT(*)，有孤儿行时会「卡片 2、列表 1」）
+            ev = main.list_evaluations()
+            check("评测任务数口径一致（total == 列表条数）", ev["total"], len(ev["items"]))
+        finally:
+            _datasets.RESULTS_DIR = old_results
+
+        raises("删不存在的模型 -> 404",
+               lambda: asyncio.run(main.delete_model(999999)), 404)
+
         print(f"临时目录: {_tmp_root}")
         print("=" * 74)
         bad = 0
@@ -344,7 +421,7 @@ def main_() -> int:
         if bad:
             print(f"{bad}/{len(RESULTS)} 项不通过。")
             return 1
-        print(f"全部 {len(RESULTS)} 项通过：模型用途（被测 / 判别器）与模型身份色的约束都生效。")
+        print(f"全部 {len(RESULTS)} 项通过：模型用途（被测 / 判别器）、身份色与删除清理的约束都生效。")
         return 0
     finally:
         try:

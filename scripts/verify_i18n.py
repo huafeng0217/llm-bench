@@ -14,6 +14,7 @@ i18n 的失败模式都很**安静**：
 
 英文表里长什么样、怎么加：见 `app/i18n.py` 顶部说明（中文原文即 key）。
 """
+import ast
 import pathlib
 import re
 import sys
@@ -76,8 +77,20 @@ def main_() -> int:
         # 那不是调用点（扫进去会永远报两条"未翻译"）
         if p.name == "i18n.py":
             continue
-        for m in re.finditer(r'i18n\.t\(\s*"([^"]*[\u4e00-\u9fff][^"]*)"', p.read_text(encoding="utf-8")):
-            used.append((p.relative_to(ROOT).as_posix(), m.group(1)))
+        # 用 AST 取第一个参数，而不是正则抓引号：
+        # 文案长了会写成**多行相邻字面量**（`"第一段"\n"第二段"`），Python 解析器会把它们
+        # 折叠成一个常量（所以运行时 key 是拼好的整串），但正则只抓得到第一个引号 ——
+        # 于是「代码里的 key」和「英文表里的 key」看起来对不上，凭空报一条漏译。
+        # 实测踩过一次（删模型的 409 文案），排查成本不低，所以直接按 AST 的常量比对。
+        tree = ast.parse(p.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "t" and node.args):
+                continue
+            first = node.args[0]
+            if isinstance(first, ast.Constant) and isinstance(first.value, str) \
+                    and re.search(r"[\u4e00-\u9fff]", first.value):
+                used.append((p.relative_to(ROOT).as_posix(), first.value))
     missing = [f"{f}: {s}" for f, s in used if s not in i18n.EN]
     check_true("app/ 里 i18n.t(...) 用到的中文都在英文表里", not missing,
                "; ".join(missing[:6]))

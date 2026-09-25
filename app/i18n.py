@@ -44,6 +44,11 @@ EN: dict[str, str] = {
     '额外请求参数必须是 JSON 对象，例如 {"enable_thinking": false}':
         'extra request parameters must be a JSON object, e.g. {"enable_thinking": false}',
     "kind 只能是 {kinds}": "kind must be one of {kinds}",
+    "{name} 有 {n} 条评测任务（共 {m} 题逐题明细，含模型原始输出）。"
+    "删除模型会一并删掉这些成绩与明细文件（无法恢复）。确认要删除吗？":
+        "{name} has {n} run(s) with {m} item records in total (raw model output included). "
+        "Deleting the model also deletes those results and their detail files "
+        "(this cannot be undone). Delete anyway?",
     "这个基准由裁判模型判分，请先选择一个「判别器」再开始":
         "this benchmark is scored by a judge model; pick a judge before starting",
     "裁判模型不存在": "judge model not found",

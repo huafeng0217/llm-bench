@@ -522,6 +522,7 @@ const EN = {
   "批量删除失败：": "Batch delete failed: ",
   "探测失败：": "Probe failed: ",
   "\n\n确定要改吗？": "\n\nChange it anyway?",
+  "\n\n确定要删除吗？": "\n\nDelete it anyway?",
   "⚠ 模型名和 base_url 必填（可先从上方选择服务商自动填 base_url）":
     "⚠ Model name and base_url are required (pick a provider above to fill base_url in)",
   "正在测试连接…": "Testing the connection…",
@@ -1096,10 +1097,23 @@ function toggleAddModel() {
   setAddModelOpen(document.getElementById("add-model-box").style.display === "none");
 }
 
+// 删除模型。它会**连这个模型的评测成绩一起删**（任务列表/排行榜/AI 总结都是 JOIN models
+// 取模型名，模型没了，成绩也哪儿都去不了）—— 所以有成绩时后端先回 409 + 说明，
+// 这里把「要删掉几条任务、多少题明细」摆给用户看，确认了再真删。
+// 跑一次基准是要花钱花时间的，不能默默删掉；改用途那边也是同一个套路（先让人看见）。
 async function delModel(id) {
+  const del = confirmMsg => api("/api/models/" + id + (confirmMsg ? "?confirm=true" : ""),
+                                { method:"DELETE" });
   try {
-    await api("/api/models/" + id, { method:"DELETE" });
-  } catch (e) { return alert(t("删除失败：") + e.message); }
+    await del(false);
+  } catch (e) {
+    const msg = String(e.message || "");
+    // 409 的响应体是后端写好的说明（含任务条数与题明细数），直接拿它问用户
+    let text = msg;
+    try { text = JSON.parse(msg).detail || msg; } catch (_) { /* 不是 JSON 就原文显示 */ }
+    if (!confirm(text + t("\n\n确定要删除吗？"))) return;
+    try { await del(true); } catch (e2) { return alert(t("删除失败：") + e2.message); }
+  }
   loadModels();
 }
 
