@@ -287,19 +287,22 @@
   <div id="add-model-box" style="display:none">
     <div class="card">
       <div class="row" style="margin-bottom:10px">
-        <!-- 「复用 API」：选项是已添加模型的**连接信息分组**（base_url + api_key 相同即同一项），
-             不是按模型分组 —— 同一套 API 上往往挂着好几个模型（qwen3.8-flash / qwen3.8-max…），
-             要复用复用的是**这套 API**。分组在后端按真 key 做（前端只有脱敏串，
-             两个不同 key 可能撞出同一个脱敏串，那样前端分组会错并成一项）；
-             每组给一个代表 model_id，选中它就等于"用这套 API"。
-             key 只以脱敏形式出现在标签里（sk-w****5VcY）：既够区分同一端点下的多把 key，
-             也不外泄真值（真值本来就不出接口）。 -->
-        <select id="m-api" onchange="applyApiChoice()" style="flex:1 1 330px"
+        <!-- 两个控件分工：左边选**模式**，右边那个列表随模式**变成**对应的选项 ——
+             新增模型 → 服务商预设（点一下自动填 base_url）
+             复用 API → 已添加过的 API 分组（base_url + 脱敏 Key，并列出用它的模型）
+             两种选项刻意不混在一个列表里：它们回答的是不同问题（"用哪家的端点" vs "沿用哪套 API"）。
+             为什么复用要以 (base_url, api_key) 为单位、而不是按模型：同一套 API 上往往挂着
+             好几个模型（你的库里 DashScope 就挂了 2 个）。分组在后端按**真 key** 做 ——
+             前端只有脱敏串（sk-AAAA-mid1-BBBB 与 sk-AAAA-mid2-BBBB 脱敏后一模一样），
+             前端分组会把两把不同的 key 错并成一项；每组给一个代表 model_id，选中即"用这套 API"。
+             key 只以脱敏形式出现：既够区分同一端点下的多把 key，也不外泄真值。 -->
+        <select id="m-mode" onchange="applyMode()" style="flex:0 0 150px"
                 title="新增模型：自己填一套连接信息；复用 API：沿用已添加过的某套 base_url + Key"
                 data-i18n-title="新增模型：自己填一套连接信息；复用 API：沿用已添加过的某套 base_url + Key">
-          <option value="" data-i18n="新增模型（自己填 base_url 和 Key）">新增模型（自己填 base_url 和 Key）</option>
+          <option value="new" data-i18n="新增模型">新增模型</option>
+          <option value="reuse" data-i18n="复用 API">复用 API</option>
         </select>
-        <select id="m-preset" onchange="applyPreset()" style="flex:0 0 200px">
+        <select id="m-preset" onchange="applyPreset()" style="flex:0 0 240px">
           <option value="" data-i18n="选择服务商（自动填 base_url）…">选择服务商（自动填 base_url）…</option>
           <option value="https://api.deepseek.com">DeepSeek</option>
           <option value="https://dashscope.aliyuncs.com/compatible-mode/v1" data-i18n="通义千问（阿里）">通义千问（阿里）</option>
@@ -309,6 +312,9 @@
           <option value="https://openrouter.ai/api/v1">OpenRouter</option>
           <option value="http://localhost:11434/v1" data-i18n="本地 Ollama">本地 Ollama</option>
           <option value="custom" data-i18n="自定义（手动填写）">自定义（手动填写）</option>
+        </select>
+        <select id="m-group" onchange="applyGroup()" style="display:none;flex:1 1 320px">
+          <option value="" data-i18n="选择要复用的 API…">选择要复用的 API…</option>
         </select>
       </div>
       <div class="row">
@@ -425,7 +431,11 @@ const EN = {
   "base_url（必填），如 https://api.deepseek.com": "base_url (required), e.g. https://api.deepseek.com",
   "判别器只用于给安全类基准判分，不会出现在被测模型里":
     "A judge model only scores safety benchmarks; it never shows up as a model under test",
-  "新增模型（自己填 base_url 和 Key）": "New model (fill in base_url and Key yourself)",
+  "新增模型": "New model",
+  "复用 API": "Reuse API",
+  "选择要复用的 API…": "Pick an API to reuse…",
+  "请选择要复用的 API；或切回「新增模型」自己填一套":
+    "Pick an API to reuse, or switch back to “New model” and fill in your own",
   "新增模型：自己填一套连接信息；复用 API：沿用已添加过的某套 base_url + Key":
     "New model: fill in a new set of connection info; Reuse API: reuse a base_url + Key you already added",
   "复用 API：{0} · {1}（已添加：{2}）": "Reuse API: {0} · {1} (already added: {2})",
@@ -1089,47 +1099,53 @@ function applyPreset() {
   else if (v) urlInput.value = v;
 }
 
-// 「复用 API」下拉：选项是**连接信息分组**（base_url + api_key 相同即一项），不是按模型。
-// 分组来自 /api/api-groups（服务端按真 key 分组；前端只有脱敏串，两个真 key 可能撞成同一串，
-// 那样前端分组会错并成一项，也说不清该复制谁的 key）。
-// 选中某组后：base_url / Key 禁用并显示该组的值（Key 只显示脱敏串，真 key 由后端按
-// 代表 model_id 复制），用户只需填新的模型名。
-let apiGroups = [];     // /api/api-groups 的结果（表单打开时才取，避免每次轮询都请求）
+// 添加模型的两种模式：右边那个列表随模式**变成**对应的选项（服务商 / API 分组），
+// 两者不混在一个列表里。复用模式下的分组来自 /api/api-groups（服务端按真 key 分组，
+// 前端只有脱敏串，分不准），选中某组后 base_url / Key 锁住，用户只填新的模型名。
+let apiGroups = [];     // /api/api-groups 的结果（打开表单/切到复用模式时才取）
+
+function applyMode() {
+  const reuse = document.getElementById("m-mode")?.value === "reuse";
+  const preset = document.getElementById("m-preset"), group = document.getElementById("m-group");
+  if (preset) preset.style.display = reuse ? "none" : "";
+  if (group) group.style.display = reuse ? "" : "none";
+  if (reuse && !apiGroups.length) loadApiGroups();   // 第一次切过来才请求
+  applyGroup();
+}
 
 async function loadApiGroups() {
   try { apiGroups = await api("/api/api-groups"); } catch (_) { apiGroups = []; }
-  const sel = document.getElementById("m-api");
+  const sel = document.getElementById("m-group");
   if (!sel) return;
   const keep = sel.value;
-  sel.innerHTML = `<option value="">${t("新增模型（自己填 base_url 和 Key）")}</option>`
+  sel.innerHTML = `<option value="">${t("选择要复用的 API…")}</option>`
     + apiGroups.map(g => `<option value="${g.model_id}">${tf("复用 API：{0} · {1}（已添加：{2}）",
         [esc(g.base_url), esc(g.api_key || t("（无 Key）")), esc(g.models.join("、"))])}</option>`).join("");
   sel.value = apiGroups.some(g => String(g.model_id) === keep) ? keep : "";
-  applyApiChoice();
+  applyGroup();
 }
 
-// 选了「复用 API」就锁住 base_url / Key（值来自那一组），并说明在复用哪套 API；
-// 选「新增模型」则放开。base_url 可见、Key 只显示脱敏串 —— 真 key 本来就不出接口。
-function applyApiChoice() {
-  const sel = document.getElementById("m-api");
-  const g = (typeof apiGroups !== "undefined" ? apiGroups : []).find(x => String(x.model_id) === String(sel?.value));
+// 复用模式：选中某组就把 base_url / Key 锁住并显示该组的值（Key 只显示脱敏串，
+// 真 key 由后端按代表 model_id 复制）；没选组或处在新增模式则放开。
+function applyGroup() {
+  const reuse = document.getElementById("m-mode")?.value === "reuse";
+  const sel = document.getElementById("m-group");
+  const g = reuse ? (typeof apiGroups !== "undefined" ? apiGroups : [])
+    .find(x => String(x.model_id) === String(sel?.value)) : null;
   const url = document.getElementById("m-url"), key = document.getElementById("m-key");
-  const preset = document.getElementById("m-preset");
   const hint = document.getElementById("m-copy-hint");
   if (!url || !key) return;
   if (g) {
     url.value = g.base_url;  url.disabled = true;
     key.value = "";          key.disabled = true;
     key.placeholder = tf("沿用这套 API 的 Key（{0}）", [g.api_key || t("（无 Key）")]);
-    if (preset) { preset.value = ""; preset.disabled = true; }
     if (hint) hint.textContent = tf("将复用 {0} 这套 API（已添加：{1}）；只需填新的模型名",
                                     [esc(g.base_url), esc(g.models.join("、"))]);
   } else {
     url.disabled = false;
     key.disabled = false;
     key.placeholder = "API Key";
-    if (preset) preset.disabled = false;
-    if (hint) hint.textContent = "";
+    if (hint) hint.textContent = reuse ? t("请选择要复用的 API；或切回「新增模型」自己填一套") : "";
   }
 }
 
@@ -1139,8 +1155,9 @@ function modelForm() {
     base_url: document.getElementById("m-url").value.trim(),
     api_key: document.getElementById("m-key").value.trim(),
     kind: document.getElementById("m-kind").value,
-    // 复用 API：回传该组的代表 model_id（同组连接信息完全相同，服务端按它复制 key）
-    copy_api_from: Number(document.getElementById("m-api")?.value) || null,
+    // 复用 API：回传该组的代表 model_id（同组连接信息完全相同，服务端按它复制真 key）
+    copy_api_from: document.getElementById("m-mode")?.value === "reuse"
+      ? (Number(document.getElementById("m-group")?.value) || null) : null,
   };
 }
 
@@ -1165,8 +1182,8 @@ async function addModel() {
   } catch (e) { return alert(t("添加失败：") + e.message); }
   document.getElementById("m-name").value = document.getElementById("m-url").value = document.getElementById("m-key").value = "";
   document.getElementById("m-kind").value = "test";
-  document.getElementById("m-api").value = "";    // 回到「新增模型」模式
-  applyApiChoice();
+  document.getElementById("m-mode").value = "new";   // 回到「新增模型」模式
+  applyMode();
   document.getElementById("m-test-result").textContent = "";
   setAddModelOpen(false);   // 添加成功后自动收起表单
   loadModels();
@@ -1179,7 +1196,8 @@ function setAddModelOpen(open) {
     `<button class="ghost" onclick="toggleAddModel()">${open ? t("收起") : t("＋ 添加模型")}</button>`;
   if (open) {
     document.getElementById("m-name").focus();
-    loadApiGroups();      // 表单打开时才取「复用 API」的分组（不必每次轮询都请求一次）
+    document.getElementById("m-mode").value = "new";
+    applyMode();          // 打开时回到「新增模型」模式（服务商列表；切到复用模式才请求分组）
   }
 }
 function toggleAddModel() {
