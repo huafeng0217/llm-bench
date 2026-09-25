@@ -60,6 +60,25 @@ EN: dict[str, str] = {
     # 注意占位符风格：`t()` 用 {n} 这种具名参数，而 STORED_RE 的模板用 {0}（正则捕获组）。
     # 同一句话两条路都要有，且各自风格要对 —— 写错不会报错，只会静默回落中文。
     "已开始下载 {n} 个子集": "started downloading {n} subsets",
+    # 统计层的数据问题说明（caveats）：进 /api/summary/stats 的响应体（界面上「本次依据的数据」）
+    # 与 AI 总结的 prompt，所以响应时按语言取。
+    "{model} 在 {bench} 上有个更高的分 {hi}% 只跑了 {n}/{fc} 题；"
+    "它完整跑过的最好成绩是 {best}%（{bn} 题）":
+        "{model} has a higher score on {bench} — {hi}% from only {n}/{fc} items; "
+        "its best complete run is {best}% ({bn} items)",
+    "{model} 在 {bench} 上只跑了 {n}/{fc} 题（{acc}%），题量远少于完整评测，"
+    "该成绩不具可比性，不应与其他模型的完整成绩并列":
+        "{model} only ran {n}/{fc} items on {bench} ({acc}%), far fewer than a full run, so the "
+        "score is not comparable and must not be ranked alongside complete results",
+    "{model} 在 {bench} 上只有 {acc}%，低于随机猜的 {base}% —— "
+    "这通常不是能力问题，而是答案抽取或接口格式不兼容，建议先核对原始输出":
+        "{model} scored only {acc}% on {bench}, below the {base}% random-guess baseline — this is "
+        "usually not an ability problem but an answer-extraction or API-format mismatch; "
+        "check the raw output first",
+    "{bench} 只有 {fc} 题，一题价值 {per} 个百分点，"
+    "约 {thr} 个百分点以内的差距无法区分":
+        "{bench} has only {fc} items, so each item is worth {per} percentage points; "
+        "gaps under about {thr} points cannot be told apart",
     "{name} 有 {n} 条评测任务（共 {m} 题逐题明细，含模型原始输出）。"
     "删除模型会一并删掉这些成绩与明细文件（无法恢复）。确认要删除吗？":
         "{name} has {n} run(s) with {m} item records in total (raw model output included). "
@@ -236,6 +255,11 @@ STORED_EN: dict[str, str] = {
     "这个基准需要裁判模型，但这次评测没有配置裁判（judge_model_id 为空）":
         "this benchmark needs a judge model, but this run has no judge configured"
         " (judge_model_id is empty)",
+    # BFCL 两种判分口径的诊断词（作为逐题 error 落库，明细里显示）。
+    # 「AST 匹配通过」「覆盖期望调用」是**通过**时的诊断（不是错误），但同样会显示在明细里。
+    "AST 匹配通过": "AST match passed",
+    "覆盖期望调用": "all expected calls covered",
+    "该轮无需调用": "no call needed for this turn",
     "正在下载中": "downloading",
     "下载中…": "Downloading…",
     "已开始下载": "download started",
@@ -297,6 +321,14 @@ STORED_RE: list[tuple[str, str]] = [
     # download_one 对未知 id 的返回值（正常路径进不来：调用方只会传 DOWNLOADERS 里的 id，
     # 但它同样是"会落进下载状态"的文案，所以按同一套规则翻掉）
     (r"^未知或不可下载的题库: (.+)$", "unknown or non-downloadable dataset: {0}"),
+    # BFCL 判分诊断（落进逐题 error，明细里显示）
+    (r"^应拒绝但调用了 (\d+) 个函数$", "should have refused but called {0} function(s)"),
+    (r"^调用数不符：期望 (\d+) 个 \((.*)\)，实际 (\d+) 个 \((.*)\)$",
+     "call count mismatch: expected {0} ({1}), got {2} ({3})"),
+    (r"^函数名不符：期望 (.*)，实际 (.*)$", "function name mismatch: expected {0}, got {1}"),
+    (r"^缺少参数 (.*)$", "missing argument {0}"),
+    (r"^参数 (.*) 不符：期望 (.*)，实际 (.*)$", "argument {0} mismatch: expected {1}, got {2}"),
+    (r"^缺少期望调用 (.*)（实际: (.*)）$", "missing expected call(s): {0} (actual: {1})"),
 ]
 
 _STORED_RE = [(re.compile(p), en) for p, en in STORED_RE]

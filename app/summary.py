@@ -111,18 +111,25 @@ def collect() -> dict:
             hi = pick.best_any
             caveats.append({
                 "kind": "partial_artifact",
-                "detail": (f"{model_names[mid]} 在 {get_meta(bid)['name']} 上有个更高的分 "
-                           f"{acc(hi):.1f}% 只跑了 {hi['done']}/{fc} 题；"
-                           f"它完整跑过的最好成绩是 {acc(best):.1f}%（{best['done']} 题）"),
+                # 这几条 caveats 会进 /api/summary/stats 的响应体（界面上「本次依据的数据」里显示），
+                # 也会喂给 AI 总结的 prompt，所以按当前语言取词（英文模式下不能露中文）。
+                "detail": i18n.t(
+                    "{model} 在 {bench} 上有个更高的分 {hi}% 只跑了 {n}/{fc} 题；"
+                    "它完整跑过的最好成绩是 {best}%（{bn} 题）",
+                    model=model_names[mid], bench=get_meta(bid)["name"],
+                    hi=f"{acc(hi):.1f}", n=hi["done"], fc=fc,
+                    best=f"{acc(best):.1f}", bn=best["done"]),
             })
         elif pick.partial:
             # 只有部分评测、没有完整成绩可比：这个分数**不能**和别人的完整成绩并列比较，
             # 否则「跑 2 题全对」就会以 100% 的身份混进排名（实测见过）。
             caveats.append({
                 "kind": "partial_only",
-                "detail": (f"{model_names[mid]} 在 {get_meta(bid)['name']} 上只跑了 "
-                           f"{best['done']}/{fc} 题（{acc(best):.1f}%），题量远少于完整评测，"
-                           "该成绩不具可比性，不应与其他模型的完整成绩并列"),
+                "detail": i18n.t(
+                    "{model} 在 {bench} 上只跑了 {n}/{fc} 题（{acc}%），题量远少于完整评测，"
+                    "该成绩不具可比性，不应与其他模型的完整成绩并列",
+                    model=model_names[mid], bench=get_meta(bid)["name"],
+                    n=best["done"], fc=fc, acc=f"{acc(best):.1f}"),
             })
         cell = {
             "model_id": mid,
@@ -148,9 +155,11 @@ def collect() -> dict:
         if cell["baseline"] is not None and cell["accuracy"] < cell["baseline"]:
             caveats.append({
                 "kind": "below_random",
-                "detail": (f"{model_names[mid]} 在 {get_meta(bid)['name']} 上只有 {cell['accuracy']:.1f}%，"
-                           f"低于随机猜的 {cell['baseline']:.1f}% —— 这通常不是能力问题，"
-                           "而是答案抽取或接口格式不兼容，建议先核对原始输出"),
+                "detail": i18n.t(
+                    "{model} 在 {bench} 上只有 {acc}%，低于随机猜的 {base}% —— "
+                    "这通常不是能力问题，而是答案抽取或接口格式不兼容，建议先核对原始输出",
+                    model=model_names[mid], bench=get_meta(bid)["name"],
+                    acc=f"{cell['accuracy']:.1f}", base=f"{cell['baseline']:.1f}"),
             })
 
     # 3) 逐基准排名 + 两两差距是否显著
@@ -165,9 +174,11 @@ def collect() -> dict:
         if fc and fc < SMALL_SAMPLE:
             caveats.append({
                 "kind": "small_sample",
-                "detail": (f"{get_meta(bid)['name']} 只有 {fc} 题，一题价值 {100 / fc:.1f} 个百分点，"
-                           f"约 {2 * _interval(order[0]['accuracy'], fc):.0f} 个百分点以内的差距"
-                           "无法区分"),
+                "detail": i18n.t(
+                    "{bench} 只有 {fc} 题，一题价值 {per} 个百分点，"
+                    "约 {thr} 个百分点以内的差距无法区分",
+                    bench=get_meta(bid)["name"], fc=fc, per=f"{100 / fc:.1f}",
+                    thr=f"{2 * _interval(order[0]['accuracy'], fc):.0f}"),
             })
         for i in range(len(order)):
             for j in range(i + 1, len(order)):

@@ -143,7 +143,8 @@ def ast_match_subset(calls: list[dict], expected: list) -> tuple:
         if not any(_call_matches(c, name, args) for c in calls):
             missing.append(name)
     if missing:
-        got = ", ".join(c["name"] for c in calls) or "无调用"
+        # 同 bfcl.py：空调用用「—」，别把中文塞进参数里（那句翻不到）
+        got = ", ".join(c["name"] for c in calls) or "—"
         return False, f"缺少期望调用 {', '.join(missing)}（实际: {got}）"
     return True, "覆盖期望调用"
 

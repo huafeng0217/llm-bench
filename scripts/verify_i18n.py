@@ -184,7 +184,12 @@ def main_() -> int:
     # 更大范围会扫进 summary 的 caveats、BFCL 的判分诊断等**另一类**文案，
     # 它们的翻译时机不同（响应时包 i18n.t / 落库后 t_stored），混在一起只会让断言失去意义。
     state_texts: list = []
-    for p in [ROOT / "app" / "main.py", ROOT / "app" / "benchmarks" / "__init__.py"]:
+    # qtypes/*.py 也纳进来：BFCL 的判分诊断（"调用数不符：期望 …"）同样是
+    # `return (ok, msg)` 的形态、同样作为逐题 error 落库显示 —— 只扫 main.py 会漏掉它们
+    # （这一批实测漏了 8 条）。
+    scan_files = [ROOT / "app" / "main.py", ROOT / "app" / "benchmarks" / "__init__.py"]
+    scan_files += sorted((ROOT / "app" / "qtypes").glob("*.py"))
+    for p in scan_files:
         rel = p.relative_to(ROOT).as_posix()
         tree = ast.parse(p.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -213,7 +218,21 @@ def main_() -> int:
         state_bad = [f"{f}:{n} {s[:40]}" for f, n, s in state_texts if not _translatable(s)]
     finally:
         i18n.set_lang("zh")
-    check("共享状态（下载/总结）里的中文文案要能翻（英文界面别显示「完成」）", state_bad, [])
+    check("共享状态（下载/总结）与逐题诊断里的中文文案要能翻", state_bad, [])
+
+    # ---- 4a-3b) 总结的 caveats：它们是**响应时**文案（进 /api/summary/stats 与 AI prompt），
+    # 所以不能靠 t_stored，必须包 i18n.t —— 与上面那条的判据不同，单独查。
+    cav_bad: list = []
+    sm = ast.parse((ROOT / "app" / "summary.py").read_text(encoding="utf-8"))
+    for node in ast.walk(sm):
+        if isinstance(node, ast.Dict):
+            for k, v in zip(node.keys, node.values):
+                if isinstance(k, ast.Constant) and k.value == "detail":
+                    wrapped = (isinstance(v, ast.Call) and isinstance(v.func, ast.Attribute)
+                               and v.func.attr == "t")
+                    if not wrapped:
+                        cav_bad.append(f"app/summary.py:{node.lineno} detail 没包 i18n.t()")
+    check("总结 caveats 的说明必须包 i18n.t()（它进响应体和 AI prompt）", cav_bad, [])
 
     # ---- 4a-4) 表里有 ≠ 取得到：真的按英文取一遍 ----
     # 上面几条只验证"英文表里有没有这条"，取的时候还要走 t() 的查表顺序

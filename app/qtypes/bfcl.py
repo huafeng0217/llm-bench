@@ -99,7 +99,9 @@ def ast_match(calls: list[dict], ground_truth) -> tuple[bool, str]:
     expected_args = [list(g.values())[0] for g in ground_truth]
     # 调用数量必须一致
     if len(calls) != len(expected):
-        got = ", ".join(c["name"] for c in calls) or "无调用"
+        # 空调用用「—」而不是「无调用」：这句会作为逐题诊断落库、读时按语言翻，
+        # 而括号里的内容是**参数**，正则替换进不去 —— 留一句中文在那里，英文模式下就露出来了。
+        got = ", ".join(c["name"] for c in calls) or "—"
         return False, f"调用数不符：期望 {len(expected)} 个 ({', '.join(expected)})，实际 {len(calls)} 个 ({got})"
 
     def val_match(got, cands):
