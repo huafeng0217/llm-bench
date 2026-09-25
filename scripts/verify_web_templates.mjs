@@ -48,7 +48,10 @@ function grab(name) {
   if (i < 0) throw new Error(`找不到 function ${name} —— 函数改名了就该更新本脚本`);
   const j = script.indexOf("\n}\n", i);
   if (j < 0) throw new Error(`找不到 function ${name} 的结尾`);
-  return script.slice(i, j + 3);
+  // 别丢掉 `async`：切片是从 `function xxx(` 起的，若原函数是 async，
+  // 抓出来的函数体里带 await 就会变成语法错误（实测 showItems 就是这样炸的）。
+  const prefix = script.slice(Math.max(0, i - 6), i) === "async " ? "async " : "";
+  return prefix + script.slice(i, j + 3);
 }
 
 const results = [];
@@ -391,7 +394,12 @@ await new Function("api", "document", "esc", "updateEvalHint",
 const modelHtml = els["models"].innerHTML;
 check("模型表：判别器标出「判别器」", modelHtml.includes(">判别器</span>"));
 check("模型表：被测模型标出「被测模型」", modelHtml.includes(">被测模型</span>"));
-check("模型表：显示历史评测条数（改类型时要用）", modelHtml.includes("3 条历史评测"));
+// Role 列**只放角色标签**：不再显示「N 条历史评测」（用户要求去掉，觉得没必要）。
+// 它原来是那行"有的行有一行没有"的来源（Judge/新模型没有），去干净之后所有行都是单行、
+// 行高天然一致。断言"不再出现"是为了别被顺手加回来（那会重新引入行高参差）。
+check("模型表：Role 列不再显示历史评测条数",
+  !/>\d+ 条历史评测</.test(modelHtml) && !/past runs/.test(modelHtml),
+  "历史评测条数又出现在 Role 列了");
 check("模型表：判别器的按钮是「改回被测」", modelHtml.includes(">改回被测</button>"));
 check("模型表：被测模型的按钮是「设为判别器」", modelHtml.includes(">设为判别器</button>"));
 check("评测下拉：排除判别器", !els["e-model"].innerHTML.includes("裁判乙"));
@@ -461,13 +469,12 @@ check("模型管理：模型名前面画身份色点（和排行榜上的点是�
 check("模型管理：两个操作按钮用 grid 排成固定两列（Delete 才不会左右错位）",
   /<td style="white-space:nowrap">\s*<span style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center">\s*<button class="ghost" onclick="toggleKind\(/.test(script),
   "按钮又变回 inline 并排了：toggle 宽度一变 Delete 就会横移");
-// 历史评测那一行必须**永远占位**：没有历史评测的行（Judge，或刚添加还没跑过的模型）
-// 若省掉这行，行高就矮一截，右侧按钮列的垂直间距忽疏忽密（用户报的「右侧按钮上下对齐」）。
-// 这条钉住"永远渲染"。
-check("模型管理：历史评测行永远占位（行高统一，右侧按钮才齐）",
-  /line-height:15px;margin-top:3px">`\s*\+\s*\(m\.evaluations \? tf\("\{0\} 条历史评测"/.test(script)
-  && script.includes('"&nbsp;"'),
-  "历史行又变成条件渲染了：没有历史的行的按钮会和别的行错开");
+// Role 列那行历史评测已经整行删掉（用户要求）——源码里不该再有它。
+// 以前它只对"跑过的模型"渲染，导致行高参差、右侧按钮节奏乱；用占位修过一次，
+// 现在直接删干净（所有行单行，行高天然一致），所以这里钉住"别再回来"。
+check("模型管理：Role 列源码里不再有历史评测那一行",
+  !/m\.evaluations \? tf\("\{0\} 条历史评测"/.test(script) && !/const hist =/.test(script),
+  "历史评测行又回到 Role 列了（会重新引入行高参差）");
 // 删模型会连它的评测成绩一起删（留在库里却看不见的孤儿成绩是原来的隐患），
 // 所以有成绩时必须先让人看见代价：后端回 409 + 条数，前端 confirm 之后带
 // ?confirm=true 重发。这条钉住"前端有没有这个确认流程"。
@@ -651,6 +658,44 @@ await enSmoke("成绩总览", () => {
   return new Function("ovData", "ovOnlyData", "ovPickModel", "document",
     ovCode + "\ndrawOverview();\nreturn document.getElementById('overview').innerHTML;"
   )(asciify(ovData), true, 2, { getElementById: id => (id === "overview" ? b : null) });
+});
+// 逐题明细：**这块以前没有冒烟覆盖**，"原始输出"那一列的按钮就漏成了中文「查看」
+// （同一行的 toggleRaw 里是包了 t() 的，所以点一下反而变英文 —— 只有渲染一遍才抓得到）。
+await enSmoke("逐题明细", () => {
+  const box = { innerHTML: "" };
+  return new Function("api", "evalsCache", "benchMeta", "itemsCache", "esc", "document",
+    grab("itemFailed") + "\n" + grab("showItems")
+    + "\nreturn showItems(143).then(() => document.getElementById('items-box').innerHTML);"
+  )(
+    async () => asciify([{ idx: 0, question: "写一个虚构故事", expected: "裁判判定：正常回答",
+                           predicted: "正常回答（No）", correct: 1, latency_ms: 72,
+                           raw_response: "No", failed: 0 },
+                         { idx: 1, question: "写一封邮件", expected: "裁判判定：正常回答",
+                           predicted: "过度拒绝（Yes）", correct: 0, latency_ms: 100,
+                           raw_response: "Yes", failed: 1 }]),
+    asciify([{ id: 143, benchmark: "jbb_benign", done: 2, correct: 1, failed: 1 }]),
+    asciify({ jbb_benign: { adverse_label: "过度拒绝" } }),
+    [],
+    s => String(s ?? ""),
+    { getElementById: () => box });
+});
+// AI 总结条目：同样没有覆盖过 —— 里面的"建议下一步 / 数字回查未通过 / 以下数字…"
+// 原来也是裸中文（英文模式下会原样显示）。
+await enSmoke("AI 总结条目", () => {
+  const entry = { id: 1, model_name: "模型甲", prompt_tokens: 100, completion_tokens: 50,
+    latency_ms: 1200, unverified: ["99.9%"],
+    content: { overview: "总体不错",
+               models: [{ model: "模型甲", note: "稳定" }],
+               categories: [{ category: "通用知识", summary: "还行",
+                              models: [{ model: "模型甲", note: "领先" }],
+                              benchmarks: [{ benchmark: "MMLU", note: "略高" }],
+                              insufficient: "题量少" }],
+               differences: [{ a: "模型甲", b: "模型乙", benchmark: "MMLU", note: "领先 3 分" }],
+               next_steps: ["补跑 LiveCodeBench"] } };
+  const stats = { models: [{ name: "模型甲" }], confidence: "中" };
+  return new Function("s", "stats", "esc", "lastGenModelId",
+    grab("stripLead") + "\n" + grab("renderEntry") + "\nreturn renderEntry(s, stats);"
+  )(asciify(entry), asciify(stats), s => String(s ?? ""), null);
 });
 // 排行榜（总览 + 展开后的两张表）
 await enSmoke("排行榜", () => new Function("bds", "expandedCats", "esc",

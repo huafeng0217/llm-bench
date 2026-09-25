@@ -543,6 +543,12 @@ const EN = {
   "⚠ 本总结由 <b>{0}</b> 生成，而它自己也在被评测的模型之列，看的时候留意这一点。":
     "⚠ This summary was written by <b>{0}</b>, which is itself one of the models under evaluation — keep that in mind when reading it.",
   "显著的模型间差异": "significant differences between models",
+  "建议下一步": "Suggested next steps",
+  "数字回查未通过": "Number check failed",
+  "以下数字在给模型的数据里找不到对应，可能是它编的，请核对：":
+    "These numbers could not be traced back to the data the model was given — it may have made them up; please check:",
+  "分差未达显著：": "Differences that are not significant:",
+  "{0} vs {1} 差 {2}（阈值 {3}）": "{0} vs {1} differ by {2} (threshold {3})",
   "缓存": "cached",
   " ⚠部分": " ⚠partial",
   // ---- 提示 / 按钮 / 弹窗（stage 2 批次 1）----
@@ -1021,20 +1027,14 @@ async function loadModels() {
   const tb = document.getElementById("models");
   tb.innerHTML = ms.length ? ms.map(m => {
     const judge = m.kind === "judge";
-    // 判分用途与「有多少历史评测」都摆在明面上：改成判别器不会删历史成绩，
-    // 所以得让用户看得见它以前被测过几次。
+    // Role 列**只放角色标签**，不再显示「N 条历史评测」（用户觉得没必要，去掉了）。
+    // 顺带说清一行历史：早先这行只有"跑过的模型"才有，于是没有历史的行（Judge、刚添加的
+    // 模型）比别的行矮 ~15px，右侧按钮列的垂直节奏忽疏忽密 —— 之前用「永远占位」修过；
+    // 现在整行去掉，**所有行都是单行**，行高天然一致，占位也就不需要了。
+    // 「改类型会保留历史成绩、有几条」这件事仍然看得到：改成判别器时会弹确认并写明条数。
     const kindCell = judge
       ? `<span class="tag warn" title="${t("判别器：只用于给安全类基准判分，不能作为被测模型")}">${t("判别器")}</span>`
       : `<span class="tag ok">${t("被测模型")}</span>`;
-    // 历史评测那一行**永远占位**（没有历史就放一个不换行空格）。
-    // 为什么：**没有历史评测的模型**省掉这行的话，行高会比别的行矮 ~15px，
-    // 于是右侧按钮列的垂直间距忽疏忽密 —— 用户报的「右侧按钮上下对齐」就是这个。
-    // 注意不只是 Judge：刚加进来、还没跑过任何评测的模型同样没有这一行
-    // （实测截图里矮的是 3 行：两个 Judge + 一个刚添加的 Test 模型）。
-    // 用占位而不是写「0 条历史评测」：不编造信息，只统一行高；line-height 写死是让
-    // 「有字」和「空格」两种情况的行盒完全一样高（靠字体默认行高会有 1px 差）。
-    const hist = `<div class="muted" style="font-size:11px;line-height:15px;margin-top:3px">`
-      + (m.evaluations ? tf("{0} 条历史评测", [m.evaluations]) : "&nbsp;") + `</div>`;
     const btn = judge ? t("改回被测") : t("设为判别器");
     // 身份色点也画在这里：颜色是创建模型时就定下的（同一模型在排行榜各处同色），
     // 摆在模型名前面，用户就能「先在模型管理里认色、再去排行榜上看点」。
@@ -1045,7 +1045,7 @@ async function loadModels() {
     // 以前并排居中的结果是：整组随 toggle 宽度左右各挪 12px（实测两种行之间
     // Delete 左边缘差 12 图像像素 = 6 CSS px），一组按钮就排不成竖线了。
     return `<tr><td class="tl" style="font-weight:550">${dot}${esc(m.name)}</td>
-     <td>${kindCell}${hist}</td>
+     <td>${kindCell}</td>
      <td class="tl muted">${esc(m.base_url)}</td><td class="tl muted">${esc(m.api_key)}</td>
      <td style="white-space:nowrap">
        <span style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center">
@@ -2071,7 +2071,7 @@ async function showItems(id) {
         <td>${itemFailed(it) ? `<span class="st-failed" title="${esc(it.error || "")}">${t("失败")}<span class="muted"> ⓘ</span></span>`
                         : it.correct ? '<span class="st-done">✓</span>' : '<span class="st-failed">✗</span>'}</td>
         <td class="muted">${it.latency_ms}ms</td>
-        <td><button class="ghost" onclick="toggleRaw(${it.idx}, this)">查看</button></td>
+        <td><button class="ghost" onclick="toggleRaw(${it.idx}, this)">${t("查看")}</button></td>
       </tr>`).join("")}</tbody></table>
     </div>`;
 }
@@ -2207,12 +2207,12 @@ function renderEntry(s, stats) {
       ${diffs ? `<div style="margin-top:12px">
         <div style="font-weight:600;margin-bottom:4px">${t("显著的模型间差异")}</div>${diffs}</div>` : ""}
       ${(c.next_steps || []).length ? `<div style="margin-top:12px">
-        <div style="font-weight:600;margin-bottom:6px">建议下一步</div>
+        <div style="font-weight:600;margin-bottom:6px">${t("建议下一步")}</div>
         <ul style="margin:0;padding-left:20px">${c.next_steps.map(x =>
           `<li style="margin:5px 0">${esc(x)}</li>`).join("")}</ul></div>` : ""}
       ${(s.unverified || []).length ? `<div style="margin-top:12px">
-        <span class="tag warn">数字回查未通过</span>
-        <span class="muted"> 以下数字在给模型的数据里找不到对应，可能是它编的，请核对：
+        <span class="tag warn">${t("数字回查未通过")}</span>
+        <span class="muted"> ${t("以下数字在给模型的数据里找不到对应，可能是它编的，请核对：")}
         <b>${esc(s.unverified.join("、"))}</b></span></div>` : ""}
     </div>
   </details>`;
@@ -2272,8 +2272,9 @@ ${t("本次依据的数据（点开核对）")}</summary><div style="margin-top:
               <td class="acc" style="width:70px">${x.accuracy}%</td>
               <td class="muted" style="width:110px">${tf("{0} 题", [x.n])}${x.partial ? t(" ⚠部分") : ""}</td></tr>`).join("")}
             </tbody></table>
-            ${ns.length ? `<div class="muted" style="font-size:12px;margin-top:2px">分差未达显著：
-              ${ns.map(x => `${esc(x.a)} vs ${esc(x.b)} 差 ${x.diff}（阈值 ${x.threshold}）`).join("；")}</div>` : ""}
+            ${ns.length ? `<div class="muted" style="font-size:12px;margin-top:2px">${t("分差未达显著：")}
+              ${ns.map(x => tf("{0} vs {1} 差 {2}（阈值 {3}）",
+                               [esc(x.a), esc(x.b), x.diff, x.threshold])).join("；")}</div>` : ""}
           </div>`;
         }).join("") + `</div></details></div>`;
   }
