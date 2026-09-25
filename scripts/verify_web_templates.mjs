@@ -453,6 +453,14 @@ check("模型管理：正文的模型 / base_url / Key 单元格都标了 tl",
   && /<td class="[^"]*\btl\b[^"]*muted">\$\{esc\(m\.api_key\)\}/.test(src));
 check("模型管理：模型名前面画身份色点（和排行榜上的点是同一个颜色）",
   /class="mdot" style="background:\$\{esc\(m\.color/.test(script));
+// 两个操作按钮必须排成**固定两列**（grid 的 1fr + auto）：
+// 「To Test」（窄）和「To Judge」（宽）宽度差 24px，若按老写法 inline 并排 + 居中，
+// 整组会随 toggle 宽度左右各挪 12px —— 于是 Delete 在各行之间横移 6 CSS px，
+// 看着就不在一条竖线上（用户报的「Delete 按键没有对齐」正是这个）。
+// 同一列的单元格宽度相同，所以 1fr 那一列在每一行都一样宽，天然对齐。
+check("模型管理：两个操作按钮用 grid 排成固定两列（Delete 才不会左右错位）",
+  /<td style="white-space:nowrap">\s*<span style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center">\s*<button class="ghost" onclick="toggleKind\(/.test(script),
+  "按钮又变回 inline 并排了：toggle 宽度一变 Delete 就会横移");
 // 历史评测那一行必须**永远占位**：没有历史评测的行（Judge，或刚添加还没跑过的模型）
 // 若省掉这行，行高就矮一截，右侧按钮列的垂直间距忽疏忽密（用户报的「右侧按钮上下对齐」）。
 // 这条钉住"永远渲染"。
@@ -721,6 +729,10 @@ check("模型管理表：色点用的是后端给的 m.color",
   enModelHtml.includes('class="mdot" style="background:#123456"')
   && enModelHtml.includes('class="mdot" style="background:#654321"'),
   "渲染里没找到 payload 里的颜色");
+// 渲染级：每一行都必须有那个 grid 容器（只有源码里写了、渲染时丢了也算坏）
+check("模型管理表：每行的两个按钮都渲染在 grid 容器里",
+  (enModelHtml.match(/display:grid;grid-template-columns:1fr auto/g) || []).length === modelList.length,
+  `找到 ${(enModelHtml.match(/display:grid;grid-template-columns:1fr auto/g) || []).length} 个，期望 ${modelList.length}`);
 
 // ---------------- i18n 的两条硬不变量 ----------------
 // ① 代码里每个 t()/tf() 键都必须在英文表里 —— 少一条，英文模式下那一处就露出中文。

@@ -1006,12 +1006,19 @@ async function loadModels() {
     // 身份色点也画在这里：颜色是创建模型时就定下的（同一模型在排行榜各处同色），
     // 摆在模型名前面，用户就能「先在模型管理里认色、再去排行榜上看点」。
     const dot = `<span class="mdot" style="background:${esc(m.color || "var(--border2)")}"></span>`;
+    // 两个操作按钮用 grid 排成固定两列，而不是 inline 并排 + 居中。
+    // 为什么：同一列的单元格宽度相同，所以 1fr 那一列在每一行都一样宽 ——
+    // 「To Test」（窄）和「To Judge」（宽）宽度差 24px 也不会把 Delete 推得左右错位。
+    // 以前并排居中的结果是：整组随 toggle 宽度左右各挪 12px（实测两种行之间
+    // Delete 左边缘差 12 图像像素 = 6 CSS px），一组按钮就排不成竖线了。
     return `<tr><td class="tl" style="font-weight:550">${dot}${esc(m.name)}</td>
      <td>${kindCell}${hist}</td>
      <td class="tl muted">${esc(m.base_url)}</td><td class="tl muted">${esc(m.api_key)}</td>
      <td style="white-space:nowrap">
-       <button class="ghost" onclick="toggleKind(${m.id}, '${judge ? "test" : "judge"}')">${btn}</button>
-       <button class="ghost" onclick="delModel(${m.id})">${t("删除")}</button></td></tr>`;
+       <span style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center">
+         <button class="ghost" onclick="toggleKind(${m.id}, '${judge ? "test" : "judge"}')">${btn}</button>
+         <button class="ghost" onclick="delModel(${m.id})">${t("删除")}</button>
+       </span></td></tr>`;
   }).join("")
     : `<tr><td colspan="5" class="empty">${t("暂无模型")}</td></tr>`;
   // 评测的模型下拉**排除判别器**：判别器不能被测（后端也会拦，这里只是别让人白选一场）
