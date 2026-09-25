@@ -266,8 +266,9 @@ def update_model_kind(mid: int, body: KindIn):
     if body.kind == "judge" and n and not body.confirm:
         raise HTTPException(
             409,
-            f"{row['name']} 已有 {n} 条历史评测。改成「判别器」后不能再发起新评测，"
-            f"但已有的成绩仍然保留在排行榜上（数据是真的，不该因为角色变了就消失）。确认要改吗？",
+            i18n.t("{name} 已有 {n} 条历史评测。改成「判别器」后不能再发起新评测，"
+                   "但已有的成绩仍然保留在排行榜上（数据是真的，不该因为角色变了就消失）。"
+                   "确认要改吗？", name=row["name"], n=n),
         )
     db.execute("UPDATE models SET kind=? WHERE id=?", (body.kind, mid))
     return {"ok": True, "kind": body.kind, "evaluations": n, "changed": True}
@@ -357,7 +358,7 @@ async def download_benchmark(benchmark_id: str):
         raise HTTPException(400, i18n.t("该题库不支持自动下载"))
     cur = DOWNLOAD_STATE.get(benchmark_id)
     if cur and cur["status"] == "running":
-        return {"ok": True, "status": "running", "message": "正在下载中"}
+        return {"ok": True, "status": "running", "message": i18n.t("正在下载中")}
     DOWNLOAD_STATE[benchmark_id] = {"status": "running", "message": "下载中…"}
 
     async def _run():
@@ -368,7 +369,7 @@ async def download_benchmark(benchmark_id: str):
             DOWNLOAD_STATE[benchmark_id] = {"status": "failed", "message": str(e)[:300]}
 
     asyncio.create_task(_run())
-    return {"ok": True, "status": "running", "message": "已开始下载"}
+    return {"ok": True, "status": "running", "message": i18n.t("已开始下载")}
 
 
 @app.post("/api/families/{family_id}/download")
@@ -385,7 +386,7 @@ async def download_family(family_id: str):
     todo = [s for s in subsets if s in bm.DOWNLOADERS
             and not (DOWNLOAD_STATE.get(s) or {}).get("status") == "running"]
     if not todo:
-        return {"ok": True, "status": "running", "message": "全部子集都在下载中或已开始"}
+        return {"ok": True, "status": "running", "message": i18n.t("全部子集都在下载中或已开始")}
     for s in todo:
         DOWNLOAD_STATE[s] = {"status": "running", "message": "排队中…"}
 
@@ -400,7 +401,7 @@ async def download_family(family_id: str):
 
     asyncio.create_task(_run())
     return {"ok": True, "status": "running", "count": len(todo),
-            "message": f"已开始下载 {len(todo)} 个子集"}
+            "message": i18n.t("已开始下载 {n} 个子集", n=len(todo))}
 
 
 @app.get("/api/benchmarks/downloads")
@@ -432,8 +433,8 @@ async def create_evaluation(e: EvalIn):
     if m["kind"] == "judge":
         raise HTTPException(
             400,
-            f"{m['name']} 是「判别器」，不能作为被测模型。"
-            f"判别器只用于给安全类基准判分；如果确实要测它，请先在模型管理里把它改回「被测模型」。",
+            i18n.t("{name} 是「判别器」，不能作为被测模型。判别器只用于给安全类基准判分；"
+                   "如果确实要测它，请先在模型管理里把它改回「被测模型」。", name=m["name"]),
         )
     try:
         items = engine.load_dataset(e.benchmark, e.limit or None)
@@ -451,8 +452,8 @@ async def create_evaluation(e: EvalIn):
             raise HTTPException(404, i18n.t("裁判模型不存在"))
         if j["kind"] != "judge":
             raise HTTPException(
-                400, f"{j['name']} 的用途是「被测模型」，不能当裁判。"
-                     f"请先在模型管理里把要当裁判的模型设为「判别器」。")
+                400, i18n.t("{name} 的用途是「被测模型」，不能当裁判。"
+                            "请先在模型管理里把要当裁判的模型设为「判别器」。", name=j["name"]))
         if e.judge_model_id == e.model_id:
             raise HTTPException(400, i18n.t("裁判不能是被测模型自己 —— 自己判自己会让分数失去意义"))
         judge_id = e.judge_model_id

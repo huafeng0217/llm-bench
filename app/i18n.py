@@ -44,6 +44,22 @@ EN: dict[str, str] = {
     '额外请求参数必须是 JSON 对象，例如 {"enable_thinking": false}':
         'extra request parameters must be a JSON object, e.g. {"enable_thinking": false}',
     "kind 只能是 {kinds}": "kind must be one of {kinds}",
+    # 「先让人看见后果」的两处确认/拦截文案（响应时翻：前端把 detail 直接拿给用户看）
+    "{name} 已有 {n} 条历史评测。改成「判别器」后不能再发起新评测，"
+    "但已有的成绩仍然保留在排行榜上（数据是真的，不该因为角色变了就消失）。确认要改吗？":
+        "{name} already has {n} run(s). After switching it to a judge it can no longer start "
+        "new runs, but the existing results stay on the leaderboard (the data is real and should "
+        "not vanish just because the role changed). Change it anyway?",
+    "{name} 是「判别器」，不能作为被测模型。判别器只用于给安全类基准判分；"
+    "如果确实要测它，请先在模型管理里把它改回「被测模型」。":
+        "{name} is a judge model, so it cannot be used as a model under test. Judges only score "
+        "safety benchmarks; to evaluate it, switch it back to a model under test first.",
+    "{name} 的用途是「被测模型」，不能当裁判。请先在模型管理里把要当裁判的模型设为「判别器」。":
+        "{name} is a model under test, so it cannot act as the judge. Switch the model you want "
+        "to use as a judge to a judge model first.",
+    # 注意占位符风格：`t()` 用 {n} 这种具名参数，而 STORED_RE 的模板用 {0}（正则捕获组）。
+    # 同一句话两条路都要有，且各自风格要对 —— 写错不会报错，只会静默回落中文。
+    "已开始下载 {n} 个子集": "started downloading {n} subsets",
     "{name} 有 {n} 条评测任务（共 {m} 题逐题明细，含模型原始输出）。"
     "删除模型会一并删掉这些成绩与明细文件（无法恢复）。确认要删除吗？":
         "{name} has {n} run(s) with {m} item records in total (raw model output included). "
@@ -147,8 +163,13 @@ def t(zh: str, **params) -> str:
 
     **永不抛异常**：占位符和参数对不上时原样返回中文原文 —— 一条提示写错不该变成 500
     （而且要能在界面上看见它，才知道哪里写错了）。
+
+    查表顺序：``EN`` → ``STORED_EN``。为什么也查后者：有一批文案（下载/总结状态）
+    既会落进共享状态被 ``t_stored`` 翻，也会直接出现在响应体里 —— 同一句话两处维护
+    迟早只改一边。两张表都是我们自己写的译文，互为兜底是安全的；
+    **反过来不行**：``t_stored`` 还会收到模型原话，绝不能去查 UI 文案表。
     """
-    s = EN.get(zh, zh) if get_lang() == "en" else zh
+    s = (EN.get(zh) or STORED_EN.get(zh) or zh) if get_lang() == "en" else zh
     if not params:
         return s
     try:
@@ -201,6 +222,20 @@ STORED_EN: dict[str, str] = {
     "容器被终止": "the container was killed",
     "返回值不是合法 JSON": "the return value is not valid JSON",
     # ---- 共享状态 / 落库文案（下载状态、总结状态、任务级错误）----
+    # 「完成」既是下载成功的状态、也是总结生成成功的状态；以前两张表都没有它，
+    # 于是英文界面里下载完显示的是「完成」——实测探针抓到的既有漏译。
+    "完成": "Done",
+    "模型不存在": "model not found",
+    # 下载失败的原因（会作为下载状态显示给用户）
+    "HarmBench 下载结果为空": "HarmBench returned no data when downloading",
+    "HumanEval 下载结果为空": "HumanEval returned no data when downloading",
+    "JBB 有害行为下载结果为空": "JBB harmful behaviors returned no data when downloading",
+    "JBB 良性请求下载结果为空": "JBB benign requests returned no data when downloading",
+    "LiveCodeBench 下载结果为空": "LiveCodeBench returned no data when downloading",
+    # 判分链路的兜底（正常路径已被 /api/evaluations 拦住，这里防的是绕过接口的调用）
+    "这个基准需要裁判模型，但这次评测没有配置裁判（judge_model_id 为空）":
+        "this benchmark needs a judge model, but this run has no judge configured"
+        " (judge_model_id is empty)",
     "正在下载中": "downloading",
     "下载中…": "Downloading…",
     "已开始下载": "download started",
@@ -250,6 +285,18 @@ STORED_RE: list[tuple[str, str]] = [
      "Docker is available ({0}) but the image {1} is missing; run: docker pull {2}"),
     (r"^Docker (.*) · 镜像 (.*) 就绪$", "Docker {0} · image {1} ready"),
     (r"^已开始下载 (\d+) 个子集$", "started downloading {0} subsets"),
+    # 下载 / 判分 / 解析失败的原因（这些文案由异常带出来、落进状态或逐题错误，读时翻）
+    (r"^PyPI 上没有匹配当前 Python（(.+)）的 pyarrow wheel$",
+     "no pyarrow wheel on PyPI matches this Python ({0})"),
+    (r"(?s)^multi_turn 工具定义缺失（involved_classes=(.+)），请先下载 func_doc$",
+     "multi-turn tool definitions are missing (involved_classes={0}); download func_doc first"),
+    (r"^未知的判分口径: (.+)（可选 (.+)）$", "unknown judging rubric: {0} (choose from {1})"),
+    (r"^未知的判分口径: (.+)$", "unknown judging rubric: {0}"),
+    (r"^完成，但有 (\d+) 个数字在输入数据里回查不到，建议核对$",
+     "Done, but {0} number(s) could not be traced back to the input data — please double-check"),
+    # download_one 对未知 id 的返回值（正常路径进不来：调用方只会传 DOWNLOADERS 里的 id，
+    # 但它同样是"会落进下载状态"的文案，所以按同一套规则翻掉）
+    (r"^未知或不可下载的题库: (.+)$", "unknown or non-downloadable dataset: {0}"),
 ]
 
 _STORED_RE = [(re.compile(p), en) for p, en in STORED_RE]
