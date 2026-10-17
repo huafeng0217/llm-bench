@@ -734,6 +734,8 @@ def leaderboard():
     综合分 = 该模型在本分类下**已评测**项目的正确率算术平均（家族算作**一项**，
     用它的官方加权总分参与，而不是让 16 个子集各投一票）；
     排序按「有效覆盖度优先，再按综合分」，避免只跑简单基准刷分。
+    综合榜每行还带 ``avg_latency_ms``：分类级的平均每题延迟，**与综合分同一批项目、
+    同样等权平均**（前端"准确率 × 延迟"散点按模型×分类画点时用它）。
 
     家族（如 BFCL v4）额外返回 ``families``：官方加权总分 + 每组得分 + 权重覆盖率，
     供前端折叠展示（见 app/benchmarks/bfcl.py 的 FAMILY_DEFS）。
@@ -800,6 +802,8 @@ def leaderboard():
         # 综合得分只平均**完整评测**：部分评测的分数不该和完整成绩等权地算进平均分，
         # 但也不能把这项藏起来 —— 所以单独数出几项是部分评测（partial），交前端提示。
         item_scores = {}    # 模型 -> [参与综合分的分数]（独立基准逐个计，家族算一项）
+        item_lat = {}       # 模型 -> [同一批项目的平均每题延迟]（与 item_scores 一一对应）
+        item_names = {}     # 模型 -> [同一批项目的显示名 + 是否家族]（前端盯住一个点要看"里面装了什么"）
         item_cover = {}     # 模型 -> 有效覆盖量（独立基准 1.0 / 家族 = 已跑组权重之和）
         model_fams = {}     # 模型 -> [家族明细]（综合榜那行要显示「权重覆盖 60%」这类信息）
         model_cov = {}      # 模型 -> 该分类下跑过的基准数（含部分，供显示）
@@ -834,6 +838,8 @@ def leaderboard():
                         model_partial[m] = model_partial.get(m, 0) + 1
                     else:
                         item_scores.setdefault(m, []).append(it["accuracy"])
+                        item_lat.setdefault(m, []).append(it["avg_latency_ms"])
+                        item_names.setdefault(m, []).append({"name": meta["name"], "family": False})
                         item_cover[m] = item_cover.get(m, 0.0) + 1.0
 
         # 家族折叠块：官方加权总分（缺组按已跑组归一化，并显式给出权重覆盖）
@@ -854,6 +860,13 @@ def leaderboard():
                 # 家族在综合榜里算「一项」：分数用官方加权总分，
                 # 覆盖量用已跑组的官方权重之和（跑满 4 组 = 0.60；只跑 Non-Live = 0.10）
                 item_scores.setdefault(m, []).append(comp["score"])
+                # 家族这一项的延迟 = 各子集平均每题延迟的**等权平均**
+                #（和它的分数口径一致：组内先取子集平均，家族在分类里算一项）
+                item_lat.setdefault(m, []).append(
+                    round(sum(it["avg_latency_ms"] for it in by_subset.values()) / len(by_subset)))
+                # 家族在"里面装了什么"里报自己的名字（fid 本身可读，如 "BFCL v4"），
+                # 并标 family=True —— 它是一项，不是某个子集，前端要能说清
+                item_names.setdefault(m, []).append({"name": fid, "family": True})
                 item_cover[m] = item_cover.get(m, 0.0) + comp["weight_covered"]
                 model_cov[m] = model_cov.get(m, 0) + 1
                 model_fams.setdefault(m, []).append({
@@ -887,14 +900,27 @@ def leaderboard():
         combined = []
         for m, cov in model_cov.items():
             s = item_scores.get(m, [])
+            lats = item_lat.get(m, [])
             combined.append({
                 "model_name": m,
                 # 身份色随成绩一起给前端：颜色是模型的属性（落库在 models.color），
                 # 前端不能自己按名字排序算 —— 那样加一个模型会让榜上其他模型集体变色。
                 "color": name_colors.get(m, ""),
                 "avg_accuracy": round(sum(s) / len(s), 2) if s else 0,
+                # 分类级的平均每题延迟：**和 avg_accuracy 同一批项目、同样等权平均**
+                #（前端"准确率×延迟"图要用它；口径必须和分数同源，前端不许自己重算）。
+                # 没有完整评测时给 None —— 前端据此不画点，而不是画成 0。
+                "avg_latency_ms": round(sum(lats) / len(lats)) if lats else None,
                 "covered": cov,
                 "total": n_bench,
+                # 真正进综合分的项目数（家族算 1 项）：avg_accuracy / avg_latency_ms 都是
+                # 这批项目的等权平均。**它和 covered 不是一回事** —— covered 是"跑过的
+                # 基准数（含部分评测）"，一个只跑了部分评测的模型 covered>0 但 items=0、
+                # 综合分记 0；前端若拿 covered 判"有没有成绩"，就会把"没跑完"画成"0 分"。
+                "items": len(s),
+                # 这个分类分是"哪几项等权平均"出来的（独立基准给基准名，家族给家族名并标记）。
+                # 分类级的图最大的缺点就是看不见里面装了什么，点开一个点要能摊开。
+                "item_benchmarks": item_names.get(m, []),
                 # 排序真正用的是「有效覆盖量」：独立基准 1.0，家族按官方权重覆盖率折算，
                 # 否则「只跑了一个 easy 子集」会和「跑满四组」被同等看待。
                 "coverage": round(item_cover.get(m, 0.0), 4),

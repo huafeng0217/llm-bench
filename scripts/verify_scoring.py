@@ -70,13 +70,18 @@ def check_true(name: str, cond: bool, detail: str = "") -> None:
     RESULTS.append((name, bool(cond), detail or "期望为真，实际为假"))
 
 
-def add_eval(mid: int, done: int, correct: int, total: int | None = None) -> int:
-    """造一条 status=done 的评测记录（不跑模型，直接落库）。"""
+def add_eval(mid: int, done: int, correct: int, total: int | None = None,
+                bench: str | None = None, ms_per_q: int = 100) -> int:
+    """造一条 status=done 的评测记录（不跑模型，直接落库）。
+
+    ``ms_per_q`` 控制平均每题延迟：默认 100ms（老夹具的行为，别动它），
+    分类级延迟口径那一节靠它造出"同一个分类里两个基准延迟不同"的场面。
+    """
     return db.execute(
         "INSERT INTO evaluations(model_id, benchmark, total, done, correct, failed,"
         " status, total_latency_ms, prompt_tokens, completion_tokens, finished_at)"
         " VALUES(?,?,?,?,?,0,'done',?,?,?,datetime('now','localtime'))",
-        (mid, BENCH, total or done, done, correct, done * 100, done * 10, done * 20),
+        (mid, bench or BENCH, total or done, done, correct, done * ms_per_q, done * 10, done * 20),
     )
 
 
@@ -172,6 +177,36 @@ def main_() -> int:
                        order.index("__scoring_partial__") > order.index("__scoring_complete__"),
                        f"实际顺序 {order}")
 
+        # ---- 分类级延迟：与综合分同一批项目、按基准等权（前端"准确率 × 延迟"散点用）----
+        # 模型 A 在 humaneval 上是 100ms/题；再给它 code 分类下的另一个基准 livecodebench，
+        # 每題 900ms。两个基准的项目数差别很大，正好用来区分"等权"和"按题量加权"。
+        lcb = "livecodebench"
+        lcb_full = scoring.full_count(lcb)
+        if not lcb_full:
+            print("  [SKIP] livecodebench 题库不可用，跳过分类级延迟口径检查")
+        else:
+            add_eval(mid_a, lcb_full, lcb_full, bench=lcb, ms_per_q=900)
+            code_cat = next(c for c in main.leaderboard() if c["id"] == "code")
+            ca = next(m for m in code_cat["combined"] if m["model_name"] == "__scoring_complete__")
+            check("分类级延迟 = 同一批项目的等权平均（100ms 与 900ms → 500ms）",
+                  ca["avg_latency_ms"], 500)
+            by_count = round((100 * FULL + 900 * lcb_full) / (FULL + lcb_full))
+            check_true("这组夹具能区分两种加权（按题量加权不等于 500ms）", by_count != 500,
+                       f"按题量会得到 {by_count}ms")
+            check_true("所以分类级延迟确实不是按题量加权", ca["avg_latency_ms"] != by_count)
+            check("综合分的项目数如实带出（humaneval + livecodebench = 2 项）", ca["items"], 2)
+            check("分类分由哪几项算出来也带出来（前端点开一个点要能摊开）",
+                  sorted(b["name"] for b in ca["item_benchmarks"]),
+                  sorted(["HumanEval", "LiveCodeBench v6"]))
+            check_true("独立基准不标 family",
+                       all(not b["family"] for b in ca["item_benchmarks"]))
+            # 只跑了部分评测的模型：covered>0（跑过）但 items=0、延迟必须是 None ——
+            # 前端拿 covered 判"有没有成绩"会把没跑完画成 0 分/0 毫秒。
+            cb = next(m for m in code_cat["combined"] if m["model_name"] == "__scoring_partial__")
+            check_true("部分评测算跑过（covered > 0）", cb["covered"] > 0)
+            check("但没进综合分（items = 0）", cb["items"], 0)
+            check("此时延迟给 None，不给 0（前端据此不画点）", cb["avg_latency_ms"], None)
+
         s = scores_of(ov)
         da, db_ = s.get(str(mid_a)), s.get(str(mid_b))
         check_true("总览包含模型 A", da is not None)
@@ -262,6 +297,9 @@ def main_() -> int:
         check("排行榜：综合榜的有效覆盖量 = 家族权重覆盖（排序用）", comb["coverage"], 0.1)
         check("排行榜：综合榜把家族的权重覆盖也带出来给前端显示",
               [f["weight_covered"] for f in comb["families"]], [0.1])
+        # 家族在"这个分由什么算出来"的名单里，要标成一项（不是它某个子集）
+        check("家族在构成名单里标成 family",
+              [(b["name"], b["family"]) for b in comb["item_benchmarks"]], [(fid, True)])
         # 总览：家族子集仍逐行显示（矩阵的行就是子集），但要带官方分组标签
         ov2 = main.overview()
         ovb = {b["id"]: b for g in ov2["groups"] for b in g["benchmarks"]}

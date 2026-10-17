@@ -39,9 +39,12 @@
   .stat b { font-size:22px; font-weight:650; display:block; line-height:1.35; color:var(--c,var(--text)); }
   .stat span { color:var(--muted); font-size:12px; }
 
-  /* 分区标题 */
-  h2 { font-size:14.5px; font-weight:600; margin:30px 0 12px; display:flex; align-items:center; gap:9px; }
-  h2 .no { width:21px; height:21px; border-radius:7px; background:var(--card2); border:1px solid var(--border2);
+  /* 分区标题：和卡片正文拉开层级（14.5px 时几乎和正文同重），并加一条很淡的分隔线 ——
+     整页六段，靠标题字号+留白+线才能一眼看出"这是新的一段"。 */
+  h2 { font-size:16px; font-weight:650; letter-spacing:.1px;
+       margin:10px 0 12px; padding-top:24px; border-top:1px solid var(--border);
+       display:flex; align-items:center; gap:9px; }
+  h2 .no { width:22px; height:22px; border-radius:7px; background:var(--card2); border:1px solid var(--border2);
            color:var(--accent2); font-size:12px; display:inline-flex; align-items:center; justify-content:center; font-weight:600; }
 
   .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin-bottom:12px;
@@ -74,10 +77,13 @@
 
   /* 更多操作（⋯）下拉菜单 */
   .menu-wrap { position:relative; display:inline-block; }
-  .icon-btn { width:30px; height:30px; border-radius:50%; background:transparent; border:none;
-              color:var(--muted); display:inline-flex; align-items:center; justify-content:center;
-              cursor:pointer; padding:0; transition:color .15s, background .15s; }
-  .icon-btn:hover { color:var(--accent2); background:var(--card2); filter:none; }
+  /* 图标按钮（任务行的「更多操作」）：以前只有一圈淡淡的圆，看着像占位符。
+     给它一条描边和卡片底色，和 ghost 按钮同一套外形语言 —— 只是内容换成了图标。 */
+  .icon-btn { width:30px; height:30px; border-radius:50%; background:var(--card);
+              border:1px solid var(--border2); color:var(--muted);
+              display:inline-flex; align-items:center; justify-content:center;
+              cursor:pointer; padding:0; transition:color .15s, background .15s, border-color .15s; }
+  .icon-btn:hover { color:var(--accent2); border-color:var(--accent); background:var(--card2); filter:none; }
   .menu { position:absolute; right:0; top:calc(100% + 4px); background:var(--card);
           border:1px solid var(--border2); border-radius:10px; box-shadow:0 8px 24px rgba(29,36,51,.16);
           min-width:124px; padding:5px; display:none; z-index:300; }
@@ -98,7 +104,7 @@
      两件事必须一起做：只做浮层不 stretch → 底部参差；只 stretch 不浮层 → 一行被一起撑高。 */
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; }
   .catbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
-  .catchip { font-size:12px; padding:5px 14px; border-radius:20px; cursor:pointer;
+  .catchip { font-size:12px; line-height:1.2; padding:5px 14px; border-radius:20px; cursor:pointer;
              border:1px solid var(--border2); color:var(--muted); background:var(--card);
              user-select:none; transition:border-color .15s, color .15s; }
   .catchip:hover { border-color:var(--accent); color:var(--text); }
@@ -156,7 +162,11 @@
   .bm select.famsel:hover { border-color:var(--accent); }
   .bm .famnote { color:var(--faint); font-size:11.5px; margin-top:6px; line-height:1.6; }
   .tags { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
-  .tag { font-size:11px; padding:2px 9px; border-radius:20px; border:1px solid var(--border2); color:var(--muted); }
+  /* 小控件只有三类，外形按"能不能点"分工（以前五套混着长，一行里高矮胖瘦不齐）：
+       .catchip = 可点的筛选胶囊   .seg = 互斥视图开关   .tag = 只读元信息胶囊
+     字号/行高统一到 12px / 1.2~1.35，颜色差异只表达"可点 / 只读 / 状态"。 */
+  .tag { font-size:11.5px; line-height:1.35; padding:2px 9px; border-radius:20px;
+         border:1px solid var(--border2); color:var(--muted); white-space:nowrap; }
   .tag.ok { color:var(--green); border-color:rgba(34,153,92,.4); background:rgba(34,153,92,.07); }
   .tag.warn { color:var(--amber); border-color:rgba(185,126,30,.4); background:rgba(185,126,30,.07); }
 
@@ -166,6 +176,8 @@
      默认居中（数值、进度条、状态、按钮这类紧凑内容是居中最稳），
      文本列用 .tl 显式左对齐（名字、长文本）—— 表头也跟着左对齐。 */
   th,td { text-align:center; padding:9px 12px; border-bottom:1px solid var(--border); }
+  /* 表格里的数字统一等宽数字：不然百分比 / 题数在小数位上百位处抖动，列看着不齐 */
+  td { font-variant-numeric:tabular-nums; }
   th.tl, td.tl { text-align:left; }
   th { color:var(--muted); font-weight:500; font-size:12px; letter-spacing:.3px; }
   tbody tr { transition:background .12s; }
@@ -221,6 +233,11 @@
   .acc { font-weight:650; }
   .muted { color:var(--muted); font-size:12px; }
   .empty { color:var(--faint); font-size:13px; padding:14px 0; text-align:center; }
+  /* 整块为空（不是表格单元格里那种）时给一个虚线占位方块：一行灰字太像"没加载出来"。
+     纯 CSS，不引图片；td.empty 的表格空行保持一行灰字，不放大方块。 */
+  .card > .empty { padding:30px 0 26px; }
+  .card > .empty::before { content:""; display:block; width:34px; height:34px; margin:0 auto 12px;
+    border-radius:10px; border:1px dashed var(--border2); background:var(--card2); }
 
   .rank { display:inline-flex; width:22px; height:22px; border-radius:7px; align-items:center; justify-content:center;
           font-size:12px; font-weight:650; background:var(--card2); border:1px solid var(--border2); color:var(--muted); }
@@ -228,7 +245,32 @@
   .rank.r2 { background:rgba(102,112,133,.1); border-color:rgba(102,112,133,.4); color:#667085; }
   .rank.r3 { background:rgba(170,105,60,.1); border-color:rgba(170,105,60,.38); color:#aa693c; }
 
-  details summary { cursor:pointer; color:var(--accent2); font-size:12.5px; user-select:none; }
+  /* 折叠指示器：**只有指示器本身**用主题色。不能全局给 <summary> 上色 ——
+     AI 总结把「一句话结论」放在 <summary> 里，全局规则会把整句染成链接蓝，
+     看上去像可点链接（用户截图里就是这样）。需要主题色的指示器显式加 .disclosure。 */
+  /* 评测启动卡：基准卡片有 30 多张，选完卡还要一路滚到底才能点「开始评测」。
+     让整张启动卡**在这一节里吸在视口底部**（sticky），翻卡片时随手就能启动。
+     两个必须一起做：① sticky 只能在**包含块**内活动，所以要有个 .launch-scope 把
+     网格+启动卡包起来（否则包含块是启动卡自己，永远不可能浮起来——实测 launchBottomGap=-1361）；
+     ② 吸的是整张卡而不是里面那一行，因为 sticky 的相对容器是父级块。 */
+  .launch-scope { /* 仅作 sticky 的作用域，不参与视觉 */ }
+  .launch-card { position:sticky; bottom:12px; z-index:30;
+                 border-color:var(--border2); box-shadow:0 8px 22px rgba(29,36,51,.12); }
+
+  details summary { cursor:pointer; font-size:12.5px; user-select:none; }
+  details summary.disclosure { color:var(--accent2); }
+  details summary.disclosure:hover { color:var(--accent); }
+  /* 宽表格（模型表 / 任务表）：窄屏横向滚动，别把 url、Key 折成两行 ——
+     折行会让行高参差，比横向滚动难看得多。 */
+  .table-scroll { overflow-x:auto; }
+  .table-scroll table { min-width:760px; }
+  .nowrap { white-space:nowrap; }
+  /* 横向滚动时把**操作列钉在右边**：窄屏最先被裁掉的恰好是「设为判别器 / 删除」，
+     那是不可接受的一列。钉住它、加一道左侧阴影，滚动条只滚中间的数据列。 */
+  .table-scroll th:last-child, .table-scroll td:last-child {
+    position:sticky; right:0; background:var(--card);
+    box-shadow:-8px 0 8px -8px rgba(29,36,51,.20); }
+  .table-scroll tr:hover td:last-child { background:var(--hover, #f4f7fd); }
   /* 模型原始输出：整行展开显示，宽度占满表格，横向不再需要滚动 */
   pre.resp { white-space:pre-wrap; word-break:break-word; font-size:12px; color:var(--text);
              background:var(--bg2); border:1px solid var(--border); border-radius:9px;
@@ -236,7 +278,33 @@
   tr.raw-row > td { background:var(--card2); padding:8px 12px; border-bottom:1px solid var(--border); }
 
   /* 成绩总览：基准 × 模型 色块矩阵。border-spacing + 圆角做出「色块」感 */
-  .ov-table { border-collapse:separate; border-spacing:3px; }
+  /* 视图切换（矩阵 / 能力雷达 / 准确率×延迟）：一个分段控件，不做成三个 tab 页 ——
+   它们共用同一份数据和同一张卡片，切的是"看法"不是"页面"。 */
+.seg { display:inline-flex; border:1px solid var(--border2); border-radius:9px; overflow:hidden; }
+.seg button.ghost { border:none; border-radius:0; padding:5px 12px; font-size:12px; }
+.seg button.ghost + button.ghost { border-left:1px solid var(--border2); }
+.seg button.ghost.on { background:var(--accent); color:#fff; }
+.seg button.ghost.on:hover { background:var(--accent2); color:#fff; }
+/* 图表自己的工具条：只放"图怎么画"的选项（粒度/明细-均值、只看有数据的）。
+   放在它所控制的图上方 —— 分层靠分组、归属靠邻近（挤在卡片右上角会和视图切换混成一组）。
+   宽度**随内容收缩**：整条通栏里只放一个按钮时，像一条没填满的空盒子（用户截图指出）。 */
+.chart-bar { display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap;
+  margin:0 0 10px; padding:6px 10px; background:var(--card2);
+  border:1px solid var(--border); border-radius:9px; max-width:100%; }
+/* 手写 SVG：窄屏横向滚动，SVG 自己按 viewBox 缩放（不引图表库，见 DEVELOPMENT_LOG） */
+.chart-wrap { overflow-x:auto; }
+.chart-wrap svg { display:block; width:100%; min-width:560px; height:auto; }
+/* 点一下钉住的点：数字不打浮层（浮层要猜尺寸、多个会互盖），而是钉在图下这张小面板里。
+   图上不写序号（用户反馈环+数字太丑、挨着的两个还会互压），改用**光晕**；
+   行与点的对应关系靠双向 hover 高亮：移到某一行，图里那个点亮起来，反之亦然。 */
+.pin-panel { margin-top:12px; border:1px solid var(--border); border-radius:10px; padding:9px 12px; background:var(--card2); }
+.pin-row { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; padding:5px 0; border-top:1px dashed var(--border); border-radius:6px; }
+.pin-row:first-of-type { border-top:none; }
+.pin-row.hot { background:var(--card); }
+/* 选中的点不加任何额外图形：其余标记淡出（focus + context）。
+   淡出要能过渡，切钉子时不闪。 */
+.sc-dim { transition:opacity .12s ease; }
+.ov-table { border-collapse:separate; border-spacing:3px; }
   .ov-table th { text-align:center; font-size:12px; }
   .ov-table th:first-child { text-align:left; }
   .ov-table td { text-align:center; font-size:12.5px; font-variant-numeric:tabular-nums; padding:6px 8px; }
@@ -255,6 +323,11 @@
   .ov-table .ov-part { display:block; font-size:9px; line-height:1; color:var(--faint); font-weight:500; margin-top:2px; }
   /* 家族子集（如 BFCL v4 的 16 个）在行标题下角标出官方分组与权重 */
   .ov-table td.ov-bench .ov-grp { display:block; font-size:10px; color:var(--faint); font-weight:500; }
+  /* 总览「覆盖」列：家族（BFCL v4）那枚权重徽章原来在 150px 的格子里不换行，
+     被挤成溢出表格右边缘（截图里压在边框上）。这里让徽章能换行、并且压在格宽之内。 */
+  .ov-cov { white-space:normal; }
+  .ov-cov .tag { display:inline-block; max-width:100%; white-space:normal;
+                 font-size:10px; padding:1px 7px; line-height:1.5; margin-top:3px; }
 </style>
 </head>
 <body>
@@ -282,7 +355,7 @@
 
   <h2><span class="no">1</span><span data-i18n="模型管理">模型管理</span><span id="add-model-toggle" style="margin-left:auto"></span></h2>
   <div class="muted" style="font-size:12.5px; margin:-4px 0 10px">
-    <span data-i18n-html="demo-hint">没有 key 也能体验：模型名填 <code>demo</code>、base_url 填 <code>mock://local</code>。所有 API Key 只保存在本地 <code>data/</code> 目录，不会上传到任何服务器。</span>
+    <span data-i18n-html="没有 key 也能体验：模型名填 <code>demo</code>、base_url 填 <code>mock://local</code>。所有 API Key 只保存在本地 <code>data/</code> 目录，不会上传到任何服务器。">没有 key 也能体验：模型名填 <code>demo</code>、base_url 填 <code>mock://local</code>。所有 API Key 只保存在本地 <code>data/</code> 目录，不会上传到任何服务器。</span>
   </div>
   <div id="add-model-box" style="display:none">
     <div class="card">
@@ -332,21 +405,24 @@
       <div class="muted" id="m-test-result" style="margin-top:8px"></div>
     </div>
   </div>
-  <div class="card" style="padding:6px 18px"><table><thead><tr><th class="tl" data-i18n="模型">模型</th><th style="width:110px" data-i18n="用途">用途</th><th class="tl" data-i18n="base_url">base_url</th><th class="tl" data-i18n="Key">Key</th><th style="width:150px"></th></tr></thead>
-    <tbody id="models"><tr><td colspan="5" class="empty" data-i18n="暂无模型">暂无模型</td></tr></tbody></table></div>
+  <div class="card" style="padding:6px 18px"><div class="table-scroll"><table><thead><tr><th class="tl" data-i18n="模型">模型</th><th style="width:110px" data-i18n="用途">用途</th><th class="tl" data-i18n="base_url">base_url</th><th class="tl" data-i18n="Key">Key</th><th style="width:150px"></th></tr></thead>
+    <tbody id="models"><tr><td colspan="5" class="empty" data-i18n="暂无模型">暂无模型</td></tr></tbody></table></div></div>
 
   <h2><span class="no">2</span><span data-i18n="选择基准并发起评测">选择基准并发起评测</span></h2>
+  <!-- .launch-scope 只做一件事：给下面的启动卡一个"能浮起来"的包含块（见 CSS 注释） -->
+  <div class="launch-scope">
   <div id="cat-filter" class="catbar"></div>
   <div id="benchmarks" class="grid"></div>
-  <div class="card" style="margin-top:12px">
+  <div class="card launch-card" style="margin-top:12px">
     <div class="row">
       <select id="e-model" onchange="updateEvalHint()"></select>
       <input id="e-limit" type="number" min="0" placeholder="题目数（0 或留空 = 全部）" data-i18n-ph="题目数（0 或留空 = 全部）">
       <select id="e-judge" onchange="updateEvalHint()" style="display:none"></select>
       <button id="start-btn" style="flex:0 0 auto" onclick="startEval()" data-i18n="开始评测">开始评测</button>
+      <div class="muted" id="e-hint" style="flex-basis:100%;margin-top:2px" data-i18n="请先选择一个基准（点击上方卡片）和模型。">请先选择一个基准（点击上方卡片）和模型。</div>
     </div>
     <details style="margin-top:12px">
-      <summary data-i18n="高级参数（可选，不填用默认值）">高级参数（可选，不填用默认值）</summary>
+      <summary class="disclosure" data-i18n="高级参数（可选，不填用默认值）">高级参数（可选，不填用默认值）</summary>
       <div class="row" style="margin-top:10px">
         <label class="muted"><span data-i18n="输出 token 上限">输出 token 上限</span><input id="e-maxtokens" type="number" value="2048" min="16" max="32768"></label>
         <label class="muted"><span data-i18n="单题超时（秒）">单题超时（秒）</span><input id="e-timeout" type="number" value="90" min="5" max="600"></label>
@@ -354,14 +430,14 @@
       </div>
       <div class="muted" style="margin-top:6px" data-i18n="思考型模型（DeepSeek V4、R1、o 系列等）的输出上限要包含思考 token，2048 是安全值；并发调高速度快但可能触发服务商限流。">思考型模型（DeepSeek V4、R1、o 系列等）的输出上限要包含思考 token，2048 是安全值；并发调高速度快但可能触发服务商限流。</div>
     </details>
-    <div class="muted" id="e-hint" style="margin-top:10px" data-i18n="请先选择一个基准（点击上方卡片）和模型。">请先选择一个基准（点击上方卡片）和模型。</div>
   </div>
+  </div><!-- /.launch-scope -->
 
   <h2><span class="no">3</span><span data-i18n="评测任务">评测任务</span><span id="batch-toggle" style="margin-left:auto"></span></h2>
-  <div class="card" style="padding:6px 18px"><table><thead><tr>
+  <div class="card" style="padding:6px 18px"><div class="table-scroll"><table><thead><tr>
     <th id="th-check" style="width:32px; display:none"><input type="checkbox" id="task-check-all" onclick="toggleAllTasks(this)" title="全选本页" data-i18n-title="全选本页"></th>
     <th style="width:40px">#</th><th class="tl" data-i18n="模型">模型</th><th class="tl" data-i18n="基准">基准</th><th data-i18n="进度">进度</th><th data-i18n="正确率">正确率</th><th style="width:56px" data-i18n="失败">失败</th><th data-i18n="状态">状态</th><th style="width:130px"></th>
-  </tr></thead><tbody id="evals"><tr><td colspan="8" class="empty" data-i18n="暂无任务">暂无任务</td></tr></tbody></table>
+  </tr></thead><tbody id="evals"><tr><td colspan="8" class="empty" data-i18n="暂无任务">暂无任务</td></tr></tbody></table></div>
     <div id="batch-bar" style="padding:4px 0"></div>
     <div id="task-controls" style="padding:8px 0"></div></div>
   <div id="items-box"></div>
@@ -378,7 +454,7 @@
       <select id="s-model"></select>
       <button id="s-gen" style="flex:0 0 auto" onclick="genSummary()" data-i18n="生成总结">生成总结</button>
     </div>
-    <div class="muted" style="margin-top:8px" data-i18n-html="summary-hint">
+    <div class="muted" style="margin-top:8px" data-i18n-html="总结只依据下方「本次依据的数据」，由所选模型写成。<b>所有统计量（排名、覆盖率、差距是否显著）都是程序算好的</b>，模型只负责解释，因此换个模型来写，数字也不会变。">
       总结只依据下方「本次依据的数据」，由所选模型写成。
       <b>所有统计量（排名、覆盖率、差距是否显著）都是程序算好的</b>，模型只负责解释，
       因此换个模型来写，数字也不会变。
@@ -748,8 +824,135 @@ const EN = {
   "{0} {1}%（覆盖 {2}/{3}{4}）": "{0} {1}% (ran {2}/{3}{4})",
   "全部": "All",
   // ---- 静态骨架里带 HTML 的（data-i18n-html）----
-  "demo-hint": 'No API key needed to try it: set the model name to <code>demo</code> and base_url to <code>mock://local</code>. API keys are only stored locally under <code>data/</code> and never uploaded anywhere.',
-  "summary-hint": 'The summary is written by the selected model, based only on the data listed below. <b>All statistics (ranking, coverage, whether a gap is significant) are computed by the program</b> — the model only explains them, so the numbers stay the same no matter which model writes it.',
+  // 注意：这里的键必须是**中文原文**（applyI18n 直接拿属性值当 t() 的 key）。
+  // 曾经写成 slug（"demo-hint" / "summary-hint"），结果中文界面把 slug 原样显示出来了 ——
+  // 现有自检 `data-i18n* 的值不许是 slug` 就是防这个的。
+  "没有 key 也能体验：模型名填 <code>demo</code>、base_url 填 <code>mock://local</code>。所有 API Key 只保存在本地 <code>data/</code> 目录，不会上传到任何服务器。":
+    'No API key needed to try it: set the model name to <code>demo</code> and base_url to <code>mock://local</code>. API keys are only stored locally under <code>data/</code> and never uploaded anywhere.',
+  "总结只依据下方「本次依据的数据」，由所选模型写成。<b>所有统计量（排名、覆盖率、差距是否显著）都是程序算好的</b>，模型只负责解释，因此换个模型来写，数字也不会变。":
+    'The summary is written by the selected model, based only on the data listed below. <b>All statistics (ranking, coverage, whether a gap is significant) are computed by the program</b> — the model only explains them, so the numbers stay the same no matter which model writes it.',
+  "矩阵": "Matrix",
+  "能力雷达": "Radar",
+  "准确率 × 延迟": "Accuracy × Latency",
+  "雷达图看能力结构：哪个分类强、哪个分类是短板。":
+    "The radar shows the shape of ability: which categories are strong and which are weak.",
+  "散点图看性价比：谁又快又准（默认一个点 = 一个模型的一个分类，可切到基准下钻）。":
+    "The scatter shows value: who is both fast and accurate (by default one dot = one model × one category; switch to per-benchmark to drill down).",
+  "至少要有 3 个分类有完整成绩才能画雷达图": "A radar needs at least 3 categories with a complete run",
+  "能力雷达图": "Ability radar chart",
+  "{0}：本次参评模型的区间 {1}% – {2}%（这根轴按这个区间归一）":
+    "{0}: participating models span {1}% – {2}% (this axis is normalized to that range)",
+  "（同分）": " (tied)",
+  "{0} · {1}：{2}%（完整评测 {3}/{4} 项{5} · 这根轴的区间 {6}% – {7}%，位置按区间归一，不代表绝对分数）":
+    "{0} · {1}: {2}% (complete runs {3}/{4}{5} · this axis spans {6}% – {7}%; the position is normalized to that range, not an absolute score)",
+  "{0} · {1}：{2}%（完整评测 {3}/{4} 项{5}）": "{0} · {1}: {2}% (complete runs {3}/{4}{5})",
+  "，另有 {0} 项只有部分评测（不计入均分）": ", plus {0} item(s) with partial runs only (excluded from the average)",
+  "点一下显示 {0}": "Click to show {0}",
+  "点一下隐藏 {0}": "Click to hide {0}",
+  "半径 = 该分类在所有参评模型里的相对位置：每根轴各自按自己的区间归一，":
+    "Radius = the model's position among participating models in that category; each axis is normalized to its own range — ",
+  "不是 0–100 的绝对分数": "not an absolute 0–100 score",
+  "（轴下方的两个数字是这根轴的区间，用来判断它有多宽）。":
+    " (the two numbers under each axis are that axis's range, showing how wide it is).",
+  "区间窄的轴，同样长的一段半径只对应很小的分数差 —— 不同轴之间的半径长度不能互相比较。":
+    "On a narrow axis the same visual distance covers a much smaller score gap — never compare radius lengths across axes.",
+  "虚线 = 该模型在两轴之间没有完整成绩（形状直接跨过，不要把虚线当成分数）。":
+    "Dashed edge = the model has no complete run between those two axes (the shape jumps across; never read a dashed edge as a score).",
+  "部分评测不参与：只跑了部分题库的成绩不算完整成绩。":
+    "Partial runs do not count: a run that covered only part of the benchmark is not a complete run.",
+  "点下面的模型名可以把某个模型从图里摘掉，方便看清剩下几条线。":
+    "Click a model below to drop it from the chart and see the remaining lines more clearly.",
+  "图中的绝对分数（雷达图只画相对位置，数字以这张表为准）：":
+    "Absolute scores behind the chart (the radar only shows relative positions; trust this table for numbers):",
+  "一个点 = 一次（模型 × 基准）的成绩，不做任何聚合：数字就是排行榜分项榜里的那个成绩。":
+    "One dot = one model × benchmark result, with no aggregation at all: the numbers are exactly the ones in the leaderboard's per-benchmark tables.",
+  "实心点 = 完整评测（共 {0} 个）；空心点 = 部分评测（没跑完题库，画出来但不参与均值与中位数）。":
+    "Filled dots = complete runs ({0} in total); hollow dots = partial runs (benchmark not finished; drawn but excluded from the mean and median).",
+  "◆ = 该模型所有完整评测的均值（悬停看用了几个基准）：越靠左上 = 又快又准。":
+    "◆ = that model's mean over its complete runs (hover to see how many benchmarks); upper-left is both fast and accurate.",
+  "虚线 = 所有点的中位数参考线（摘掉模型不会让参考线移动）。":
+    "Dashed lines = median reference over all dots (hiding a model does not move it).",
+  "按分类": "By category",
+  "按基准": "By benchmark",
+  "一个点 = 一个模型在一个分类上的成绩：正确率取该分类综合分，延迟取同一批基准的等权平均（都只用完整评测）。":
+    "One dot = one model's score in one category: the accuracy is that category's combined score and the latency is the equal-weighted average over the same benchmarks (both from complete runs only).",
+  "共 {0} 个点（{1} 个模型 × 各自跑过的分类）；延迟是分类内各基准等权，不是按题量加权。":
+    "{0} dots in total ({1} models × the categories each one ran); the latency weights every benchmark in the category equally, not by question count.",
+  "◆ = 该模型各分类的等权平均（悬停看用了几个分类）：越靠左上 = 又快又准。":
+    "◆ = that model's equal-weighted average across categories (hover to see how many categories); upper-left is both fast and accurate.",
+  "不同模型跑过的分类可能不一样，跨模型比较时先看点数与悬停里的覆盖项数。":
+    "Models may have run different categories; before comparing them, check the number of dots and the coverage shown on hover.",
+  "{0} · {1}：{2}%（分类综合分 · 完整评测 {3}/{4} 项 · 各基准等权平均每题 {5} ms）{6}":
+    "{0} · {1}: {2}% (category combined score · complete runs {3}/{4} · equal-weighted {5} ms per question){6}",
+  "{0}：{1} 个分类的等权平均 {2}%（平均 {3} ms）":
+    "{0}: equal-weighted average over {1} categories {2}% ({3} ms avg)",
+  "平均每题延迟（毫秒）→ 越左越快": "Average latency per question (ms) → further left is faster",
+  "平均每题延迟（毫秒，对数刻度）→ 越左越快":
+    "Average latency per question (ms, log scale) → further left is faster",
+  "正确率（%）→ 越上越准": "Accuracy (%) → higher is up",
+  "延迟中位数 {0} ms": "Median latency {0} ms",
+  "正确率中位数 {0}%": "Median accuracy {0}%",
+  "{0} · {1}：{2}%（{3} 题 · 平均 {4} ms）": "{0} · {1}: {2}% ({3} questions · {4} ms avg)",
+  "{0} · {1}：{2}%（部分评测 {3}/{4} 题 · 平均 {5} ms）—— 空心点，不参与均值与中位数":
+    "{0} · {1}: {2}% (partial run {3}/{4} questions · {5} ms avg) — hollow dot, excluded from the mean and median",
+  "{0}：{1} 个完整评测的均值 {2}%（平均 {3} ms）": "{0}: mean of {1} complete runs {2}% ({3} ms avg)",
+  "准确率与延迟散点图": "Accuracy vs. latency scatter plot",
+  "已选点": "Pinned points",
+  "最多 {0} 个；再点一次那个点可以取消": "Up to {0}; click the same dot again to unpin",
+  "全部取消": "Clear all",
+  "取消这个点": "Unpin this dot",
+  "家族算一项": "family counts as one item",
+  "分类分": "Category score",
+  "这根轴区间": "Axis range",
+  "平均每题": "Per question",
+  "位置是按这根轴的区间归一的，不代表绝对分数。": "The position is normalized to this axis's range, not an absolute score.",
+  "这个分类分由这些等权平均：{0}": "This category score is the equal-weighted average of: {0}",
+  "部分评测：没跑完题库，画出来但不参与均值与中位数。":
+    "Partial run: the benchmark was not finished; it is drawn but excluded from the mean and median.",
+  "一次完整评测的原始数字，没做任何聚合。": "Raw numbers from one complete run, with no aggregation.",
+  "分类综合分；延迟是与它同一批基准的等权平均（都只用完整评测）。":
+    "Category combined score; the latency is the equal-weighted average over the same benchmarks (complete runs only).",
+  "由这些等权平均：{0}": "Equal-weighted average of: {0}",
+  "另有 {0} 项只有部分评测（不计入均分）。": "{0} more item(s) have partial runs only (excluded from the average).",
+  "点一下图上的顶点，数字会钉在下面。": "Click a vertex to pin its numbers below.",
+  "点一下点，数字会钉在下面。": "Click a dot to pin its numbers below.",
+  "各分类等权平均": "Equal-weighted average across categories",
+  "均值正确率": "Mean accuracy",
+  "均值延迟": "Mean latency",
+  "参与分类数": "Categories counted",
+  "均值": "Means",
+  "该模型各分类的等权平均（只算完整评测）—— 均值不是任何一种「成绩」，别拿它当某个分类的分数。":
+    "Equal-weighted average over this model's categories (complete runs only) — the mean is not a score for any single category.",
+  "由这些分类等权平均：{0}": "Equal-weighted average of these categories: {0}",
+  "显示/隐藏各模型的均值菱形（◆）": "Show/hide each model's mean diamond (◆)",
+  "越靠左上 = 又快又准。": "Upper-left is both fast and accurate.",
+  "虚线 = 当前这些点的中位数参考线（摘掉模型不会让它移动）。":
+    "Dashed lines = median reference of the dots currently shown (hiding a model does not move them).",
+  "点一下离光标最近的标记，数字就钉在下面；均值模式还会列出它由哪些分类算出来。":
+    "Click the marker nearest the pointer to pin its numbers below; the mean mode also lists which categories it averages.",
+  "明细点": "Detail dots",
+  "只看均值": "Means only",
+  "一个点 = 一个模型：各分类的等权平均（正确率 × 平均每题延迟，只用完整评测）。":
+    "One dot = one model: the equal-weighted average over its categories (accuracy × average latency per question, complete runs only).",
+  "共 {0} 个模型；点一下某个模型，会列出它由哪些分类等权平均出来。": "{0} models; click one to see which categories make up its average.",
+  "一个点 = 一个模型：它所有完整评测的均值（正确率 × 平均每题延迟）。":
+    "One dot = one model: the mean over all its complete runs (accuracy × average latency per question).",
+  "共 {0} 个模型；点一下某个模型，数字会钉在下面。": "{0} models; click one to pin its numbers below.",
+  "共 {0} 个点，其中 {1} 个是完整评测；空心点 = 部分评测（画出来但不参与均值与中位数）。":
+    "{0} dots, {1} of them complete runs; hollow dots = partial runs (drawn but excluded from the mean and median).",
+  "位置按各轴自己的区间归一（不是绝对分数）；分类分由该分类下已完整评测的项等权平均。":
+    "Positions are normalized to each axis's own range (not absolute scores); a category score is the equal-weighted average of that category's complete runs.",
+  "均值 = 该模型各分类的等权平均（只算完整评测）；它不是任何一种「成绩」，别当成某个分类的分数。":
+    "Mean = the equal-weighted average over this model's categories (complete runs only); it is not a score for any single category.",
+  "数字是一次完整评测的原始成绩，没做任何聚合；空心点是部分评测。":
+    "The numbers are one complete run as-is, with no aggregation; hollow dots are partial runs.",
+  "正确率是分类综合分（只算完整评测），延迟是同一批基准的等权平均。":
+    "Accuracy is the category's combined score (complete runs only); the latency is the equal-weighted average over the same benchmarks.",
+  "所有模型都被图例摘掉了 —— 点下面的模型名可以把它们放回来。":
+    "Every model is hidden by the legend — click a model name below to bring it back.",
+  "当前显示 {0}/{1} 个模型；点一下某个模型，会列出它由哪些分类等权平均出来。":
+    "Showing {0}/{1} models; click one to see which categories make up its average.",
+  "当前显示 {0}/{1} 个模型；点一下某个模型，数字会钉在下面。": "Showing {0}/{1} models; click one to pin its numbers below.",
 };
 // 语言：先看用户选过的（localStorage），没有就跟浏览器；都不是就中文
 let LANG = (() => {
@@ -1044,9 +1247,9 @@ async function loadModels() {
     // 「To Test」（窄）和「To Judge」（宽）宽度差 24px 也不会把 Delete 推得左右错位。
     // 以前并排居中的结果是：整组随 toggle 宽度左右各挪 12px（实测两种行之间
     // Delete 左边缘差 12 图像像素 = 6 CSS px），一组按钮就排不成竖线了。
-    return `<tr><td class="tl" style="font-weight:550">${dot}${esc(m.name)}</td>
-     <td>${kindCell}</td>
-     <td class="tl muted">${esc(m.base_url)}</td><td class="tl muted">${esc(m.api_key)}</td>
+    return `<tr><td class="tl nowrap" style="font-weight:550">${dot}${esc(m.name)}</td>
+     <td class="nowrap">${kindCell}</td>
+     <td class="tl nowrap muted">${esc(m.base_url)}</td><td class="tl nowrap muted">${esc(m.api_key)}</td>
      <td style="white-space:nowrap">
        <span style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center">
          <button class="ghost" onclick="toggleKind(${m.id}, '${judge ? "test" : "judge"}')">${btn}</button>
@@ -1487,9 +1690,13 @@ async function refresh() {
   renderTaskControls(_res.total);
   renderBatchBar();
 
-  await renderOverviewBlock();
-
+  // 排行榜数据先取：成绩总览里的雷达图/散点图与排行榜**共用同一份口径**
+  //（综合分怎么算、部分评测怎么排除、家族怎么算一项，定义都只在后端 app/scoring）。
+  // 前端另算一遍必然和榜上对不上 —— 这个项目为"口径漂移"付出过代价。
   const bds = await api("/api/leaderboard");
+  lbData = bds;
+
+  await renderOverviewBlock();
   // 顶部统计：最佳正确率取所有分项里的最高值。
   // **只统计完整评测** —— 部分评测（没跑完题库）不该出现在这个门面数字里。
   // 家族的「加权总分」不参与这个数字：它是组间加权的结果，跟单题正确率不是一个东西。
@@ -1582,7 +1789,7 @@ async function refresh() {
     <div class="card" style="padding:14px 18px">
       <div class="cat-head" style="margin:0"><span class="dot" style="background:var(--accent)"></span>${t("总览")}<span class="cnt">${t("点击分类查看详情，可同时展开多个")}</span></div>
       ${modelLegend()}
-      <table style="margin-top:10px"><thead><tr><th class="tl" style="width:190px">${t("分类")}</th><th class="tl">${t("冠军模型")}</th><th style="width:210px" title="${t("轨道上一个点 = 一个模型，颜色区分模型（同一模型在冠军名前的点、展开后的表里都是同色）。**每行按该分类自己的分数区间放大**，两端标出该行的最低/最高分 —— 位置不是 0–100 的绝对值。冠军 = 跑得最全的一批里分数最高，所以不一定是分数最高的那个，悬停里会点名分数更高但没跑全的模型")}">${t("分数分布")}</th><th style="width:190px">${t("综合得分")}</th><th style="width:150px">${t("覆盖")}</th></tr></thead>
+      <table style="margin-top:10px"><thead><tr><th class="tl" style="width:190px">${t("分类")}</th><th class="tl">${t("冠军模型")}</th><th style="width:210px" title="${t("轨道上一个点 = 一个模型，颜色区分模型（同一模型在冠军名前的点、展开后的表里都是同色）。**每行按该分类自己的分数区间放大**，两端标出该行的最低/最高分 —— 位置不是 0–100 的绝对值。冠军 = 跑得最全的一批里分数最高，所以不一定是分数最高的那个，悬停里会点名分数更高但没跑全的模型")}">${t("分数分布")}</th><th style="width:190px">${t("综合得分")}</th><th style="width:172px">${t("覆盖")}</th></tr></thead>
       <tbody>${bds.map(c => {
         const champ = c.combined[0];
         const open = !!expandedCats[c.id];
@@ -1591,7 +1798,7 @@ async function refresh() {
           <td class="tl" style="font-weight:550"><span class="mdot" style="background:${mcolor(champ.model_name)}"></span>${esc(champ.model_name)}</td>
           <td>${distBar(c)}</td>
           <td><div class="score-cell"><div class="bar"><i style="width:${Math.min(champ.avg_accuracy, 100)}%"></i></div><span class="acc">${champ.avg_accuracy}%</span></div></td>
-          <td class="muted">${champ.covered}/${champ.total}${famCover(champ)}</td>
+          <td class="muted ov-cov">${champ.covered}/${champ.total}${famCover(champ)}</td>
         </tr>`;
       }).join("")}</tbody></table>
     </div>`;
@@ -1685,11 +1892,25 @@ function mockNoteHtml() {
            [mocks.map(m => m.name).join("、")])}</div>` : "";
 }
 
-// ---------- 成绩总览：基准 × 模型 色块矩阵 ----------
+// ---------- 成绩总览：矩阵 / 能力雷达 / 准确率×延迟（三种视图，同一份数据）----------
 
 let ovData = null;       // /api/overview 原始数据
 let ovOnlyData = true;   // 是否只显示有数据的基准
 let ovPickModel = null;  // 已展开能力画像的模型 id
+let lbData = null;       // /api/leaderboard 原始数据（雷达/散点与排行榜共用这一份口径）
+let ovView = "matrix";   // 成绩总览的视图：matrix | radar | scatter
+let ovRadarOff = new Set();  // 雷达图图例里被点掉的模型（只影响画，不改归一区间）
+let ovScatterUnit = "cat";   // 散点粒度：cat = 模型×分类（默认，点少且不混基准）| bench = 模型×基准（下钻用）
+let ovScatterOff = new Set();// 散点图例里被点掉的模型（参考线不动，只有点和菱形消失）
+// 点住的点（最多 3 个，FIFO）。存 {view, model, cat}：重画时按当前数据重新找那个点，
+// 数据变了找不到就自然不再显示 —— 不留"指向不存在数据的钉子"。
+let ovPins = [];
+const PIN_MAX = 3;
+// 散点的两种模式（二选一，不再叠加 —— 用户反馈"均值叠在明细上"太密）：
+//   detail = 一个点一次评测（明细）；mean = 一个模型一个点（各分类等权平均）
+let ovScatterMode = "detail";
+// 均值钉子的"分类名"哨兵：它不是某个分类，而是该模型所有分类的等权平均
+const MEAN_CAT = "__mean__";
 
 async function renderOverviewBlock() {
   const box = document.getElementById("overview");
@@ -1705,6 +1926,73 @@ async function renderOverviewBlock() {
 
 function toggleOvOnlyData() { ovOnlyData = !ovOnlyData; drawOverview(); }
 function pickOvModel(id) { ovPickModel = (ovPickModel === id ? null : id); drawOverview(); }
+function setOvView(v) { ovView = v; ovPins = []; drawOverview(); }   // 换视图=换语境，钉子清掉
+function toggleRadarModel(name) {
+  if (ovRadarOff.has(name)) ovRadarOff.delete(name); else ovRadarOff.add(name);
+  drawOverview();
+}
+function setScatterUnit(u) { ovScatterUnit = u; ovPins = []; drawOverview(); }
+function setScatterMode(m) { ovScatterMode = m; ovPins = []; drawOverview(); }
+function toggleScatterModel(name) {
+  if (ovScatterOff.has(name)) ovScatterOff.delete(name); else ovScatterOff.add(name);
+  drawOverview();
+}
+// 钉/取消的**纯逻辑**（不改原数组，返回新的）：拆出来是为了能直接断言 ——
+// "点一下会怎样"不该只能靠手点验证。超上限（3 个）挤掉最早钉的。
+function togglePin(pins, key, max) {
+  const seen = p => p.view === key.view && p.model === key.model && p.cat === key.cat;
+  if (pins.some(seen)) return pins.filter(p => !seen(p));
+  const next = pins.concat([key]);
+  return next.length > max ? next.slice(next.length - max) : next;
+}
+// 面板行尾的 × ：按 data-p 取消一个钉子（图上的点击走 pinNearest）
+
+function unpinPoint(el) {
+  let k;
+  try { k = JSON.parse(el.dataset.p); } catch (e) { return; }
+  ovPins = ovPins.filter(p => !(p.view === k.view && p.model === k.model && p.cat === k.cat));
+  drawOverview();
+}
+function unpinAll() { ovPins = []; drawOverview(); }
+// 图下的"已选点"面板：一行 = 一个钉住的点。序号和 SVG 里点上的徽章是同一个数字。
+function pinPanelHtml(rows, note) {
+  if (!rows.length) return "";
+  // 口径说明只在这里说一次（原来每行都重复一遍"各分类等权平均…"，用户反馈啰嗦）
+  return `<div class="pin-panel">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:2px">
+        <b style="font-size:12.5px">${t("已选点")}</b>
+        <span class="muted" style="font-size:11.5px">${tf("最多 {0} 个；再点一次那个点可以取消", [PIN_MAX])}</span>
+        ${rows.length > 1 ? `<button class="ghost" style="margin-left:auto;font-size:11px;padding:3px 9px" onclick="unpinAll()">${t("全部取消")}</button>` : ""}
+      </div>
+      ${note ? `<div class="muted" style="font-size:11px;line-height:1.6;padding-bottom:2px">${note}</div>` : ""}
+      ${rows.join("")}
+    </div>`;
+}
+
+// 三张图回答三个不同的问题，共用同一张卡片、同一份数据（切视图不重新请求）：
+//   矩阵 = 逐项证据（哪个基准上谁最高）；雷达 = 能力结构（偏科在哪）；
+//   散点 = 性价比（谁又快又准）。
+// 换了图但说明还是矩阵的，读者就会按矩阵去读 —— 所以每个视图各写一句在答题什么。
+// 视图自己的控件（散点的"粒度 / 明细"两个开关）放在卡片右上角，
+// 和视图切换同一行 —— 原来堆在图底下，用户反馈"四个选项挤在右下角有点别扭"。
+function viewControls() {
+  if (ovView !== "scatter") return "";
+  const unit = ovScatterUnit, mode = ovScatterMode;
+  const seg = (tabs, act, fn) => `<span class="seg">${tabs.map(([v, label]) =>
+    `<button class="ghost${act === v ? " on" : ""}" onclick="${fn}('${v}')">${label}</button>`).join("")}</span>`;
+  return seg([["cat", t("按分类")], ["bench", t("按基准")]], unit, "setScatterUnit")
+    + seg([["detail", t("明细")], ["mean", t("均值")]], mode, "setScatterMode");
+}
+
+function viewHint() {
+  if (ovView === "radar") return t("雷达图看能力结构：哪个分类强、哪个分类是短板。");
+  if (ovView === "scatter") return t("散点图看性价比：谁又快又准（默认一个点 = 一个模型的一个分类，可切到基准下钻）。");
+  return `${t("行 = 基准，列 = 模型。")}<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle">
+          <i style="display:inline-block;width:26px;height:11px;border-radius:3px;background:var(--accent)"></i></span>
+          <b>${t("蓝色 = 该基准上参与评测的模型中的最高分")}</b>${t("（仅在完整评测之间评），并列最高会同时标出；其余格子统一底色。")}
+          <br>${t("带「部分 x/y」的格子表示这次只跑了部分题库，分数仅供参考、")}<b>${t("不参与最高分评选")}</b>。
+          <br>${t("悬停任一格子可以看到题量与任务号。")}`;
+}
 
 function drawOverview() {
   const box = document.getElementById("overview");
@@ -1718,10 +2006,6 @@ function drawOverview() {
   const groups = d.groups
     .map(g => ({ ...g, benchmarks: g.benchmarks.filter(b => !ovOnlyData || Object.keys(b.scores).length) }))
     .filter(g => g.benchmarks.length);
-  if (!groups.length) {
-    box.innerHTML = `<div class="card"><div class="empty">${t("还没有任何成绩")}</div></div>`;
-    return;
-  }
 
   const head = `<tr><th style="width:200px">${t("基准")}</th>` + models.map(m =>
     `<th style="cursor:pointer" title="${tf("点击查看 {0} 的能力画像", [esc(m.name)])}"
@@ -1757,24 +2041,36 @@ function drawOverview() {
   }).join("");
 
   const pick = models.find(m => m.id === ovPickModel);
+
+  const tabs = [["matrix", t("矩阵")], ["radar", t("能力雷达")], ["scatter", t("准确率 × 延迟")]];
+  // 卡片头部只放"看哪个视图"（卡片级）
+  const switcher = `<span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="seg">${tabs.map(([v, label]) =>
+        `<button class="ghost${ovView === v ? " on" : ""}" onclick="setOvView('${v}')">${label}</button>`).join("")}</span>
+    </span>`;
+  // "图怎么画"的选项（图级）单独一条工具条，压在图上
+  const chartOpts = ovView === "matrix"
+    ? `<button class="ghost" onclick="toggleOvOnlyData()">${ovOnlyData ? t("显示全部基准") : t("只看有数据的")}</button>`
+    : viewControls();
+  const chartBar = chartOpts
+    ? `<div class="chart-bar">${chartOpts}</div>` : "";
+
+  let inner;
+  if (ovView === "radar") inner = radarView();
+  else if (ovView === "scatter") inner = scatterView();
+  else if (!groups.length) inner = `<div class="empty">${t("还没有任何成绩")}</div>`;
+  else inner = `<div style="overflow-x:auto">
+        <table class="ov-table"><thead>${head}</thead><tbody>${body}</tbody></table>
+      </div>${pick ? renderOvProfile(pick) : ""}`;
+
   box.innerHTML = `
     <div class="card" style="padding:14px 18px">
-      <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:10px">
-        <span class="muted" style="font-size:12.5px;line-height:1.75">
-${t("行 = 基准，列 = 模型。")}<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle">
-          <i style="display:inline-block;width:26px;height:11px;border-radius:3px;background:var(--accent)"></i></span>
-          <b>${t("蓝色 = 该基准上参与评测的模型中的最高分")}</b>${t("（仅在完整评测之间评），并列最高会同时标出；其余格子统一底色。")}
-          <br>${t("带「部分 x/y」的格子表示这次只跑了部分题库，分数仅供参考、")}<b>${t("不参与最高分评选")}</b>。
-          <br>${t("悬停任一格子可以看到题量与任务号。")}
-        </span>
-        <span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <button class="ghost" onclick="toggleOvOnlyData()">${ovOnlyData ? t("显示全部基准") : t("只看有数据的")}</button>
-        </span>
+      <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:${chartBar ? "10" : "10"}px">
+        <span class="muted" style="font-size:12.5px;line-height:1.75">${viewHint()}</span>
+        ${switcher}
       </div>
-      <div style="overflow-x:auto">
-        <table class="ov-table"><thead>${head}</thead><tbody>${body}</tbody></table>
-      </div>
-      ${pick ? renderOvProfile(pick) : ""}
+      ${chartBar}
+      ${inner}
     </div>`;
 }
 
@@ -1801,6 +2097,578 @@ function renderOvProfile(m) {
       </div>
       <table>${rows}</table>
     </div>`;
+}
+
+// ---------- 成绩总览：能力雷达图（①）+ 准确率×延迟散点（③）----------
+// 两张图都**不做前端聚合**：数字直接取 /api/leaderboard（口径见 app/scoring：
+// 综合分只平均完整评测、家族算一项、部分评测不进平均）。前端另算一遍必然和榜上对不上，
+// 所以 refresh() 里先取排行榜再画总览（lbData）。
+
+// 排行榜里的模型 → 身份色（颜色落库在 models.color，后端随成绩一起给）
+function lbColors(lb) {
+  const map = {};
+  (lb || []).forEach(c => c.combined.forEach(m => { if (m.color) map[m.model_name] = m.color; }));
+  return map;
+}
+// SVG 里所有坐标都过一遍：浮点尾巴进 viewBox 只会让 diff 变脏，还容易写出 NaN。
+function svgNum(v) { return Math.round(v * 10) / 10; }
+// 估一行文字的宽度（汉字/全角按 1 个字宽，其余按 0.56）：
+// SVG 里量不了文字，只能估 —— 只用来判断两个标签会不会压在一起，不需要精确。
+function svgTextW(s, fs) {
+  let w = 0;
+  for (const ch of String(s)) w += /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]/.test(ch) ? fs : 0.56 * fs;
+  return w;
+}
+function median(xs) {
+  const s = [...xs].sort((a, b) => a - b);
+  const k = s.length >> 1;
+  return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2;
+}
+// 上取整到一个"好读"的刻度（1/1.5/2/2.5/3/4/5/6/8/10 × 10^n），给散点的 x 轴用
+function niceCeil(v) {
+  const x = Math.max(1, v);
+  const p = Math.pow(10, Math.floor(Math.log10(x)));
+  for (const m of [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * p >= x - 1e-9) return m * p;
+  return 10 * p;
+}
+
+// 一根轴 = 一个分类，值 = 该模型在这个分类的综合分（排行榜的 avg_accuracy）。
+// 归一：**每根轴各自按自己的区间铺开** —— 与「分数分布」那条轨道同一口径。
+// 于是位置只表示"这根轴上谁高谁低"，**不是绝对分数**：卡片里写清楚，
+// 轴下方标出该轴的区间自证，图下再给一张绝对分数表当证据。
+// 判据：covered>0 才算有值。只有部分评测的模型 covered=0、avg_accuracy 记 0，
+// 直接画会把"没跑"画成"0 分"。
+// 判据：**items > 0**（有项目进了综合分）才算有值，不是 covered > 0 ——
+// covered 是"跑过的基准数（含部分评测）"，只跑了部分评测的模型 covered>0 但综合分是 0、
+// 延迟是 null，拿 covered 判会把"没跑完"画成"0 分"。
+function radarModel(lb) {
+  const axes = [];
+  (lb || []).forEach(c => {
+    const vals = c.combined.filter(m => m.items > 0).map(m => ({
+      name: m.model_name, v: m.avg_accuracy,
+      items: m.items, total: m.total, partial: m.partial,
+      benchmarks: m.item_benchmarks || [],
+    }));
+    if (!vals.length) return;
+    const nums = vals.map(x => x.v);
+    axes.push({ id: c.id, name: c.name, lo: Math.min(...nums), hi: Math.max(...nums), vals });
+  });
+  const names = [];
+  axes.forEach(a => a.vals.forEach(v => { if (!names.includes(v.name)) names.push(v.name); }));
+  const have = nm => axes.filter(a => a.vals.some(v => v.name === nm)).length;
+  // 覆盖分类多的先画（线多的时候，画在上面的那条才看得清）
+  names.sort((a, b) => (have(b) - have(a)) || a.localeCompare(b));
+  return { axes, names, have, colors: lbColors(lb) };
+}
+
+function radarSvg(mm, off, pins) {
+  const { axes, names, colors } = mm;
+  const n = axes.length;
+  const W = 620, H = 380, cx = W / 2, cy = H / 2 + 2, R = 118;
+  const ang = i => -Math.PI / 2 + i * 2 * Math.PI / n;
+  const px = (i, r) => cx + Math.cos(ang(i)) * r;
+  const py = (i, r) => cy + Math.sin(ang(i)) * r;
+  const P = (i, r) => `${svgNum(px(i, r))},${svgNum(py(i, r))}`;
+  let g = "";
+  const hits = [];        // 命中圈单独攒，最后画（装饰层整体 pointer-events="none"）
+  const clickable = [];   // 可点标记的 viewBox 坐标 + 键：点击按"最近点"判定
+  // 底网：4 圈（最外圈实线）+ 每根轴
+  [0.25, 0.5, 0.75, 1].forEach(k => {
+    const pts = axes.map((_, i) => P(i, R * k)).join(" ");
+    g += `<polygon points="${pts}" fill="none" stroke="var(--border)" stroke-width="1"${k < 1 ? ' stroke-dasharray="3 3"' : ""}/>`;
+  });
+  axes.forEach((a, i) => {
+    g += `<line x1="${svgNum(cx)}" y1="${svgNum(cy)}" x2="${svgNum(px(i, R))}" y2="${svgNum(py(i, R))}" stroke="var(--border)" stroke-width="1"/>`;
+  });
+  // 轴名 + 该轴的区间（最低–最高）：归一图必须自带尺子，
+  // 否则"贴着外圈"会被读成"接近满分"。
+  axes.forEach((a, i) => {
+    const c = Math.cos(ang(i)), s = Math.sin(ang(i));
+    const anchor = c > 0.35 ? "start" : (c < -0.35 ? "end" : "middle");
+    // 标签离外圈留 24px（原来 14px）：钉住顶点时那个环半径 9，贴着外圈画的环
+    // 会把"轴下方的区间"压掉一截 —— 截图才看出来的。
+    const x = px(i, R + 24), y = py(i, R + 24) + (s > 0.5 ? 14 : (s < -0.5 ? -4 : 4));
+    g += `<text x="${svgNum(x)}" y="${svgNum(y)}" text-anchor="${anchor}" font-size="12" fill="var(--text)">${esc(a.name)}</text>`;
+    g += `<text x="${svgNum(x)}" y="${svgNum(y + 12)}" text-anchor="${anchor}" font-size="10.5" fill="var(--faint)">`
+       + `<title>${tf("{0}：本次参评模型的区间 {1}% – {2}%（这根轴按这个区间归一）", [esc(a.name), a.lo, a.hi])}</title>`
+       + `${a.lo}–${a.hi}%${a.lo === a.hi ? " " + t("（同分）") : ""}</text>`;
+  });
+  const shown = names.filter(nm => !(off && off.has(nm)));
+  const withFill = shown.length <= 2;   // 多条线叠在一起时铺色只会糊成一团
+  shown.forEach(nm => {
+    const color = colors[nm] || "var(--faint)";
+    const verts = [];
+    axes.forEach((a, i) => {
+      const hit = a.vals.find(v => v.name === nm);
+      if (!hit) return;
+      // 半径 = 该轴区间内的线性位置，但**留 8% 内边距**：
+      // 每根轴上最低分如果都画在正圆心，多根轴的最低点会叠成一个点
+      //（真实数据里 6 根轴的最低点全在圆心，19 个顶点只看得见 14 个）。
+      // 留一点内边距后各轴最低点仍按各自方向分开，线性关系没变。
+      verts.push({ i, r: a.hi === a.lo ? R * 0.5 : R * (0.08 + 0.92 * (hit.v - a.lo) / (a.hi - a.lo)), hit, a });
+    });
+    if (verts.length >= 3) {
+      if (verts.length === n) {
+        // 每个轴都有成绩：闭合成多边形
+        g += `<path d="M ${verts.map(v => P(v.i, v.r)).join(" L ")} Z" fill="${withFill ? color : "none"}"
+                fill-opacity="${withFill ? 0.12 : 0}" stroke="${color}" stroke-width="1.8" opacity="0.92"/>`;
+      } else {
+        // 有缺轴：**逐段画**，跨过缺轴的那一段用虚线 ——
+        // 连成实线会让人以为"中间那根轴上也有成绩"。
+        for (let k = 0; k < verts.length; k++) {
+          const p = verts[k], q = verts[(k + 1) % verts.length];
+          const gap = (q.i - p.i + n) % n;
+          g += `<line x1="${svgNum(px(p.i, p.r))}" y1="${svgNum(py(p.i, p.r))}"
+                  x2="${svgNum(px(q.i, q.r))}" y2="${svgNum(py(q.i, q.r))}"
+                  stroke="${color}" stroke-width="1.8" opacity="0.92"${gap === 1 ? "" : ' stroke-dasharray="4 4"'}/>`;
+        }
+      }
+    }
+    verts.forEach(v => {
+      const x = svgNum(px(v.i, v.r)), y = svgNum(py(v.i, v.r));
+      // 命中圈自己要引用钉子下标，所以先算（TDZ：const 不能在声明前用）
+      const pi = pinIdx({ view: "radar", model: nm, cat: v.a.name }, pins);
+      g += `<g opacity="${focusOpacity(pi >= 0 || !(pins || []).length)}">`
+        + `<circle cx="${x}" cy="${y}" r="4" fill="${color}"/></g>`;
+      // 命中圈：悬停给 title，点一下钉住（键和面板行对应）
+      const vkey = { view: "radar", model: nm, cat: v.a.name };
+      clickable.push({ k: vkey, x, y });
+      hits.push(`<circle cx="${x}" cy="${y}" r="10" fill="transparent"
+              data-p="${esc(JSON.stringify(vkey))}" style="cursor:pointer"
+              onmouseover="hlPinRow(${pi},1)" onmouseout="hlPinRow(${pi},0)"><title>${tf(
+        "{0} · {1}：{2}%（完整评测 {3}/{4} 项{5} · 这根轴的区间 {6}% – {7}%，位置按区间归一，不代表绝对分数）",
+        [esc(nm), esc(v.a.name), v.hit.v, v.hit.items, v.hit.total,
+         v.hit.partial ? tf("，另有 {0} 项只有部分评测（不计入均分）", [v.hit.partial]) : "",
+         v.a.lo, v.a.hi])}</title></circle>`);
+    });
+  });
+  // 点击统一由根节点处理："离点击位置最近的标记" —— 挤在一起的顶点也不会有点不到
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t("能力雷达图"))}"
+      data-pts="${esc(JSON.stringify(clickable))}" onclick="pinNearest(event, this)">`
+    + `<g pointer-events="none">${g}</g>${hits.join("")}</svg>`;
+}
+
+// 雷达图下方的绝对分数表：图的使命是"看形状"，数字必须能回查
+//（页面上的规矩：图是入口，表是证据）。
+function radarTable(mm) {
+  const { axes, names, colors } = mm;
+  const head = `<tr><th class="tl" style="width:170px">${t("模型")}</th>` + axes.map(a =>
+    `<th>${esc(a.name)}<span style="display:block;font-size:10px;color:var(--faint);font-weight:500">${a.lo}–${a.hi}%</span></th>`
+  ).join("") + `</tr>`;
+  const body = names.map(nm => {
+    const cells = axes.map(a => {
+      const hit = a.vals.find(v => v.name === nm);
+      if (!hit) return `<td class="ov-empty">—</td>`;
+      const partial = hit.partial ? tf("，另有 {0} 项只有部分评测（不计入均分）", [hit.partial]) : "";
+      return `<td class="ov-cell ov-plain" title="${tf("{0} · {1}：{2}%（完整评测 {3}/{4} 项{5}）",
+          [esc(nm), esc(a.name), hit.v, hit.items, hit.total, partial])}"
+        >${hit.v}%${hit.items < hit.total
+          ? `<span class="ov-part">${hit.items}/${hit.total}</span>` : ""}</td>`;
+    }).join("");
+    return `<tr><td class="ov-bench"><span class="mdot" style="background:${colors[nm] || "var(--faint)"}"></span>${esc(nm)}</td>${cells}</tr>`;
+  }).join("");
+  return `<table class="ov-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+function radarView() {
+  const mm = radarModel(lbData);
+  if (mm.axes.length < 3) {
+    return `<div class="empty">${t("至少要有 3 个分类有完整成绩才能画雷达图")}</div>`;
+  }
+  const legend = mm.names.map(nm => {
+    const hidden = ovRadarOff.has(nm);
+    return `<button class="ghost" style="font-size:11px;padding:3px 9px;${hidden ? "opacity:.45" : ""}"
+        data-m="${esc(nm)}"
+        title="${hidden ? tf("点一下显示 {0}", [esc(nm)]) : tf("点一下隐藏 {0}", [esc(nm)])}"
+        onclick="toggleRadarModel(this.dataset.m)"
+        ><span class="mdot" style="background:${mm.colors[nm] || "var(--faint)"}"></span>${esc(nm)}</button>`;
+  }).join("");
+  // 钉住的顶点：把"这个顶点是什么"摊在图下面板里（雷达的顶点只有 hover，点了没反应）
+  const pinItems = [];
+  mm.axes.forEach(a => a.vals.forEach(v => pinItems.push({
+    model: v.name, cat: a.name, acc: v.v, color: mm.colors[v.name] || "var(--faint)",
+    total: v.items, full_count: v.total, lo: a.lo, hi: a.hi, benchmarks: v.benchmarks || [],
+  })));
+  return `
+    <div class="chart-wrap">${radarSvg(mm, ovRadarOff, ovPins)}</div>
+    ${pinPanelHtml(pinRowsFor("radar", null, pinItems),
+      t("位置按各轴自己的区间归一（不是绝对分数）；分类分由该分类下已完整评测的项等权平均。"))}
+    <div class="muted" style="font-size:11.5px;line-height:1.7;margin:6px 0 2px">
+      ${t("半径 = 该分类在所有参评模型里的相对位置：每根轴各自按自己的区间归一，")}<b>${t("不是 0–100 的绝对分数")}</b>${t("（轴下方的两个数字是这根轴的区间，用来判断它有多宽）。")}
+      <br>${t("区间窄的轴，同样长的一段半径只对应很小的分数差 —— 不同轴之间的半径长度不能互相比较。")}
+      <br>${t("虚线 = 该模型在两轴之间没有完整成绩（形状直接跨过，不要把虚线当成分数）。")}
+      ${t("部分评测不参与：只跑了部分题库的成绩不算完整成绩。")}
+      <br>${t("点下面的模型名可以把某个模型从图里摘掉，方便看清剩下几条线。")}${t("点一下图上的顶点，数字会钉在下面。")}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px">${legend}</div>
+    <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:10px">
+      <div class="muted" style="font-size:11.5px;margin-bottom:6px">${t("图中的绝对分数（雷达图只画相对位置，数字以这张表为准）：")}</div>
+      <div style="overflow-x:auto">${radarTable(mm)}</div>
+    </div>`;
+}
+
+// 钉住的标记：一圈同色光晕（不写序号 —— 环+数字叠在小点上又重又容易互相压，
+// 用户明确说丑）。行与点的对应靠下面的双向 hover 高亮。id 用钉子在列表里的下标，
+// 面板行拿同一个下标去点亮它。
+// 选中标记的画法：**不加任何额外图形**，只是"选中的保持原样、其余的淡出"。
+// 试过三种加图形的做法（淡色光晕 / 描边环 / 序号徽章），都因为和标记自己的白描边
+// 叠成"双重轮廓"而显得笨重 —— 用户三次反馈"丑"，这次改成 focus+context。
+function focusOpacity(pinned) {
+  return pinned ? 1 : 0.28;
+}
+// 点击落在哪：取**离点击位置最近的**那个标记。
+// 为什么不能靠 <circle> 的命中圈：标记挤在一起时命中圈互相覆盖，最上面那个永远赢，
+// 被盖住的点就点不到（用户实测：雷达右上三个点，中间那个点不到）。
+// 最近点法在数学上保证每个标记都可达 —— 挨着谁点就选谁。
+function nearestKey(list, x, y, thresh) {
+  let best = -1, bd = thresh * thresh;
+  (list || []).forEach((p, i) => {
+    const d = (p.x - x) * (p.x - x) + (p.y - y) * (p.y - y);
+    if (d <= bd) { bd = d; best = i; }
+  });
+  return best < 0 ? null : list[best].k;
+}
+// SVG 根节点上的点击入口：把屏幕坐标换算成 viewBox 坐标，再交给 nearestKey
+function pinNearest(ev, svg) {
+  let list;
+  try { list = JSON.parse(svg.dataset.pts || "[]"); } catch (e) { return; }
+  if (!list.length) return;
+  const r = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  if (!r.width || !vb.width) return;
+  const x = (ev.clientX - r.left) / r.width * vb.width;
+  const y = (ev.clientY - r.top) / r.height * vb.height;
+  const k = nearestKey(list, x, y, 14);
+  if (k) { ovPins = togglePin(ovPins, k, PIN_MAX); drawOverview(); }
+}
+// 这个点在不在钉住列表里；在就返回它在列表里的下标（-1 = 不在）
+function pinIdx(key, pins) {
+  if (!key) return -1;
+  return (pins || []).findIndex(p => p.view === key.view && p.model === key.model && p.cat === key.cat);
+}
+// 双向高亮：面板行 ↔ 图上的点/顶点/菱形
+function hlPin(id, on) {
+  const e = document.getElementById(id);
+  if (e) {
+    if (on) e.classList.add("hot"); else e.classList.remove("hot");
+  }
+}
+function hlPinRow(i, on) {
+  const e = document.getElementById("row-pin-" + i);
+  if (e) {
+    if (on) e.classList.add("hot"); else e.classList.remove("hot");
+  }
+}
+// 面板里的一行。pairs 是 [标签, 值]；note 是整行的补充说明（构成/口径）。
+function pinRowHtml(i, color, title, pairs, note, key) {
+  const cells = pairs.map(([k, v]) =>
+    `<span class="muted" style="font-size:11.5px">${k} <b style="color:var(--text);font-weight:600">${v}</b></span>`).join("");
+  return `<div class="pin-row" id="row-pin-${i}" data-hl="pin-${i}"
+      onmouseover="hlPin('pin-${i}',1)" onmouseout="hlPin('pin-${i}',0)">
+      <span class="mdot" style="background:${color || "var(--faint)"}"></span>
+      <b style="font-size:12.5px">${title}</b>
+      ${cells}
+      <button class="ghost" data-p="${esc(JSON.stringify(key))}" onclick="unpinPoint(this)"
+        style="margin-left:auto;font-size:11px;padding:2px 8px" title="${t("取消这个点")}">×</button>
+      ${note ? `<span class="muted" style="flex-basis:100%;font-size:11.5px;line-height:1.6">${note}</span>` : ""}
+    </div>`;
+}
+
+// 一个"钉住的点"的说明行。三种点（散点分类级 / 散点基准级 / 雷达顶点）字段不同，
+// 但都靠同一行渲染，措辞也就自然一致。
+function pinRowsFor(view, unit, items) {
+  const rows = [];
+  (ovPins || []).forEach((k, i) => {
+    if (k.view !== view) return;
+    if (view === "scatter" && k.unit !== unit) return;
+    const it = items.find(x => x.model === k.model && x.cat === k.cat);
+    if (!it) return;   // 数据变了：这个钉子找不到对应的点，就不再显示
+    const n = i + 1;
+    // 均值行标题只写"· 均值"：口径在面板头部说一次就够（用户反馈每行都重复太啰嗦）
+    const title = it.cat === MEAN_CAT
+      ? `${esc(it.model)} · ${t("均值")}`
+      : `${esc(it.model)} · ${esc(it.cat)}`;
+    const names = (it.benchmarks || []).map(b => esc(b.name)
+      + (b.family ? ` <span class="tag" style="font-size:9.5px;padding:0 5px">${t("家族算一项")}</span>` : "")
+    ).join("、");
+    const parts = (it.parts || []).map(p => `${esc(p.cat)} ${p.acc}%`).join(" / ");
+    if (it.cat === MEAN_CAT) {
+      rows.push(pinRowHtml(i, it.color, title,
+        [[t("均值正确率"), it.acc + "%"], [t("均值延迟"), it.ms + " ms"], [t("参与分类数"), it.total]],
+        parts ? tf("由这些分类等权平均：{0}", [parts]) : "", it.key));
+    } else if (view === "radar") {
+      rows.push(pinRowHtml(i, it.color, title,
+        [[t("分类分"), it.acc + "%"],
+         [t("这根轴区间"), `${it.lo}–${it.hi}%`],
+         [t("覆盖"), `${it.total}/${it.full_count} 项`]],
+        names ? tf("这个分类分由这些等权平均：{0}", [names]) : "", k));
+    } else if (it.partial) {
+      rows.push(pinRowHtml(i, it.color, title,
+        [[t("正确率"), it.acc + "%"],
+         [t("题数"), `${it.total}/${it.full_count}`],
+         [t("平均每题"), it.ms + " ms"]],
+        t("部分评测：没跑完题库，画出来但不参与均值与中位数。"), k));
+    } else if (unit === "bench") {
+      rows.push(pinRowHtml(i, it.color, title,
+        [[t("正确率"), it.acc + "%"], [t("题数"), it.total], [t("平均每题"), it.ms + " ms"]],
+        "", k));
+    } else {
+      rows.push(pinRowHtml(i, it.color, title,
+        [[t("正确率"), it.acc + "%"],
+         [t("平均每题"), it.ms + " ms"],
+         [t("覆盖"), `${it.total}/${it.full_count} 项`]],
+        (names ? tf("由这些等权平均：{0}", [names]) : "")
+        + (it.extra ? tf("另有 {0} 项只有部分评测（不计入均分）。", [it.extra]) : ""),
+        k));
+    }
+  });
+  return rows;
+}
+
+// 散点的两种粒度（用户定的口径）：
+//   分类（默认）：一个点 = 模型 × 分类。x/y 都取后端 combined 行 ——
+//     正确率 = 该分类综合分，延迟 = **与综合分同一批项目、同样等权平均**的延迟。
+//     为什么默认这个：按基准画时，横轴跨度 126 倍（实测 mmlu 0.7s ~ livecodebench 85s），
+//     点左右移动主要反映"这条记录是哪个基准"，而不是"这个模型快不快"；
+//     按分类画降到 43 倍，且同一分类内比较的是同类题。
+//   基准：一个点 = 模型 × 基准，**不做任何聚合**（原来的画法，留着用来下钻：
+//     某个分类看着不对劲时切过来，看是哪个基准拖的）。
+// 两种粒度都有"没跑完不许装成有成绩"的护栏：分类级要求 items>0（有项目进了综合分）
+// 且 avg_latency_ms 不为 null —— 只跑了部分评测的模型综合分记 0、延迟是 null，
+// 不能画成 0 分/0 毫秒；基准级的空心点 = 部分评测，画出来但不参与均值与中位数。
+function scatterPoints(lb, unit) {
+  const pts = [];
+  const key = (model, cat) => ({ view: "scatter", unit, model, cat });
+  if (unit === "bench") {
+    (lb || []).forEach(c => {
+      const boards = c.boards.concat(...(c.families || []).map(f => f.boards));
+      boards.forEach(b => b.rows.forEach(r => pts.push({
+        model: r.model_name, color: r.color, cat: b.benchmark_name,
+        acc: r.accuracy, ms: r.avg_latency_ms, partial: r.partial,
+        total: r.total, full_count: r.full_count, benchmarks: [],
+        key: key(r.model_name, b.benchmark_name),
+      })));
+    });
+    return pts;
+  }
+  (lb || []).forEach(c => c.combined.forEach(m => {
+    if (!(m.items > 0) || m.avg_latency_ms == null) return;
+    pts.push({
+      model: m.model_name, color: m.color, cat: c.name,
+      acc: m.avg_accuracy, ms: m.avg_latency_ms, partial: false,
+      total: m.items, full_count: m.total, extra: m.partial,
+      benchmarks: m.item_benchmarks || [],
+      key: key(m.model_name, c.name),
+    });
+  }));
+  return pts;
+}
+
+// 每个模型的均值（只按完整评测算）。图上的菱形和面板里的"均值"行都取这一份，
+// 否则同一张图会出现两个略微不同的"均值"。
+function scatterMeans(pts) {
+  const by = {};
+  pts.filter(p => !p.partial).forEach(p => (by[p.model] = by[p.model] || []).push(p));
+  return Object.keys(by).sort().map(nm => {
+    const ps = by[nm];
+    return {
+      model: nm, cat: MEAN_CAT, color: ps[0].color || "var(--faint)",
+      acc: svgNum(ps.reduce((s, p) => s + p.acc, 0) / ps.length),
+      ms: Math.round(ps.reduce((s, p) => s + p.ms, 0) / ps.length),
+      total: ps.length, full_count: ps.length,
+      parts: ps.map(p => ({ cat: p.cat, acc: p.acc })),
+      key: { view: "scatter", unit: ps[0].key ? ps[0].key.unit : "cat", model: nm, cat: MEAN_CAT },
+    };
+  });
+}
+
+function scatterSvg(allPts, unit, off, pins, mode) {
+  const W = 680, H = 400, mL = 56, mR = 22, mT = 18, mB = 50;
+  const iw = W - mL - mR, ih = H - mT - mB;
+  // 图例摘掉的模型不画。中位数参考线仍然按**全部点**算（不被图例改动影响）。
+  const shown = allPts.filter(p => !(off && off.has(p.model)));
+  // 两种模式二选一（不再把均值叠在明细上 —— 那才是"太密"的主因）：
+  //   detail = 一个点一次评测；mean = 一个模型一个点（各分类等权平均，带名字）
+  const isMean = mode === "mean";
+  const pts = isMean ? scatterMeans(shown) : shown;
+  // 坐标范围按**全部**数据算：切模式/摘模型时轴不动，两张图才可比
+  const msMin = Math.max(1, Math.min(...allPts.map(p => p.ms)));
+  const msMax = Math.max(...allPts.map(p => p.ms));
+  // x 轴：跨度大就用**对数刻度**（真实数据 1.4s ~ 107s，线性轴会把点挤成左边一条缝）
+  const useLog = msMax / msMin >= 20;
+  const xMax = niceCeil(msMax);
+  const lx0 = Math.log10(msMin), lx1 = Math.log10(Math.max(10, msMax));
+  const X = useLog
+    ? v => mL + (Math.log10(Math.max(1, v)) - lx0) / ((lx1 - lx0) || 1) * iw
+    : v => mL + Math.max(0, Math.min(v, xMax)) / xMax * iw;
+  const Y = v => mT + (100 - Math.max(0, Math.min(100, v))) / 100 * ih;
+  const fmtMs = v => (v >= 1000 ? (v / 1000) + "k" : String(v));
+  // 对数轴刻度取 1/2/5 × 10^n（只标 10 的整数次幂太稀）
+  const xTicks = [];
+  if (useLog) {
+    for (let e = Math.floor(lx0); e <= Math.ceil(lx1) + 1; e++) {
+      for (const m of [1, 2, 5]) {
+        const v = m * Math.pow(10, e), lv = Math.log10(v);
+        if (lv > lx0 + 1e-9 && lv < lx1 - 1e-9) xTicks.push(v);
+      }
+    }
+  } else {
+    for (let k = 0; k <= 4; k++) xTicks.push(xMax * k / 4);
+  }
+  let g = "";
+  const hits = [];        // 命中圈：留给悬停 title（点击走根节点的"最近点"）
+  const clickable = [];   // 可点标记：{k, x, y}
+  const axText = [];      // 压在点上面的文字（刻度/中位数标签）
+  xTicks.forEach(v => {
+    const x = X(v);
+    g += `<line x1="${svgNum(x)}" y1="${mT}" x2="${svgNum(x)}" y2="${mT + ih}" stroke="var(--border)" stroke-width="1"/>`;
+    axText.push(`<text x="${svgNum(x)}" y="${mT + ih + 16}" text-anchor="middle" font-size="11" fill="var(--muted)">${fmtMs(v)}</text>`);
+  });
+  for (let k = 0; k <= 4; k++) {
+    const y = mT + ih * k / 4;
+    g += `<line x1="${mL}" y1="${svgNum(y)}" x2="${mL + iw}" y2="${svgNum(y)}" stroke="var(--border)" stroke-width="1"/>`;
+    g += `<text x="${mL - 8}" y="${svgNum(y + 4)}" text-anchor="end" font-size="11" fill="var(--muted)">${100 - 25 * k}</text>`;
+  }
+  axText.push(`<text x="${mL + iw / 2}" y="${H - 8}" text-anchor="middle" font-size="11.5" fill="var(--muted)">${useLog
+    ? t("平均每题延迟（毫秒，对数刻度）→ 越左越快")
+    : t("平均每题延迟（毫秒）→ 越左越快")}</text>`);
+  g += `<text x="14" y="${mT + ih / 2}" transform="rotate(-90 14 ${svgNum(mT + ih / 2)})" text-anchor="middle" font-size="11.5" fill="var(--muted)">${t("正确率（%）→ 越上越准")}</text>`;
+  const labels = [];   // 已占位的文字框（模型名要避开中位数标签）
+  // 中位数参考线：按**全部**数据算（不受图例摘模型影响，也不受模式影响地"跳"）——
+  // 参考线是数据的属性，一边摘模型一边飘只会让人以为"数据变了"。
+  const refPts = (isMean ? scatterMeans(allPts) : allPts).filter(p => !p.partial);
+  const full = refPts;
+  if (full.length >= 3) {
+    const mx = median(full.map(p => p.ms)), my = median(full.map(p => p.acc));
+    g += `<line x1="${svgNum(X(mx))}" y1="${mT}" x2="${svgNum(X(mx))}" y2="${mT + ih}" stroke="var(--border2)" stroke-width="1" stroke-dasharray="5 4"/>`;
+    g += `<line x1="${mL}" y1="${svgNum(Y(my))}" x2="${mL + iw}" y2="${svgNum(Y(my))}" stroke="var(--border2)" stroke-width="1" stroke-dasharray="5 4"/>`;
+    const mxs = tf("延迟中位数 {0} ms", [Math.round(mx)]);
+    const mys = tf("正确率中位数 {0}%", [my]);
+    axText.push(`<text x="${svgNum(X(mx) + 4)}" y="${svgNum(mT + ih - 6)}" font-size="10.5" fill="var(--muted)">${mxs}</text>`);
+    axText.push(`<text x="${mL + iw - 4}" y="${svgNum(Y(my) - 5)}" text-anchor="end" font-size="10.5" fill="var(--muted)">${mys}</text>`);
+    labels.push({ x0: X(mx) + 4, x1: X(mx) + 4 + svgTextW(mxs, 10.5), y0: mT + ih - 6 - 9, y1: mT + ih - 6 + 3 });
+    labels.push({ x0: mL + iw - 4 - svgTextW(mys, 10.5), x1: mL + iw - 4, y0: Y(my) - 5 - 9, y1: Y(my) - 5 + 3 });
+  }
+  pts.forEach(p => {
+    const c = p.color || "var(--faint)";
+    const x = svgNum(X(p.ms)), y = svgNum(Y(p.acc));
+    const pi = pinIdx(p.key, pins);
+    // 焦点：没选中的淡出（不加任何额外图形）。标记和它的名字在同一组里，一起淡。
+    const dim = pi < 0 && (pins || []).length > 0;
+    let vis = "";
+    let ttl;
+    if (isMean) {
+      const r = 9;
+      ttl = unit === "bench"
+        ? tf("{0}：{1} 个完整评测的均值 {2}%（平均 {3} ms）", [esc(p.model), p.total, p.acc, p.ms])
+        : tf("{0}：{1} 个分类的等权平均 {2}%（平均 {3} ms）", [esc(p.model), p.total, p.acc, p.ms]);
+      // 均值模式：一个模型一个菱形（比明细点大一圈，一眼看出这是"汇总"）
+      vis += `<path d="M ${x} ${svgNum(y - r)} L ${svgNum(x + r)} ${y} L ${x} ${svgNum(y + r)} L ${svgNum(x - r)} ${y} Z"
+              fill="${c}" stroke="#fff" stroke-width="1.8"/>`;
+    } else if (p.partial) {
+      ttl = tf("{0} · {1}：{2}%（部分评测 {3}/{4} 题 · 平均 {5} ms）—— 空心点，不参与均值与中位数",
+               [esc(p.model), esc(p.cat), p.acc, p.total, p.full_count, p.ms]);
+      vis += `<circle cx="${x}" cy="${y}" r="4.4" fill="none" stroke="${c}" stroke-width="1.6" stroke-dasharray="3 2"/>`;
+    } else {
+      ttl = unit === "bench"
+        ? tf("{0} · {1}：{2}%（{3} 题 · 平均 {4} ms）", [esc(p.model), esc(p.cat), p.acc, p.total, p.ms])
+        : tf("{0} · {1}：{2}%（分类综合分 · 完整评测 {3}/{4} 项 · 各基准等权平均每题 {5} ms）{6}",
+            [esc(p.model), esc(p.cat), p.acc, p.total, p.full_count, p.ms,
+             p.extra ? tf("，另有 {0} 项只有部分评测（不计入均分）", [p.extra]) : ""]);
+      // 明细点画小一圈、略透：43 个点也不糊成一片（用户反馈"太密"）
+      vis += `<circle cx="${x}" cy="${y}" r="4.8" fill="${c}" fill-opacity="0.72"/>`;
+    }
+    const mkey = isMean ? p.key : null;
+    clickable.push({ k: p.key, x, y });
+    hits.push(`<circle cx="${x}" cy="${y}" r="${isMean ? 13 : 10}" fill="transparent"
+            data-p="${esc(JSON.stringify(p.key))}" style="cursor:pointer"
+            onmouseover="hlPinRow(${pi},1)" onmouseout="hlPinRow(${pi},0)"><title>${ttl}</title></circle>`);
+    if (!isMean) labels.push({ x0: x - 8, x1: x + 8, y0: y - 8, y1: y + 8 });
+    if (isMean) {
+      // 均值模式才挂模型名（明细模式 43 个点再挂 6 个名字只会更乱）
+      const lw = svgTextW(p.model, 11);
+      const cand = [];
+      for (const dy of [4, -12, 18]) {
+        for (const d of [12, 24, 36]) cand.push([x + d, y + dy, "start"], [x - d, y + dy, "end"]);
+      }
+      cand.push([x, y - 13, "middle"], [x, y + 20, "middle"], [x, y - 26, "middle"], [x, y + 32, "middle"]);
+      const slot = cand
+        .map(([lx, ly, an]) => {
+          const bx = an === "middle" ? lx - lw / 2 : (an === "end" ? lx - lw : lx);
+          return { lx, ly, an, x0: bx, x1: bx + lw, y0: ly - 11, y1: ly + 3 };
+        })
+        .find(b => b.x0 > mL + 1 && b.x1 < mL + iw - 1 && b.y0 > mT + 1 && b.y1 < mT + ih - 1
+          && !labels.some(q => b.x0 < q.x1 && q.x0 < b.x1 && b.y0 < q.y1 && q.y0 < b.y1))
+        || { lx: x + 12, ly: y + 4, an: "start" };
+      labels.push(slot);
+      labels.push({ x0: x - 11, x1: x + 11, y0: y - 11, y1: y + 11 });
+      vis += `<text x="${svgNum(slot.lx)}" y="${svgNum(slot.ly)}" text-anchor="${slot.an}" font-size="11" fill="var(--text)"
+              paint-order="stroke" stroke="#fff" stroke-width="3" stroke-linejoin="round">${esc(p.model)}</text>`;
+    }
+    g += `<g class="sc-dim" opacity="${focusOpacity(!dim)}">${vis}</g>`;
+  });
+  // 装饰层整块 pointer-events="none"，命中圈与点击都在其之后；点击按"最近点"判定
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t("准确率与延迟散点图"))}"
+      data-pts="${esc(JSON.stringify(clickable))}" onclick="pinNearest(event, this)">`
+    + `<g pointer-events="none">${g}${axText.join("")}</g>${hits.join("")}</svg>`;
+}
+
+function scatterView() {
+  const unit = ovScatterUnit;
+  const mode = ovScatterMode;
+  const pts = scatterPoints(lbData, unit);
+  if (!pts.length) return `<div class="empty">${t("完成一次评测后生成")}</div>`;
+  const shownPts = pts.filter(p => !ovScatterOff.has(p.model));
+  const means = scatterMeans(shownPts);
+  const viewPts = mode === "mean" ? means : pts;
+  // 图例必须列**所有出现过的模型**，不能用过滤后的列表：均值模式下被摘掉的模型
+  // 连菱形带图例按钮一起消失，就再也点不回来了（用户实测的死局）。
+  const legendModels = [];
+  pts.forEach(p => { if (!legendModels.some(m => m.model === p.model)) legendModels.push(p); });
+  legendModels.sort((a, b) => a.model.localeCompare(b.model));
+  const legend = legendModels.map(p => {
+    const hidden = ovScatterOff.has(p.model);
+    return `<button class="ghost" style="font-size:11px;padding:3px 9px;${hidden ? "opacity:.45" : ""}"
+        data-m="${esc(p.model)}"
+        title="${hidden ? tf("点一下显示 {0}", [esc(p.model)]) : tf("点一下隐藏 {0}", [esc(p.model)])}"
+        onclick="toggleScatterModel(this.dataset.m)"
+        ><span class="mdot" style="background:${p.color || "var(--faint)"}"></span>${esc(p.model)}</button>`;
+  }).join("");
+  const full = pts.filter(p => !p.partial).length;
+  const shownN = legendModels.filter(m => !ovScatterOff.has(m.model)).length;
+  // 全摘光时给一句话：否则用户看着空图 + 空图例，只能刷新页面（死局）
+  const allOff = shownN === 0 ? `<div class="muted" style="font-size:12px;margin:2px 0 6px">${
+    t("所有模型都被图例摘掉了 —— 点下面的模型名可以把它们放回来。")}</div>` : "";
+  const caption = mode === "mean"
+    ? (unit === "bench"
+      ? `${t("一个点 = 一个模型：它所有完整评测的均值（正确率 × 平均每题延迟）。")}
+         <br>${tf("当前显示 {0}/{1} 个模型；点一下某个模型，数字会钉在下面。", [means.length, legendModels.length])}`
+      : `${t("一个点 = 一个模型：各分类的等权平均（正确率 × 平均每题延迟，只用完整评测）。")}
+         <br>${tf("当前显示 {0}/{1} 个模型；点一下某个模型，会列出它由哪些分类等权平均出来。", [means.length, legendModels.length])}`)
+    : (unit === "bench"
+      ? `${t("一个点 = 一次（模型 × 基准）的成绩，不做任何聚合：数字就是排行榜分项榜里的那个成绩。")}
+         <br>${tf("共 {0} 个点，其中 {1} 个是完整评测；空心点 = 部分评测（画出来但不参与均值与中位数）。", [pts.length, full])}
+         ${t("越靠左上 = 又快又准。")}`
+      : `${t("一个点 = 一个模型在一个分类上的成绩：正确率取该分类综合分，延迟取同一批基准的等权平均（都只用完整评测）。")}
+         <br>${tf("共 {0} 个点（{1} 个模型 × 各自跑过的分类）；延迟是分类内各基准等权，不是按题量加权。", [pts.length, legendModels.length])}
+         <br>${t("不同模型跑过的分类可能不一样，跨模型比较时先看点数与悬停里的覆盖项数。")}
+         ${t("越靠左上 = 又快又准。")}`);
+  const rows = pinRowsFor("scatter", unit, mode === "mean" ? means : pts);
+  const pinNote = mode === "mean"
+    ? t("均值 = 该模型各分类的等权平均（只算完整评测）；它不是任何一种「成绩」，别当成某个分类的分数。")
+    : (unit === "bench"
+      ? t("数字是一次完整评测的原始成绩，没做任何聚合；空心点是部分评测。")
+      : t("正确率是分类综合分（只算完整评测），延迟是同一批基准的等权平均。"));
+  return `
+    ${allOff}
+    <div class="chart-wrap">${scatterSvg(pts, unit, ovScatterOff, ovPins, mode)}</div>
+    ${pinPanelHtml(rows, pinNote)}
+    <div class="muted" style="font-size:11.5px;line-height:1.7;margin:6px 0 2px">
+      ${caption}
+      <br>${t("虚线 = 当前这些点的中位数参考线（摘掉模型不会让它移动）。")}
+      ${t("点一下离光标最近的标记，数字就钉在下面；均值模式还会列出它由哪些分类算出来。")}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px 14px;margin:8px 0 0">${legend}</div>`;
 }
 
 // ---- 任务列表：展开 / 分页 控制 ----
@@ -2259,7 +3127,7 @@ function renderSummary() {
 
   // 依据的数据：让人能核对总结，这是「可信」的前提
   if ((stats.rankings || []).length) {
-    html += `<div class="card"><details><summary style="cursor:pointer;font-weight:600">
+    html += `<div class="card"><details><summary class="disclosure" style="cursor:pointer;font-weight:600">
 ${t("本次依据的数据（点开核对）")}</summary><div style="margin-top:10px">`
       + stats.rankings.map(r => {
           const ns = (r.comparisons || []).filter(x => !x.significant);

@@ -124,6 +124,154 @@ EN: dict[str, str] = {
     "排行榜": "Leaderboard",
     "AI 总结": "AI summary",
     "填写任意 OpenAI 兼容接口并对比排名": "Point it at any OpenAI-compatible endpoint and compare models",
+    # ---- 成绩总览：视图切换 + 能力雷达图 ----
+    "矩阵": "Matrix",
+    "能力雷达": "Radar",
+    "准确率 × 延迟": "Accuracy × Latency",
+    "雷达图看能力结构：哪个分类强、哪个分类是短板。":
+        "The radar shows the shape of ability: which categories are strong and which are weak.",
+    "散点图看性价比：谁又快又准（默认一个点 = 一个模型的一个分类，可切到基准下钻）。":
+        "The scatter shows value: who is both fast and accurate (by default one dot = one model × "
+        "one category; switch to per-benchmark to drill down).",
+    "模型": "Model",
+    "至少要有 3 个分类有完整成绩才能画雷达图":
+        "A radar needs at least 3 categories with a complete run",
+    "能力雷达图": "Ability radar chart",
+    "{0}：本次参评模型的区间 {1}% – {2}%（这根轴按这个区间归一）":
+        "{0}: participating models span {1}% – {2}% (this axis is normalized to that range)",
+    "（同分）": " (tied)",
+    "{0} · {1}：{2}%（完整评测 {3}/{4} 项{5} · 这根轴的区间 {6}% – {7}%，位置按区间归一，不代表绝对分数）":
+        "{0} · {1}: {2}% (complete runs {3}/{4}{5} · this axis spans {6}% – {7}%; "
+        "the position is normalized to that range, not an absolute score)",
+    "{0} · {1}：{2}%（完整评测 {3}/{4} 项{5}）":
+        "{0} · {1}: {2}% (complete runs {3}/{4}{5})",
+    "，另有 {0} 项只有部分评测（不计入均分）":
+        ", plus {0} item(s) with partial runs only (excluded from the average)",
+    "点一下显示 {0}": "Click to show {0}",
+    "点一下隐藏 {0}": "Click to hide {0}",
+    "半径 = 该分类在所有参评模型里的相对位置：每根轴各自按自己的区间归一，":
+        "Radius = the model's position among participating models in that category; "
+        "each axis is normalized to its own range — ",
+    "不是 0–100 的绝对分数": "not an absolute 0–100 score",
+    "（轴下方的两个数字是这根轴的区间，用来判断它有多宽）。":
+        " (the two numbers under each axis are that axis's range, showing how wide it is).",
+    "区间窄的轴，同样长的一段半径只对应很小的分数差 —— 不同轴之间的半径长度不能互相比较。":
+        "On a narrow axis the same visual distance covers a much smaller score gap "
+        "— never compare radius lengths across axes.",
+    "虚线 = 该模型在两轴之间没有完整成绩（形状直接跨过，不要把虚线当成分数）。":
+        "Dashed edge = the model has no complete run between those two axes "
+        "(the shape jumps across; never read a dashed edge as a score).",
+    "部分评测不参与：只跑了部分题库的成绩不算完整成绩。":
+        "Partial runs do not count: a run that covered only part of the benchmark is not a complete run.",
+    "点下面的模型名可以把某个模型从图里摘掉，方便看清剩下几条线。":
+        "Click a model below to drop it from the chart and see the remaining lines more clearly.",
+    "图中的绝对分数（雷达图只画相对位置，数字以这张表为准）：":
+        "Absolute scores behind the chart (the radar only shows relative positions; trust this table for numbers):",
+    # ---- 成绩总览：准确率×延迟散点 ----
+    "一个点 = 一次（模型 × 基准）的成绩，不做任何聚合：数字就是排行榜分项榜里的那个成绩。":
+        "One dot = one model × benchmark result, with no aggregation at all: the numbers are exactly "
+        "the ones in the leaderboard's per-benchmark tables.",
+    "实心点 = 完整评测（共 {0} 个）；空心点 = 部分评测（没跑完题库，画出来但不参与均值与中位数）。":
+        "Filled dots = complete runs ({0} in total); hollow dots = partial runs (benchmark not finished; "
+        "drawn but excluded from the mean and median).",
+    "◆ = 该模型所有完整评测的均值（悬停看用了几个基准）：越靠左上 = 又快又准。":
+        "◆ = that model's mean over its complete runs (hover to see how many benchmarks); "
+        "upper-left is both fast and accurate.",
+    "虚线 = 所有点的中位数参考线（摘掉模型不会让参考线移动）。":
+        "Dashed lines = median reference over all dots (hiding a model does not move it).",
+    "按分类": "By category",
+    "按基准": "By benchmark",
+    "一个点 = 一个模型在一个分类上的成绩：正确率取该分类综合分，延迟取同一批基准的等权平均（都只用完整评测）。":
+        "One dot = one model's score in one category: the accuracy is that category's combined "
+        "score and the latency is the equal-weighted average over the same benchmarks "
+        "(both from complete runs only).",
+    "共 {0} 个点（{1} 个模型 × 各自跑过的分类）；延迟是分类内各基准等权，不是按题量加权。":
+        "{0} dots in total ({1} models × the categories each one ran); the latency weights "
+        "every benchmark in the category equally, not by question count.",
+    "◆ = 该模型各分类的等权平均（悬停看用了几个分类）：越靠左上 = 又快又准。":
+        "◆ = that model's equal-weighted average across categories (hover to see how many "
+        "categories); upper-left is both fast and accurate.",
+    "不同模型跑过的分类可能不一样，跨模型比较时先看点数与悬停里的覆盖项数。":
+        "Models may have run different categories; before comparing them, check the number of "
+        "dots and the coverage shown on hover.",
+    "{0} · {1}：{2}%（分类综合分 · 完整评测 {3}/{4} 项 · 各基准等权平均每题 {5} ms）{6}":
+        "{0} · {1}: {2}% (category combined score · complete runs {3}/{4} · equal-weighted "
+        "{5} ms per question){6}",
+    "{0}：{1} 个分类的等权平均 {2}%（平均 {3} ms）":
+        "{0}: equal-weighted average over {1} categories {2}% ({3} ms avg)",
+    "平均每题延迟（毫秒）→ 越左越快": "Average latency per question (ms) → further left is faster",
+    "平均每题延迟（毫秒，对数刻度）→ 越左越快":
+        "Average latency per question (ms, log scale) → further left is faster",
+    "正确率（%）→ 越上越准": "Accuracy (%) → higher is up",
+    "延迟中位数 {0} ms": "Median latency {0} ms",
+    "正确率中位数 {0}%": "Median accuracy {0}%",
+    "{0} · {1}：{2}%（{3} 题 · 平均 {4} ms）":
+        "{0} · {1}: {2}% ({3} questions · {4} ms avg)",
+    "{0} · {1}：{2}%（部分评测 {3}/{4} 题 · 平均 {5} ms）—— 空心点，不参与均值与中位数":
+        "{0} · {1}: {2}% (partial run {3}/{4} questions · {5} ms avg) — hollow dot, "
+        "excluded from the mean and median",
+    "{0}：{1} 个完整评测的均值 {2}%（平均 {3} ms）":
+        "{0}: mean of {1} complete runs {2}% ({3} ms avg)",
+    "准确率与延迟散点图": "Accuracy vs. latency scatter plot",
+    "所有模型都被图例摘掉了 —— 点下面的模型名可以把它们放回来。":
+        "Every model is hidden by the legend — click a model name below to bring it back.",
+    "当前显示 {0}/{1} 个模型；点一下某个模型，会列出它由哪些分类等权平均出来。":
+        "Showing {0}/{1} models; click one to see which categories make up its average.",
+    "当前显示 {0}/{1} 个模型；点一下某个模型，数字会钉在下面。":
+        "Showing {0}/{1} models; click one to pin its numbers below.",
+    "位置按各轴自己的区间归一（不是绝对分数）；分类分由该分类下已完整评测的项等权平均。":
+        "Positions are normalized to each axis's own range (not absolute scores); a category score is the equal-weighted average of that category's complete runs.",
+    "均值 = 该模型各分类的等权平均（只算完整评测）；它不是任何一种「成绩」，别当成某个分类的分数。":
+        "Mean = the equal-weighted average over this model's categories (complete runs only); it is not a score for any single category.",
+    "数字是一次完整评测的原始成绩，没做任何聚合；空心点是部分评测。":
+        "The numbers are one complete run as-is, with no aggregation; hollow dots are partial runs.",
+    "正确率是分类综合分（只算完整评测），延迟是同一批基准的等权平均。":
+        "Accuracy is the category's combined score (complete runs only); the latency is the equal-weighted average over the same benchmarks.",
+    "越靠左上 = 又快又准。": "Upper-left is both fast and accurate.",
+    "虚线 = 当前这些点的中位数参考线（摘掉模型不会让它移动）。":
+        "Dashed lines = median reference of the dots currently shown (hiding a model does not move them).",
+    "点一下离光标最近的标记，数字就钉在下面；均值模式还会列出它由哪些分类算出来。":
+        "Click the marker nearest the pointer to pin its numbers below; the mean mode also lists which categories it averages.",
+    "明细点": "Detail dots",
+    "只看均值": "Means only",
+    "一个点 = 一个模型：各分类的等权平均（正确率 × 平均每题延迟，只用完整评测）。":
+        "One dot = one model: the equal-weighted average over its categories (accuracy × average latency per question, complete runs only).",
+    "共 {0} 个模型；点一下某个模型，会列出它由哪些分类等权平均出来。":
+        "{0} models; click one to see which categories make up its average.",
+    "一个点 = 一个模型：它所有完整评测的均值（正确率 × 平均每题延迟）。":
+        "One dot = one model: the mean over all its complete runs (accuracy × average latency per question).",
+    "共 {0} 个模型；点一下某个模型，数字会钉在下面。": "{0} models; click one to pin its numbers below.",
+    "共 {0} 个点，其中 {1} 个是完整评测；空心点 = 部分评测（画出来但不参与均值与中位数）。":
+        "{0} dots, {1} of them complete runs; hollow dots = partial runs (drawn but excluded from the mean and median).",
+    "各分类等权平均": "Equal-weighted average across categories",
+    "均值正确率": "Mean accuracy",
+    "均值延迟": "Mean latency",
+    "参与分类数": "Categories counted",
+    "均值": "Means",
+    "该模型各分类的等权平均（只算完整评测）—— 均值不是任何一种「成绩」，别拿它当某个分类的分数。":
+        "Equal-weighted average over this model's categories (complete runs only) — the mean is not a score for any single category.",
+    "由这些分类等权平均：{0}": "Equal-weighted average of these categories: {0}",
+    "显示/隐藏各模型的均值菱形（◆）": "Show/hide each model's mean diamond (◆)",
+    "已选点": "Pinned points",
+    "最多 {0} 个；再点一次那个点可以取消": "Up to {0}; click the same dot again to unpin",
+    "全部取消": "Clear all",
+    "取消这个点": "Unpin this dot",
+    "家族算一项": "family counts as one item",
+    "分类分": "Category score",
+    "这根轴区间": "Axis range",
+    "平均每题": "Per question",
+    "位置是按这根轴的区间归一的，不代表绝对分数。":
+        "The position is normalized to this axis's range, not an absolute score.",
+    "这个分类分由这些等权平均：{0}": "This category score is the equal-weighted average of: {0}",
+    "部分评测：没跑完题库，画出来但不参与均值与中位数。":
+        "Partial run: the benchmark was not finished; it is drawn but excluded from the mean and median.",
+    "一次完整评测的原始数字，没做任何聚合。": "Raw numbers from one complete run, with no aggregation.",
+    "分类综合分；延迟是与它同一批基准的等权平均（都只用完整评测）。":
+        "Category combined score; the latency is the equal-weighted average over the same benchmarks (complete runs only).",
+    "由这些等权平均：{0}": "Equal-weighted average of: {0}",
+    "另有 {0} 项只有部分评测（不计入均分）。": "{0} more item(s) have partial runs only (excluded from the average).",
+    "点一下图上的顶点，数字会钉在下面。": "Click a vertex to pin its numbers below.",
+    "点一下点，数字会钉在下面。": "Click a dot to pin its numbers below.",
 }
 
 

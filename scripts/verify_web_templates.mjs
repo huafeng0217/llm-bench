@@ -60,7 +60,30 @@ const escLine = script.split("\n").find(l => l.startsWith("const esc = "));
 if (!escLine) throw new Error("找不到 esc 的定义");
 
 // ---------------- 成绩总览 ----------------
-const ovCode = [escLine, grab("drawOverview"), grab("renderOvProfile")].join("\n");
+// 总览这一整块：矩阵 + 两张图（能力雷达 / 准确率×延迟）。三张视图共用同一份
+// /api/leaderboard 数据，所以把图表那一组函数一起注入 —— 测的就是页面上真正跑的代码。
+const ovCode = [
+  escLine,
+  grab("lbColors"), grab("svgNum"), grab("median"), grab("niceCeil"),
+  grab("radarModel"), grab("radarSvg"), grab("radarTable"), grab("radarView"),
+  grab("scatterPoints"), grab("scatterSvg"), grab("scatterView"),
+  grab("drawOverview"), grab("renderOvProfile"),
+  grab("pinIdx"), grab("focusOpacity"), grab("pinRowHtml"), grab("pinRowsFor"),
+  grab("pinPanelHtml"), grab("togglePin"), grab("hlPin"), grab("hlPinRow"),
+  grab("nearestKey"), grab("scatterMeans"), grab("viewControls"), grab("viewHint"),
+  "const PIN_MAX = 3;", 'const MEAN_CAT = "__mean__";',
+].join("\n");
+
+// 按视图渲染总览。ovRadarOff = 雷达图例里"被点掉"的模型集合（只影响画，不改归一区间）。
+function renderOverview(ov, view, lb, off, unit, pins, mode) {
+  const b = { innerHTML: "" };
+  const doc = { getElementById: id => (id === "overview" ? b : null) };
+  return new Function("ovData", "ovOnlyData", "ovPickModel", "ovView", "lbData", "ovRadarOff",
+    "ovScatterUnit", "ovScatterOff", "ovPins", "ovScatterMode", "document",
+    ovCode + "\ndrawOverview();\nreturn document.getElementById('overview').innerHTML;"
+  )(ov, true, 2, view, lb, off || new Set(), unit || "cat", off || new Set(),
+    (pins || []).slice(), mode || "detail", doc);
+}
 
 // 同一基准上：模型甲 163/164 完整 99.39%，模型乙只有 6/164 的部分评测却 100%
 const ovData = {
@@ -77,11 +100,7 @@ const ovData = {
   }],
 };
 
-const box = { innerHTML: "" };
-const doc = { getElementById: (id) => (id === "overview" ? box : null) };
-const ovHtml = new Function("ovData", "ovOnlyData", "ovPickModel", "document",
-  ovCode + "\ndrawOverview();\nreturn document.getElementById('overview').innerHTML;"
-)(ovData, true, 2, doc);
+const ovHtml = renderOverview(ovData, "matrix", null, null);
 
 check("总览：完整成绩拿到最高分高亮", ovHtml.includes("ov-cell ov-top"));
 check("总览：部分评测格不参与最高分高亮（100% 也不高亮）",
@@ -91,6 +110,435 @@ check("总览：部分评测格带 ov-partial 标记", ovHtml.includes("ov-cell 
 check("总览：部分评测格显示「部分 6/164」", ovHtml.includes("部分 6/164"));
 check("总览：图例说明不参与最高分评选", ovHtml.includes("不参与最高分评选"));
 check("总览：点模型名仍能展开能力画像", ovHtml.includes("模型乙 的能力画像"));
+check("总览：默认是矩阵视图，且三个视图可以切", ovHtml.includes("矩阵") && ovHtml.includes("能力雷达") && ovHtml.includes("准确率 × 延迟"));
+
+// ---------------- 能力雷达图 ----------------
+// 假数据专门覆盖三种边界：
+//   ① 每根轴各自归一（分类甲的区间 70–90，90 分贴外圈、70 分在圆心）
+//   ② 缺轴：模型乙在分类丙只有部分评测（covered=0、avg_accuracy 后端记 0）
+//      —— 画成 0 分就是撒谎，必须不画，并在跨越处用虚线
+//   ③ 同分轴：分类丁两个模型都是 60 —— 贴边会读成"满分/零分"，只能画中间
+const chartLb = [
+  { id: "c1", name: "分类甲", color: "#111", families: [],
+    boards: [{ benchmark: "b1", benchmark_name: "基准甲", rows: [
+      { model_name: "模型甲", color: "#cc0000", benchmark_name: "基准甲", accuracy: 90, avg_latency_ms: 100, total: 100, full_count: 100, partial: false },
+      { model_name: "模型乙", color: "#0000cc", benchmark_name: "基准甲", accuracy: 70, avg_latency_ms: 300, total: 100, full_count: 100, partial: false },
+      // 与模型甲的均值**完全相同**（85% / 150 ms）：逼出"名字互相压住"那条分支
+      { model_name: "模型丙", color: "#00aa55", benchmark_name: "基准甲", accuracy: 85, avg_latency_ms: 150, total: 100, full_count: 100, partial: false },
+    ] }],
+    combined: [
+      { model_name: "模型甲", color: "#cc0000", avg_accuracy: 90, avg_latency_ms: 150, covered: 1, items: 1, total: 1, partial: 0, item_benchmarks: [{ name: "基准甲", family: false }] },
+      { model_name: "模型乙", color: "#0000cc", avg_accuracy: 70, avg_latency_ms: 4000, covered: 1, items: 1, total: 1, partial: 0, item_benchmarks: [{ name: "基准甲", family: false }] },
+      { model_name: "模型丙", color: "#00aa55", avg_accuracy: 80, avg_latency_ms: 200, covered: 1, items: 1, total: 1, partial: 0, item_benchmarks: [{ name: "基准甲", family: false }] },
+    ] },
+  { id: "c2", name: "分类乙", color: "#222", boards: [], families: [],
+    combined: [
+      { model_name: "模型甲", color: "#cc0000", avg_accuracy: 50, avg_latency_ms: 2000, covered: 1, items: 1, total: 1, partial: 0 },
+      { model_name: "模型乙", color: "#0000cc", avg_accuracy: 80, avg_latency_ms: 4000, covered: 1, items: 1, total: 1, partial: 0 },
+    ] },
+  { id: "c3", name: "分类丙", color: "#333", boards: [], families: [],
+    combined: [
+      { model_name: "模型甲", color: "#cc0000", avg_accuracy: 60, avg_latency_ms: 800, covered: 1, items: 1, total: 1, partial: 0 },
+      // 只有部分评测：**covered=1（跑过）但 items=0（没进综合分）**，avg_accuracy 记 0、
+      // 延迟是 null —— 拿 covered 判"有没有成绩"就会把没跑完画成 0 分。
+      { model_name: "模型乙", color: "#0000cc", avg_accuracy: 0, avg_latency_ms: null, covered: 1, items: 0, total: 1, partial: 1 },
+      // 有完整成绩但没延迟（老数据/异常）：也不许画成 0 毫秒
+      { model_name: "模型丙", color: "#00aa55", avg_accuracy: 65, avg_latency_ms: null, covered: 1, items: 1, total: 1, partial: 0 },
+    ] },
+  { id: "c4", name: "分类丁", color: "#444", boards: [],
+    families: [{ id: "F", name: "家族", boards: [{ benchmark: "b2", benchmark_name: "基准乙", rows: [
+      { model_name: "模型甲", color: "#cc0000", benchmark_name: "基准乙", accuracy: 80, avg_latency_ms: 200, total: 100, full_count: 100, partial: false },
+      { model_name: "模型乙", color: "#0000cc", benchmark_name: "基准乙", accuracy: 60, avg_latency_ms: 50, total: 6, full_count: 100, partial: true },
+    ] }] }],
+    combined: [
+      { model_name: "模型甲", color: "#cc0000", avg_accuracy: 60, avg_latency_ms: 1000, covered: 1, items: 1, total: 1, partial: 0, item_benchmarks: [{ name: "基准乙", family: true }] },
+      { model_name: "模型乙", color: "#0000cc", avg_accuracy: 60, avg_latency_ms: 4000, covered: 1, items: 1, total: 1, partial: 0 },
+    ] },
+];
+
+const radarHtml = renderOverview(ovData, "radar", chartLb, null);
+check("雷达：画出 SVG 而不是矩阵表", radarHtml.includes("<svg viewBox=") && !radarHtml.includes("ov-table\"><thead><tr><th style=\"width:200px\""));
+check("雷达：4 个有数据的分类各成一根轴", ["分类甲", "分类乙", "分类丙", "分类丁"].every(n => radarHtml.includes(n)));
+check("雷达：轴下方标出该轴自己的区间（70–90%）", radarHtml.includes("70–90%"));
+// 归一：分类甲 90 分是该轴最高 → 贴外圈（4 根轴时正上方 = (310, 74)）；
+// 70 分是最低 → 圆心 (310, 192)。位置是"相对"，但相对关系必须对。
+check("雷达：该轴最高分贴外圈（90 分 → 正上方外圈）", radarHtml.includes('cx="310" cy="74"'));
+// 最低分**不画在正圆心**：每根轴的最低点都在圆心的话，多根轴的最低点会叠成一个点
+//（真实数据里 6 根轴的最低点全在圆心，19 个顶点只看得见 14 个）。
+check("雷达：最低分在靠近圆心处（70 分 → 内边距位置，不是正圆心）",
+  radarHtml.includes('cx="310" cy="182.6"') && !radarHtml.includes('cx="310" cy="192"'));
+// 同分轴：R*0.5 = 59 → 左侧 (251, 192)。贴边会读成满分/零分。
+check("雷达：同分的轴画在中间（不是贴边）", radarHtml.includes('cx="251" cy="192"') && radarHtml.includes("（同分）"));
+// 缺轴：模型乙只有 3 个分类有成绩 —— 有且只有一条跨越缺轴的虚线，且不闭合。
+check("雷达：缺轴处画虚线（1 条），有成绩的模型才闭合", (radarHtml.match(/stroke-dasharray="4 4"/g) || []).length === 1
+  && (radarHtml.match(/Z"/g) || []).length === 1);
+// 同一条坑在雷达上：模型乙在分类丙 covered=1 但 items=0，综合分记 0 ——
+// 画出来就是"没跑"装成"0 分"。
+check("雷达：只有部分评测的模型不画成 0 分（covered=1 但 items=0，不出现分类丙顶点）",
+  !radarHtml.includes("<title>模型乙 · 分类丙") && radarHtml.includes("<title>模型甲 · 分类丙"));
+check("雷达：明确写出位置不是绝对分数", radarHtml.includes("不是 0–100 的绝对分数"));
+check("雷达：图下给出绝对分数表（图看形状，表是证据）",
+  radarHtml.includes("图中的绝对分数") && radarHtml.includes(">90%<"));
+check("雷达：缺成绩的格子写「—」而不是 0", radarHtml.includes('class="ov-empty">—</td>'));
+
+// 图例：点掉的模型只从图里摘掉，表里还在
+const radarOffHtml = renderOverview(ovData, "radar", chartLb, new Set(["模型乙"]));
+check("雷达：图例点掉的模型不再画线", !radarOffHtml.includes("<title>模型乙 · ")
+  && radarOffHtml.includes("点一下显示 模型乙"));
+check("雷达：摘掉一个模型不改归一区间（轴区间还是 70–90%）", radarOffHtml.includes("70–90%"));
+
+// 分类不足 3 个时给一句话，而不是画一条线
+const radarThin = renderOverview(ovData, "radar", chartLb.slice(0, 2), null);
+check("雷达：分类不足 3 个时给出说明而不是硬画",
+  radarThin.includes("至少要有 3 个分类有完整成绩才能画雷达图"));
+
+// ---------------- 准确率×延迟散点 ----------------
+// 默认粒度 = 模型 × 分类（点少、且同一分类内比的是同类题）；
+// 另一个粒度 = 模型 × 基准（下钻看是哪个基准拖的）。
+// 假数据里分类级延迟：甲[150,2000,800,1000] 乙[500,400,1200] 丙[200]（丙在分类丙没延迟）
+const scatterCat = renderOverview(ovData, "scatter", chartLb, null);
+check("散点：默认按分类画，一个点 = 一个模型在一个分类上的成绩（共 8 个）",
+  (scatterCat.match(/r="4(\.8|\.4)"/g) || []).length === 8);
+check("散点：两种粒度可切换（按分类 / 按基准）",
+  scatterCat.includes("按分类") && scatterCat.includes("按基准"));
+// covered=0（只有部分评测）和 avg_latency_ms=null 的行都**不许画**：
+// 画出来就是"没跑"装成"0 分 / 0 毫秒"。
+// 模型乙在分类丙只有部分评测：后端给 covered=1（跑过）但 items=0（没进综合分）。
+// 判据必须是 items —— 用 covered 判就会把它画成"0 分"（这条断言会红）。
+check("散点：只有部分评测的分类不画点（covered=1 但 items=0 的模型乙 · 分类丙）",
+  !scatterCat.includes("模型乙 · 分类丙"));
+check("散点：有成绩但缺延迟的分类也不画点（不画成 0 毫秒）",
+  !scatterCat.includes("模型丙 · 分类丙") && scatterCat.includes("模型甲 · 分类丙"));
+check("散点：分类级的点都是完整评测（不会出现空心点）",
+  !scatterCat.includes('fill="none"'));
+check("散点：悬停写明这是分类综合分 + 等权平均延迟",
+  scatterCat.includes("分类综合分") && scatterCat.includes("各基准等权平均每题"));
+// 分类级延迟 [150,200,400,500,800,1000,1200,2000] → 中位 650；正确率 [50,60,60,60,70,80,80,90] → 中位 65
+check("散点：分类级中位数参考线正确（延迟 1500 ms / 正确率 65%）",
+  scatterCat.includes("延迟中位数 1500 ms") && scatterCat.includes("正确率中位数 65%"));
+// 均值菱形按分类等权：甲 (90+50+60+60)/4 = 65%、(150+2000+800+1000)/4 = 987.5 ms
+// 均值只在"均值模式"里画（用户要的是两种模式二选一）
+const catMeanHtml = renderOverview(ovData, "scatter", chartLb, null, "cat", [], "mean");
+check("散点·均值模式：◆ 是各分类的等权平均（模型甲 4 个分类 65% / 988 ms）",
+  catMeanHtml.includes("模型甲：4 个分类的等权平均 65%（平均 988 ms）"));
+check("散点：分类级说明写清楚点是什么、延迟怎么平均、比较时注意什么",
+  scatterCat.includes("一个点 = 一个模型在一个分类上的成绩")
+  && scatterCat.includes("不是按题量加权")
+  && scatterCat.includes("跨模型比较时先看点数"));
+
+// 图例可点：摘掉一个模型，点和菱形消失，但参考线不动（参考线是数据的属性）
+const scatterOff = renderOverview(ovData, "scatter", chartLb, new Set(["模型甲"]));
+check("散点：图例点掉的模型不再画点（8 - 4 = 4 个）",
+  (scatterOff.match(/r="4(\.8|\.4)"/g) || []).length === 4
+  && scatterOff.includes("点一下显示 模型甲"));
+check("散点：摘掉模型不会让中位数参考线移动（还是 1500 ms）",
+  scatterOff.includes("延迟中位数 1500 ms"));
+// 模型名必须躲开中位数标签：实测 "deepseek-v4-pro" 正好压在 "正确率中位数 72.75%" 上
+//（当时只登记了模型名，自己人躲自己人）。夹具里模型乙的菱形贴右边缘、均值正确率又贴近
+//中位数，正是会撞的那个位置。
+function medianLabels(html) {
+  const out = [];
+  const re = /<text x="(-?[\d.]+)" y="(-?[\d.]+)"(?: text-anchor="(\w+)")? font-size="10\.5" fill="var\(--muted\)">([^<]+)<\/text>/g;
+  let m;
+  while ((m = re.exec(html))) {
+    const w = [...m[4]].reduce((s, ch) => s + (/[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]/.test(ch) ? 10.5 : 0.56 * 10.5), 0);
+    const an = m[3] || "start";
+    const x0 = an === "middle" ? +m[1] - w / 2 : an === "end" ? +m[1] - w : +m[1];
+    out.push({ txt: m[4], x0, x1: x0 + w, y0: +m[2] - 9, y1: +m[2] + 3 });
+  }
+  return out;
+}
+const mls = medianLabels(catMeanHtml);
+check("散点：分类级画出两条中位数标签（延迟 / 正确率）", mls.length === 2, mls.map(l => l.txt).join(" | "));
+// 名字只挂在均值模式（明细模式没有名字）→ 这条要在均值模式下查
+const catLabels = nameLabels(catMeanHtml);
+const cross = [];
+for (const a of catLabels) for (const b of mls) {
+  if (a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1) cross.push(`${a.name}×${b.txt}`);
+}
+check("散点：模型名不压在中位数标签上", cross.length === 0, cross.join(" | "));
+
+// 基准级（下钻）：一个点 = 一次（模型 × 基准），家族子集也算一个点
+const scatterHtml = renderOverview(ovData, "scatter", chartLb, null, "bench");
+check("散点·基准级：一个点 = 一次（模型 × 基准），家族子集也算（共 5 个）",
+  (scatterHtml.match(/r="4(\.8|"|\.4)/g) || []).length === 5);
+check("散点·基准级：部分评测是空心点（画出来但不参与统计）",
+  scatterHtml.includes('fill="none"') && scatterHtml.includes("空心点，不参与均值与中位数"));
+// 明细模式**不画均值菱形**（用户要的是两种模式二选一，不是叠加）
+check("散点·明细模式：不画均值菱形（避免和明细点叠在一起）",
+  (scatterHtml.match(/<path d="M /g) || []).length === 0);
+// 均值模式：一个模型一个菱形 + 名字标签
+const meanHtml = renderOverview(ovData, "scatter", chartLb, null, "bench", [], "mean");
+check("散点·均值模式：一个模型一个菱形（3 个），明细点不再画",
+  (meanHtml.match(/<path d="M /g) || []).length === 3
+  && (meanHtml.match(/r="4(\.8|"|\.4)/g) || []).length === 0);
+// 均值相同的两个模型（甲 / 丙 都是 85% / 150 ms）：两个名字必须错开，不能压在一起。
+// 这里按页面同一套估算宽度算包围盒 —— 光看 text-anchor 会被 y 轴刻度标签骗过去
+// （它们也是 text-anchor="end" font-size="11"），反向验证时正是这么漏掉的。
+function nameLabels(html) {
+  const out = [];
+  const re = /<text x="(-?[\d.]+)" y="(-?[\d.]+)" text-anchor="(\w+)" font-size="11" fill="var\(--text\)"[\s\S]*?>([^<]+)<\/text>/g;
+  let m;
+  while ((m = re.exec(html))) {
+    const w = [...m[4]].reduce((s, ch) => s + (/[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]/.test(ch) ? 11 : 0.56 * 11), 0);
+    const x0 = m[3] === "middle" ? +m[1] - w / 2 : m[3] === "end" ? +m[1] - w : +m[1];
+    out.push({ name: m[4], x0, x1: x0 + w, y0: +m[2] - 11, y1: +m[2] + 3 });
+  }
+  return out;
+}
+const labels = nameLabels(meanHtml);   // 名字只挂在均值模式（明细模式 43 个点不挂名字）
+check("散点·均值模式：每个模型一个名字标签", labels.length === 3, labels.map(l => l.name).join(","));
+const overlap = [];
+for (let i = 0; i < labels.length; i++) for (let j = i + 1; j < labels.length; j++) {
+  const a = labels[i], b = labels[j];
+  if (a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1) overlap.push(`${a.name}×${b.name}`);
+}
+check("散点：均值相同的两个模型名字不重叠（自动换位置）", overlap.length === 0, overlap.join(" | "));
+// 文字不许跑出画布（宽度用与页面同一套估算）：手写 SVG 改布局时最容易把标签挤出去，
+// 页面上只会看到"字被裁掉"，不报错。
+function outsideBox(html, W, H) {
+  const out = [];
+  const re = /<text([^>]*)>([\s\S]*?)<\/text>/g;
+  let m;
+  while ((m = re.exec(html))) {
+    const fs = +(/font-size="([\d.]+)"/.exec(m[1])?.[1] || 12);
+    const anchor = /text-anchor="(\w+)"/.exec(m[1])?.[1] || "start";
+    const x = +(/ x="(-?[\d.]+)"/.exec(m[1])?.[1] || 0);
+    const y = +(/ y="(-?[\d.]+)"/.exec(m[1])?.[1] || 0);
+    // <title> 是悬停提示，不是可见文字：不剔掉会把提示的全文当宽度量，直接误报出画布
+    const txt = m[2].replace(/<title>[\s\S]*?<\/title>/g, "").replace(/<[^>]+>/g, "");
+    const w = [...txt].reduce((s, ch) => s + (/[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]/.test(ch) ? fs : 0.56 * fs), 0);
+    if (/transform="rotate\(-90/.test(m[1])) {   // 旋转的 y 轴标题按旋转后的方向算包围盒
+      if (x - fs * 0.82 < -2 || x + fs * 0.28 > W + 2 || y - w / 2 < -2 || y + w / 2 > H + 2) out.push(txt);
+      continue;
+    }
+    const x0 = anchor === "middle" ? x - w / 2 : anchor === "end" ? x - w : x;
+    if (x0 < -2 || x0 + w > W + 2 || y - fs * 0.82 < -2 || y + fs * 0.28 > H + 2) out.push(txt);
+  }
+  return out;
+}
+const outR = outsideBox(radarHtml, 620, 380), outS = outsideBox(scatterHtml, 680, 400);
+const outC = outsideBox(scatterCat, 680, 400);
+check("图表：所有文字都在画布内（改布局别把标签挤出去）",
+  outR.length === 0 && outS.length === 0 && outC.length === 0,
+  [...outR, ...outS, ...outC].slice(0, 4).join(" | "));
+// 基准级均值只算完整评测：模型甲 = (90+80)/2 = 85%，(100+200)/2 = 150 ms
+check("散点·均值模式：均值只算完整评测（模型甲 85% / 150 ms）",
+  meanHtml.includes("模型甲：2 个完整评测的均值 85%（平均 150 ms）"));
+// 模型乙的均值必须只用那次 70% / 300 ms：把部分评测算进去会变成 65% / 175 ms
+check("散点·均值模式：部分评测没有混进均值（模型乙 70% / 300 ms，不是 65%）",
+  meanHtml.includes("模型乙：1 个完整评测的均值 70%（平均 300 ms）")
+  && !/完整评测的均值 65%/.test(meanHtml));
+// 完整点的延迟 [100,300,200,150] → 中位 175；正确率 [90,70,80,85] → 中位 82.5
+// 明细模式的参考线按明细点算：延迟 [100,300,200,150] → 175；正确率 [90,70,80,85] → 82.5
+check("散点·明细模式：中位数参考线按明细点算（175 ms / 82.5%）",
+  scatterHtml.includes("延迟中位数 175 ms") && scatterHtml.includes("正确率中位数 82.5%"));
+check("散点·基准级：x 轴上取整到好读的刻度（最大 300 ms → 0/75/150/225/300）",
+  scatterHtml.includes(">300</text>") && scatterHtml.includes(">225</text>"));
+check("散点·基准级：写清楚一个点是什么、图里不做聚合",
+  scatterHtml.includes("不做任何聚合") && scatterHtml.includes("越靠左上 = 又快又准"));
+// ---------------- 点一下钉住（数字钉在图下面板，不做浮层）----------------
+// 为什么不做浮层卡片：浮层要猜尺寸（SVG 坐标 ↔ CSS 像素），多个还会互盖。
+// 改成"点上的序号徽章 + 图下一张面板"，3 个也不会盖，手机上也能用。
+const pinA = { view: "scatter", unit: "cat", model: "模型甲", cat: "分类甲" };
+const pinned = renderOverview(ovData, "scatter", chartLb, null, "cat", [pinA]);
+// 三次"加图形"的尝试（淡色光晕 / 描边环 / 序号徽章）都被用户否掉：和标记自己的白描边
+// 叠成"双重轮廓"，点小的时候尤其笨。最终改成 focus+context：**选中的保持原样、其余淡出**，
+// 一个额外图形都不加。断言就钉这两条：没有环/徽章；未选中的确实被淡出。
+check("钉住：不加环/徽章，改成未选中的淡出（选中保持原样）",
+  !pinned.includes("pin-ring") && !pinned.includes('font-weight="700" fill="#fff"')
+  && (pinned.match(/opacity="0\.28"/g) || []).length === 7
+  && (pinned.match(/opacity="1"/g) || []).length === 1);
+// 双向高亮要**逐行**对得上：只查第 0 行的话，"每行都写死成 pin-0"这种改坏法会被放过
+const pinned2 = renderOverview(ovData, "scatter", chartLb, null, "cat",
+  [{ view: "scatter", unit: "cat", model: "模型甲", cat: "分类甲" },
+   { view: "scatter", unit: "cat", model: "模型乙", cat: "分类甲" }]);
+check("钉住：面板行与图上的点双向高亮（每行指向自己的钉子）",
+  pinned2.includes('id="row-pin-0"') && pinned2.includes('id="row-pin-1"')
+  && pinned2.includes("onmouseover=\"hlPin('pin-0',1)\"")
+  && pinned2.includes("onmouseover=\"hlPin('pin-1',1)\"")
+  && pinned2.includes("onmouseover=\"hlPinRow(0,1)\"")
+  && pinned2.includes("onmouseover=\"hlPinRow(1,1)\""));
+check("钉住：图下出现「已选点」面板，且行里有这个点",
+  pinned.includes("已选点") && pinned.includes("模型甲 · 分类甲"));
+// 面板里必须能看出"这个点是怎么算出来的"：覆盖项数 + 由哪几个基准等权平均
+check("钉住：面板列出覆盖项数与构成（含家族标记）",
+  pinned.includes("覆盖") && pinned.includes("1/1 项")
+  && pinned.includes("由这些等权平均：基准甲"));
+const pinFam = renderOverview(ovData, "scatter", chartLb, null, "cat", [
+  { view: "scatter", unit: "cat", model: "模型甲", cat: "分类丁" }]);
+check("钉住：家族算一项时名单里带标记",
+  pinFam.includes("家族算一项") && pinFam.includes("基准乙"));
+check("钉住：每行有取消按钮（unpinPoint）", pinned.includes("onclick=\"unpinPoint(this)\""));
+// 点击统一走根节点的"最近点"：命中圈重叠也不会有点点不到（用户实测：雷达右上三个点，
+// 中间那个点不到 —— 因为命中圈互相覆盖，最上面那个永远赢）
+check("钉住：两张图都由根节点按最近点判定（data-pts + pinNearest）",
+  scatterHtml.includes("onclick=\"pinNearest(event, this)\"") && scatterHtml.includes("data-pts=")
+  && radarHtml.includes("onclick=\"pinNearest(event, this)\"") && radarHtml.includes("data-pts="));
+check("钉住：命中圈仍带 data-p（悬停标题 / 双向高亮要它）",
+  scatterHtml.includes('data-p="') && radarHtml.includes('data-p="') && !scatterHtml.includes("pinPoint(this)"));
+// 可点列表必须**覆盖所有画的标记**：漏一个就是"这个点点不到"（用户实测报过）
+const clickableOf = h => {
+  const m = /data-pts="([^"]*)"/.exec(h);
+  if (!m) return null;
+  try { return JSON.parse(m[1].replace(/&quot;/g, '"')); } catch (e) { return null; }
+};
+const ck = clickableOf(scatterCat), ckBench = clickableOf(scatterHtml), ckRadar = clickableOf(radarHtml);
+check("钉住：可点列表覆盖所有标记（散点分类级 8 / 基准级 5 / 雷达 9）",
+  ck && ck.length === 8 && ckBench && ckBench.length === 5 && ckRadar && ckRadar.length === 9,
+  `实际 ${ck && ck.length} / ${ckBench && ckBench.length} / ${ckRadar && ckRadar.length}`);
+check("钉住：均值模式的可点列表里是均值键（__mean__）",
+  (clickableOf(meanHtml) || []).every(p => p.k && p.k.cat === "__mean__")
+  && (clickableOf(meanHtml) || []).length === 3);
+// 分层：装饰（网格/文字/点/菱形/光晕/名字）整块包进 <g pointer-events="none">，
+// 命中圈统一画在它**之后**。原来光晕画在命中圈上面 → 可见元素挡住点击，
+// 于是"再点一次取消不了"、"被别的光晕盖住的点点不动"（用户实测报的两个 bug）。
+const svgOf = h => (h.match(/<svg[\s\S]*<\/svg>/) || [""])[0];
+function layeredOk(html) {
+  // 装饰层是最后一个 </g>（标记自己也可能包 <g>），命中圈必须在它之后
+  const decoEnd = html.lastIndexOf("</g>");
+  const firstHit = html.indexOf("data-p=\"");
+  if (decoEnd < 0 || firstHit < 0 || firstHit < decoEnd) return false;
+  // 装饰层之后不许再出现任何可见元素（文字 / 描边环 / 点 / 线）
+  const tail = html.slice(decoEnd);
+  return !/<text|<line|<path|<polygon|class="pin-ring"/.test(tail);
+}
+check("钉住：装饰层整块在命中圈之前（可见元素不可能挡住悬停/点击）",
+  layeredOk(svgOf(scatterHtml)) && layeredOk(svgOf(pinned)) && layeredOk(svgOf(radarHtml)),
+  "装饰与命中圈层序不对");
+// 最近点法本身：三个点挤在 5px 内，点中间那个必须选中中间那个（不能总是最上面那个赢）
+// nearestKey 在 ovCode 的作用域里，要像 togglePin 那样单独取出来
+const nk = new Function(ovCode + "\nreturn nearestKey;")(undefined);
+const nearly = [
+  { k: { model: "A" }, x: 100, y: 100 },
+  { k: { model: "B" }, x: 105, y: 100 },
+  { k: { model: "C" }, x: 110, y: 100 },
+];
+check("钉子：点击按最近点判定（挤在一起也点点得到）",
+  nk(nearly, 104, 101, 14).model === "B"
+  && nk(nearly, 110, 100, 14).model === "C"
+  && nk(nearly, 100, 100, 14).model === "A");
+check("钉子：离所有标记都太远就不钉（不会乱钉一个）",
+  nk(nearly, 400, 300, 14) === null && nk(nearly, 130, 100, 14) === null
+  && nk(nearly, 118, 100, 14).model === "C");
+// 用户问"为什么菱形不能点"：均值模式的菱形也进可点列表（键用 __mean__ 哨兵）
+check("钉住：均值模式的菱形也可点（可点列表里有 __mean__）",
+  (meanHtml.match(/__mean__/g) || []).length >= 3
+  && (meanHtml.match(/r="13" fill="transparent"/g) || []).length === 3);
+const meanPin = renderOverview(ovData, "scatter", chartLb, null, "cat",
+  [{ view: "scatter", unit: "cat", model: "模型甲", cat: "__mean__" }], "mean");
+// 口径说明只在面板头部出现一次（原来每行都重复，用户反馈啰嗦）
+check("钉住·均值：口径在面板头部说一次，行里只列构成",
+  meanPin.includes("均值 = 该模型各分类的等权平均")
+  && meanPin.includes("均值正确率") && meanPin.includes("均值延迟")
+  && meanPin.includes("由这些分类等权平均：")
+  && (meanPin.match(/它不是任何一种「成绩」/g) || []).length === 1);
+// 两个模式互斥：明细模式只有点、均值模式只有菱形（用户要"均值显示后其它点不显示"）
+const catDetail = renderOverview(ovData, "scatter", chartLb, null, "cat");
+const catMean = renderOverview(ovData, "scatter", chartLb, null, "cat", [], "mean");
+check("散点：明细 / 均值两模式互斥（明细只有点，均值只有菱形）",
+  (catDetail.match(/<path d="M /g) || []).length === 0
+  && (catMean.match(/<path d="M /g) || []).length === 3
+  && (catMean.match(/r="4(\.8|"|\.4)/g) || []).length === 0);
+// 图级选项要在**图表自己的工具条**里（不在卡片头部、也不在图底部）：
+// 卡片头部只留"看哪个视图"，工具条紧贴它所控制的图 —— 分层靠分组、归属靠邻近。
+// indexOf 找不到返回 -1 也会"小于"，所以先要求两个下标都存在（这条被反向验证抓过一次）。
+const bar = catDetail.slice(catDetail.indexOf('class="chart-bar"'), catDetail.indexOf("chart-wrap"));
+check("散点：粒度/明细-均值两个开关在图表的工具条里（紧贴图上、不在卡片头部）",
+  catDetail.includes('class="chart-bar"')
+  && bar.includes("setScatterUnit('cat')") && bar.includes("setScatterMode('mean')")
+  && catDetail.indexOf("setOvView('matrix')") < catDetail.indexOf('class="chart-bar"')
+  && catDetail.indexOf('class="chart-bar"') < catDetail.indexOf("chart-wrap")
+  && catMean.includes("setScatterMode('detail')"));
+check("矩阵：只看有数据的也在工具条里（同一个位置，换个视图就换内容）",
+  ovHtml.includes('class="chart-bar"') && ovHtml.indexOf("toggleOvOnlyData()") > ovHtml.indexOf('class="chart-bar"'));
+// 工具条里只放开关：别再多写"这张图"这类标签（开关本身就说清了自己管什么）
+check("散点：工具条里只有开关（没有多余的标签文字）",
+  bar.includes('class="seg"') && !bar.includes('class="lbl"')
+  && !/chart-bar">\s*<span[^>]*>\s*[^<]*[\u4e00-\u9fffA-Za-z]/.test(bar));
+check("散点：开关措辞是「按分类 / 按基准」和「明细 / 均值」（简写）",
+  catDetail.includes(">明细</button>") && catDetail.includes(">均值</button>")
+  && !catDetail.includes("只看均值"));
+// 图例死局（用户实测）：均值模式的图例原来取自"已过滤的均值"，摘掉一个模型 →
+// 菱形和图例按钮一起消失 → 再也点不回来。图例必须永远列所有出现过的模型。
+const offOne = renderOverview(ovData, "scatter", chartLb, new Set(["模型甲"]), "cat", [], "mean");
+check("图例：摘掉的模型仍留在图例里（能点回来）",
+  offOne.includes("点一下显示 模型甲") && offOne.includes("目前显示 2/3".replace("目前", "当前")));
+const offAll = renderOverview(ovData, "scatter", chartLb, new Set(["模型甲", "模型乙", "模型丙"]), "cat", [], "mean");
+check("图例：全摘光时每个模型都还能找回，并给一句提示",
+  ["模型甲", "模型乙", "模型丙"].every(n => offAll.includes(`点一下显示 ${n}`))
+  && offAll.includes("所有模型都被图例摘掉了"));
+check("图例：同一件事在明细模式下也成立",
+  renderOverview(ovData, "scatter", chartLb, new Set(["模型甲"]), "cat").includes("点一下显示 模型甲"));
+// 雷达顶点钉住：面板给的是分类分 + 这根轴的区间（归一图的两个关键信息）
+const radarPin = renderOverview(ovData, "radar", chartLb, null, null, [
+  { view: "radar", model: "模型甲", cat: "分类甲" }]);
+check("钉住·雷达：面板给出分类分与这根轴的区间（口径在头部说一次）",
+  radarPin.includes("模型甲 · 分类甲") && radarPin.includes("分类分")
+  && radarPin.includes("70–90%") && radarPin.includes("位置按各轴自己的区间归一"));
+// 徽章位置也算一遍：钉在**外圈**上的顶点，徽章如果朝外放，正好压住"轴下方的区间"那行字
+//（真实数据里 ① 压住了 6.31–82.86%，截图才看出来）。
+function textBoxes(html) {
+  const out = [];
+  const re = /<text([^>]*)>([\s\S]*?)<\/text>/g;
+  let m;
+  while ((m = re.exec(html))) {
+    const fs = +(/font-size="([\d.]+)"/.exec(m[1])?.[1] || 12);
+    const anchor = /text-anchor="(\w+)"/.exec(m[1])?.[1] || "start";
+    const x = +(/ x="(-?[\d.]+)"/.exec(m[1])?.[1] || 0);
+    const y = +(/ y="(-?[\d.]+)"/.exec(m[1])?.[1] || 0);
+    const txt = m[2].replace(/<title>[\s\S]*?<\/title>/g, "").replace(/<[^>]+>/g, "");
+    if (/transform="rotate\(-90/.test(m[1])) continue;   // 旋转的 y 轴标题不参与
+    const w = [...txt].reduce((s, ch) => s + (/[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]/.test(ch) ? fs : 0.56 * fs), 0);
+    const x0 = anchor === "middle" ? x - w / 2 : anchor === "end" ? x - w : x;
+    out.push({ txt, fs, x0, x1: x0 + w, y0: y - fs * 0.82, y1: y + fs * 0.28 });
+  }
+  return out;
+}
+// 淡出不该动文字位置（形状没变，只是透明度）——确认钉住后文字仍在画布内且不重叠
+check("钉住：淡出只改透明度，不动文字（钉子后名字仍不重叠）",
+  nameLabels(pinned).length === 0          // 明细模式没有名字
+  && (radarPin.match(/opacity="0\.28"/g) || []).length > 0);
+// 键里的模型名带引号也不能把属性写坏（JSON 进 data-p 前会 esc）
+const pinQuote = renderOverview(ovData, "scatter",
+  [{ ...chartLb[0], combined: chartLb[0].combined.map(m => ({ ...m, model_name: m.model_name + '\"x' })) },
+   ...chartLb.slice(1)], null, "cat", []);
+check("钉住：属性里的引号被转义（不破坏 HTML）", !/data-p="[^"]*\"x[^"]*"/.test(pinQuote));
+
+// 钉/取消的纯逻辑（点一下的行为不该只能手点验证）
+const k1 = { view: "scatter", unit: "cat", model: "甲", cat: "A" };
+const k2 = { view: "scatter", unit: "cat", model: "乙", cat: "B" };
+const k3 = { view: "scatter", unit: "cat", model: "丙", cat: "C" };
+const k4 = { view: "scatter", unit: "cat", model: "丁", cat: "D" };
+// 注意：ovCode 里已经**声明**了 togglePin/PIN_MAX，所以不能再用同名形参
+//（new Function 里形参和 const 同名会直接 SyntaxError）。
+const tp = new Function(ovCode + "\nreturn togglePin;")(undefined);
+check("钉子：点第一个 → 进列表", tp([], k1, 3).length === 1);
+check("钉子：再点同一个 → 取消", tp([k1], k1, 3).length === 0);
+// 注意 check() 的第二个参数是**布尔**（不是 verify_scoring 那种 got/want 形式）——
+// 写成 got/want 的话恒为真，反向验证时才发现
+check("钉子：钉满 3 个后第 4 个挤掉最早的（FIFO）",
+  JSON.stringify(tp([k1, k2, k3], k4, 3).map(p => p.model)) === JSON.stringify(["乙", "丙", "丁"]),
+  JSON.stringify(tp([k1, k2, k3], k4, 3).map(p => p.model)));
+check("钉子：不改原数组（纯函数）", (() => {
+  const src0 = [k1];
+  tp(src0, k2, 3);
+  return src0.length === 1;
+})());
+// 跨度大（真实数据 1.4s ~ 107s）时必须换对数轴：线性轴上 90% 的点会挤成左边一条缝。
+const spreadLb = JSON.parse(JSON.stringify(chartLb));
+spreadLb[0].boards[0].rows[1].avg_latency_ms = 118000;   // 一个慢点
+spreadLb[0].boards[0].rows[2].avg_latency_ms = 50;       // 一个快点
+const logHtml = renderOverview(ovData, "scatter", spreadLb, null, "bench");
+check("散点：延迟跨度大时用对数轴并写明", logHtml.includes("对数刻度")
+  && logHtml.includes(">100</text>") && logHtml.includes(">1k</text>") && logHtml.includes(">100k</text>"));
+check("散点：对数轴下点仍落在绘图区内", !/cx="-|cy="-/.test(logHtml));
+// 跨度小时仍是线性轴（线性最好读，不该一刀切）
+check("散点：延迟跨度小时保持线性轴", !scatterHtml.includes("对数刻度") && scatterHtml.includes(">225</text>"));
+check("图表：三张 SVG 里都没有 NaN / undefined",
+  !/NaN|undefined/.test(radarHtml) && !/NaN|undefined/.test(scatterHtml) && !/NaN|undefined/.test(scatterCat));
+check("准确率×延迟视图下不再显示「只看有数据的」按钮",
+  !scatterHtml.includes("显示全部基准") && !scatterHtml.includes("只看有数据的"));
 
 // ---------------- 排行榜 ----------------
 // 从 famCover 开始切片：家族块用到的辅助函数与模板都在这一段里，
@@ -620,6 +1068,57 @@ check("逐题明细：安全类把这一档换成本口径的说法（越狱成�
   /\(benchMeta\[ev\.benchmark\] \|\| \{\}\)\.adverse_label \|\| t\("答错"\)/.test(src)
   && /\$\{adverse\} \$\{done - ok - bad\}/.test(src));
 
+// ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
+// 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
+// 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。
+const i18nSlugs = [...src.matchAll(/data-i18n(?:-html|-ph|-title)?="([^"]+)"/g)]
+  .map(m => m[1]).filter(v => /^[a-z][a-z0-9-]*$/.test(v));
+check("data-i18n* 的值不许是英文 slug（否则中文界面原样露出 key）",
+  i18nSlugs.length === 0, i18nSlugs.join(" , "));
+// <summary> 全局上色会把 AI 总结的「一句话结论」染成链接蓝（截图里像可点链接）。
+check("折叠指示器只有 .disclosure 上主题色（总结结论不再被染蓝）",
+  /details summary\.disclosure\s*\{[^}]*color:var\(--accent2\)/.test(src)
+  && !/details summary\s*\{[^}]*color:/.test(src));
+// 图表工具条：整条通栏里只放一个按钮时像"没填满的空盒子"→ 随内容收缩
+check("图表工具条随内容收缩（inline-flex，不再整条通栏）",
+  /\.chart-bar\s*\{[^}]*display:inline-flex/.test(src));
+// 窄屏：宽表格横向滚动，url / Key 不折成两三行（折行让行高参差，比滚动难看得多）；
+// 操作列钉在右边 —— 横向滚动时最先被裁掉的恰好是「设为判别器 / 删除」那一列。
+check("模型表与任务表窄屏横向滚动，url 与 Key 不折行、操作列钉在右边",
+  /\.table-scroll\s*\{[^}]*overflow-x:auto/.test(src)
+  && /\.nowrap\s*\{\s*white-space:nowrap/.test(src)
+  && /\.table-scroll th:last-child, \.table-scroll td:last-child\s*\{[^}]*position:sticky/.test(src)
+  && (src.match(/class="table-scroll"/g) || []).length >= 2
+  && /class="tl nowrap muted">\$\{esc\(m\.base_url\)\}/.test(src));
+// 排行榜「覆盖」列的家族权重徽章要不换行就会溢出格子、压到表格右边缘（截图可见）
+check("排行榜覆盖列的徽章允许换行（不再溢出格子）",
+  /\.ov-cov \.tag\s*\{[^}]*white-space:normal/.test(src) && /class="muted ov-cov"/.test(src));
+// 任务行的「更多操作」以前是一圈若隐若现的圆，像没做完的占位符
+check("任务行的更多操作按钮有描边（看得出能点）",
+  /\.icon-btn\s*\{[^}]*border:1px solid var\(--border2\)/.test(src));
+// 评测启动卡：30 多张基准卡，选完卡不用再滚到底才能启动。
+// sticky 只能在**包含块**内活动 —— 所以必须有一个把网格和启动卡都包住的 .launch-scope；
+// 少了它，启动卡的包含块是它自己，永远浮不起来（真浏览器实测 launchBottomGap = -1361）。
+check("评测启动卡在第 2 节里吸底（sticky + 作用域包裹）",
+  /\.launch-card\s*\{[^}]*position:sticky/.test(src)
+  && /class="card launch-card"/.test(src)
+  && /<div class="launch-scope">/.test(src)
+  && src.indexOf('class="launch-scope"') < src.indexOf('class="card launch-card"')
+  && /id="e-hint"[^>]*style="flex-basis:100%/.test(src));
+// 分区标题的层级：14.5px 时和正文几乎同重，六段结构看不出来
+check("分区标题 16px + 一条淡分隔线（结构一眼可辨）",
+  /h2\s*\{[^}]*font-size:16px/.test(src) && /h2\s*\{[^}]*border-top:1px solid/.test(src));
+// 数字列等宽：百分比的小数位不抖，列才对得齐
+check("表格单元格用等宽数字（百分比列不抖）", /td\s*\{\s*font-variant-numeric:tabular-nums/.test(src));
+// 空状态：一行灰字太像"没加载出来"
+check("整块空状态有虚线占位方块（td.empty 的表格空行不受影响）",
+  /\.card > \.empty::before\s*\{[^}]*border:1px dashed/.test(src));
+// 小控件收口：以前五套混着长，一行里高矮胖瘦不齐（用户报过）。现在只三类，字号统一。
+check("筛选胶囊 / 分段开关 / 只读标签统一字号（12 / 12 / 11.5）",
+  /\.catchip\s*\{[^}]*font-size:12px/.test(src)
+  && /\.seg button\.ghost\s*\{[^}]*font-size:12px/.test(src)
+  && /\.tag\s*\{[^}]*font-size:11\.5px/.test(src));
+
 // ---------------- 英文界面渲染冒烟（文案工作的最终验收）----------------
 // 思路：把假数据里的**中文值**换成 ASCII 占位，再在英文模式下渲染一遍，断言输出里没有中文。
 // 为什么要把输入也换掉：模型名 / 基准名 / 分类名 / 状态 / 简介都是**服务端**给的，
@@ -653,12 +1152,17 @@ async function enSmoke(name, render) {
 }
 
 // 成绩总览
-await enSmoke("成绩总览", () => {
-  const b = { innerHTML: "" };
-  return new Function("ovData", "ovOnlyData", "ovPickModel", "document",
-    ovCode + "\ndrawOverview();\nreturn document.getElementById('overview').innerHTML;"
-  )(asciify(ovData), true, 2, { getElementById: id => (id === "overview" ? b : null) });
-});
+await enSmoke("成绩总览", () => renderOverview(asciify(ovData), "matrix", null, null));
+// 两张图是这一批新加的文案重灾区（轴名 / 提示 / 悬停 / 说明），单独冒烟。
+// 分类名与模型名是服务端给的，先 asciify 掉 —— 否则报的是假阳性。
+await enSmoke("成绩总览·能力雷达", () => renderOverview(asciify(ovData), "radar", asciify(chartLb), null));
+await enSmoke("成绩总览·准确率×延迟（按分类）",
+  () => renderOverview(asciify(ovData), "scatter", asciify(chartLb), null));
+await enSmoke("成绩总览·准确率×延迟（按基准）",
+  () => renderOverview(asciify(ovData), "scatter", asciify(chartLb), null, "bench"));
+// 面板文案只有钉住时才渲染，单独冒烟
+await enSmoke("成绩总览·已选点面板", () => renderOverview(asciify(ovData), "scatter",
+  asciify(chartLb), null, "cat", [{ view: "scatter", unit: "cat", model: "模型甲", cat: "分类甲" }]));
 // 逐题明细：**这块以前没有冒烟覆盖**，"原始输出"那一列的按钮就漏成了中文「查看」
 // （同一行的 toggleRaw 里是包了 t() 的，所以点一下反而变英文 —— 只有渲染一遍才抓得到）。
 await enSmoke("逐题明细", () => {
