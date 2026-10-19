@@ -248,6 +248,21 @@
   .cat-head .mini.more { color:var(--faint); background:transparent; }
   .cat-head .ready-tag { margin-left:auto; flex:0 0 auto; }
   .catchip.allbtn { border-style:dashed; color:var(--muted); }
+  /* 基准搜索：36 个基准折叠成 8 行之后，还得能按名字直接找 */
+  .bm-search { display:flex; gap:8px; align-items:center; margin:10px 0 0; }
+  .bm-search input { flex:1; max-width:420px; }
+  /* 首次使用引导：没跑过评测时给三步，而不是让人对着空表发愣 */
+  .ob-card { border:1px solid var(--border); border-radius:14px; background:var(--card);
+             padding:14px 18px; margin-top:14px; }
+  .ob-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .ob-head b { font-size:14px; }
+  .ob-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-top:1px dashed var(--border); }
+  .ob-row:first-of-type { border-top:none; }
+  .ob-n { width:22px; height:22px; border-radius:7px; flex:0 0 auto; display:grid; place-items:center;
+          font-size:12px; font-weight:700; background:var(--bg2); color:var(--muted); }
+  .ob-row.done .ob-n { background:rgba(34,153,92,.13); color:var(--green); }
+  .ob-row .ob-t { font-weight:600; font-size:13px; }
+  .ob-row .ob-d { color:var(--muted); font-size:12px; margin-top:2px; }
   .bm { cursor:pointer; position:relative; transition:border-color .15s, background .15s;
         /* 竖排布局 + 页脚 margin-top:auto：把「下载/来源」那一行压到卡片底部，
            这样同行卡片即使简介行数不同，按钮也在同一条水平线上。 */
@@ -533,6 +548,7 @@
   <div class="tabpane" id="pane-conclusion" data-pane="conclusion">
     <!-- 首屏记分牌：**只用现有口径**。分类第一 = 后端榜单里该分类 combined[0] 的模型；
          不跨分类求平均（那要新口径，得后端定义权重）。内容由 renderHero() 填。 -->
+    <div id="onboard"></div>
     <div class="hero" id="top">
       <div class="hero-in">
         <div class="hero-eyebrow" id="hero-eyebrow" data-i18n="正在读取成绩…">正在读取成绩…</div>
@@ -572,6 +588,11 @@
     <h2 id="sec2"><span class="no">4</span><span data-i18n="选择基准并发起评测">选择基准并发起评测</span></h2>
     <!-- .launch-scope 只做一件事：给下面的启动卡一个"能浮起来"的包含块（见 CSS 注释） -->
     <div class="launch-scope">
+    <div class="bm-search">
+      <input id="bm-q" type="search" placeholder="搜基准名 / 家族 / id…" data-i18n-ph="搜基准名 / 家族 / id…"
+             oninput="onBenchQuery(this.value)" autocomplete="off">
+      <button class="ghost" id="bm-q-clear" onclick="onBenchQuery('')" hidden data-i18n="清空">清空</button>
+    </div>
     <div id="cat-filter" class="catbar"></div>
     <div id="benchmarks" class="grid"></div>
     <div class="card launch-card" style="margin-top:12px">
@@ -696,6 +717,20 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
+  "清空": "Clear",
+  "按最高分排序": "Sort by top score",
+  "按原顺序": "Original order",
+  "搜基准名 / 家族 / id…": "Search benchmark name / family / id…",
+  "没有匹配「{0}」的基准": "No benchmark matches “{0}”",
+  "还没有跑过评测 —— 三步开始": "No runs yet — three steps to start",
+  "已接入 {0} 个模型 · 已就绪 {1} 个基准": "{0} models connected · {1} benchmarks ready",
+  "去配置模型": "Set up models",
+  "去选基准开跑": "Pick a benchmark and run",
+  "配置模型": "Set up models",
+  "填 base_url + API Key + 模型名（本地工具，Key 只存本机）": "Fill in base_url, API Key and model name (local tool; the key stays on this machine)",
+  "选基准": "Pick a benchmark",
+  "按分类展开，挑一个基准（也可以先搜）": "Expand a category and pick a benchmark (or search first)",
+  "选模型和题数，点「开始评测」": "Choose a model and question count, then click Start run",
   "本地评测工具": "a local benchmarking tool",
   "所有数据都在本机 data/ 目录，不会上传到任何服务器": "All data stays in the local data/ directory and is never uploaded anywhere",
   "结论": "Results",
@@ -1385,6 +1420,15 @@ async function downloadFamily(fid) {
 // 基准卡**默认按分类折叠**：36 张卡一次铺开有 5000px+，而多数时候只是来挑一个基准。
 // 分类行本身就是开关（点标题展开/收起）；点分类 chip 时只显示该分类并自动展开。
 let benchOpenCats = new Set();
+// 基准搜索词（小写）：非空时所有分类自动展开，并且只留匹配的卡片
+let benchQuery = "";
+
+function onBenchQuery(q) {
+  benchQuery = String(q || "").trim().toLowerCase();
+  const clear = document.getElementById("bm-q-clear");
+  if (clear) clear.hidden = !benchQuery;
+  renderBenchmarks();
+}
 
 function toggleBenchCat(id) {
   if (benchOpenCats.has(id)) benchOpenCats.delete(id); else benchOpenCats.add(id);
@@ -1404,6 +1448,7 @@ function renderBenchmarks() {
   const bs = benchList || [];
   benchMeta = Object.fromEntries(bs.map(b => [b.id, b]));
   document.getElementById("stat-bms").textContent = bs.length;
+  if (typeof renderOnboard === "function") renderOnboard();
   // 收集分类（保持服务端 CATEGORIES 顺序）
   const catMap = new Map();
   bs.forEach(b => {
@@ -1425,7 +1470,9 @@ function renderBenchmarks() {
 
   // 按分类分组渲染。家族（同名 family 的多个子集）在其中折叠成一张卡，
   // 位置取它第一个子集的位置，这样卡片顺序仍由服务端的 order 决定。
-  const shown = catFilter ? bs.filter(b => (b.category_id || "custom") === catFilter) : bs;
+  const matchQ = b => !benchQuery || [b.name, b.family, b.id, b.category, b.category_id]
+    .some(v => String(v || "").toLowerCase().includes(benchQuery));
+  const shown = bs.filter(b => (catFilter ? (b.category_id || "custom") === catFilter : true) && matchQ(b));
   const groups = [];
   cats.forEach(c => {
     const list = shown.filter(b => (b.category_id || "custom") === c.id);
@@ -1448,7 +1495,8 @@ function renderBenchmarks() {
         names.push(b.name);
       }
     });
-    const open = catFilter ? true : benchOpenCats.has(c.id);   // 单分类视图里始终展开
+    // 单分类视图里始终展开；搜索时全部展开（否则命中项藏在收起行里，等于搜不到）
+    const open = (catFilter || benchQuery) ? true : benchOpenCats.has(c.id);
     const nOk = ready.filter(Boolean).length;
     // 折叠行的版面：三角 + 色点 + 分类名 + 数量 + **里面都有谁**（最多 3 个 + +N）+ 就绪彩签。
     // 以前只有「名字 + 数量 + 右侧『展开』」，中间一大片空白、八行一样，看着像没做完。
@@ -1468,8 +1516,11 @@ function renderBenchmarks() {
          <span class="${okCls} ready-tag">${tf("已就绪 {0}/{1}", [nOk, ready.length])}</span>
        </div>` + (open ? cards.join("") : ""));
   });
+  const emptyTxt = benchQuery
+    ? tf("没有匹配「{0}」的基准", [benchQuery])
+    : t("该分类下暂无基准");
   document.getElementById("benchmarks").innerHTML =
-    groups.join("") || `<div class="empty" style="grid-column:1/-1">${t("该分类下暂无基准")}</div>`;
+    groups.join("") || `<div class="empty" style="grid-column:1/-1">${esc(emptyTxt)}</div>`;
 }
 
 async function downloadBm(id) {
@@ -1499,6 +1550,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 async function loadModels() {
   const ms = await api("/api/models");
   document.getElementById("stat-models").textContent = ms.length;
+  if (typeof renderOnboard === "function") renderOnboard();   // 引导位随数据更新（测试沙箱里没有这个函数）
   // AI 总结的模型选择器：直接用已接入的模型，不额外维护一份名单
   const ssel = document.getElementById("s-model");
   if (ssel) {
@@ -1949,6 +2001,33 @@ function setTab(tab) {
 
 function initTabs() { setTab(activeTab); }
 
+// 首次使用引导：一场评测都还没有时，在结论页顶部给三步（有数据就自动消失）。
+// 这一步只做"指路"，不重复页签里已有的功能 —— 三个按钮直接切页签。
+function renderOnboard() {
+  const box = document.getElementById("onboard");
+  if (!box) return;
+  const nModels = (modelList || []).length;
+  const nReady = (benchList || []).filter(b => b.count > 0).length;
+  const evals = parseInt((document.getElementById("stat-evals") || {}).textContent || "0", 10) || 0;
+  if (evals > 0) { box.innerHTML = ""; return; }     // 跑过评测就不再打扰
+  const row = (n, title, desc, done) => `<div class="ob-row${done ? " done" : ""}">
+      <span class="ob-n">${done ? "✓" : n}</span>
+      <div><div class="ob-t">${title}</div><div class="ob-d">${desc}</div></div>
+    </div>`;
+  const cta = nModels === 0
+    ? `<button class="btn-grad" style="margin-left:auto" onclick="setTab('config')">${t("去配置模型")}</button>`
+    : `<button class="btn-grad" style="margin-left:auto" onclick="setTab('eval')">${t("去选基准开跑")}</button>`;
+  box.innerHTML = `<div class="ob-card">
+      <div class="ob-head"><b>${t("还没有跑过评测 —— 三步开始")}</b>
+        <span class="muted" style="font-size:12px">${tf("已接入 {0} 个模型 · 已就绪 {1} 个基准", [nModels, nReady])}</span>
+        ${cta}
+      </div>
+      ${row(1, t("配置模型"), t("填 base_url + API Key + 模型名（本地工具，Key 只存本机）"), nModels > 0)}
+      ${row(2, t("选基准"), t("按分类展开，挑一个基准（也可以先搜）"), nReady > 0)}
+      ${row(3, t("开始评测"), t("选模型和题数，点「开始评测」"), false)}
+    </div>`;
+}
+
 async function refresh() {
   // 评测任务：收起时只显示最新 TASK_PREVIEW 条；展开后按 TASK_PAGE_SIZE 分页
   const _limit = tasksExpanded ? TASK_PAGE_SIZE : TASK_PREVIEW;
@@ -1957,6 +2036,7 @@ async function refresh() {
   const es = _res.items;
   evalsCache = es;      // 明细头部要用它的「正确 / 答错 / 失败」三档计数
   document.getElementById("stat-evals").textContent = _res.total;
+  renderOnboard();
   const tb = document.getElementById("evals");
   // 「⋯」菜单是**页面上唯一的一个浮层**（挂在 body 下，不在表格里），
   // 所以重渲染表格不会把它换掉，也不需要像以前那样"记 id 再恢复"。
@@ -2249,6 +2329,8 @@ function mockNoteHtml() {
 
 let ovData = null;       // /api/overview 原始数据
 let ovOnlyData = true;   // 是否只显示有数据的基准
+let ovMatrixSort = false; // 矩阵：行按该行最高分降序（默认保留后端顺序）
+function toggleOvMatrixSort() { ovMatrixSort = !ovMatrixSort; drawOverview(); }
 let ovPickModel = null;  // 已展开能力画像的模型 id
 let lbData = null;       // /api/leaderboard 原始数据（雷达/散点与排行榜共用这一份口径）
 let ovView = "matrix";   // 成绩总览的视图：matrix | radar | scatter
@@ -2356,8 +2438,18 @@ function drawOverview() {
     return;
   }
   const models = d.models;
+  // 该行"完整评测"里的最高分：排序和黄色最高分高亮用的是同一口径
+  const rowMax = b => {
+    const c = Object.values(b.scores).filter(s => !s.partial).map(s => s.accuracy);
+    return c.length ? Math.max(...c) : null;
+  };
   const groups = d.groups
-    .map(g => ({ ...g, benchmarks: g.benchmarks.filter(b => !ovOnlyData || Object.keys(b.scores).length) }))
+    .map(g => {
+      const bms = g.benchmarks.filter(b => !ovOnlyData || Object.keys(b.scores).length);
+      // 按最高分降序：没有完整成绩的行（null）排到最后，且用稳定排序保持它们之间的原顺序
+      if (ovMatrixSort) bms.sort((x, y) => (rowMax(y) ?? -1) - (rowMax(x) ?? -1));
+      return { ...g, benchmarks: bms };
+    })
     .filter(g => g.benchmarks.length);
 
   const head = `<tr><th style="width:200px">${t("基准")}</th>` + models.map(m =>
@@ -2403,7 +2495,8 @@ function drawOverview() {
     </span>`;
   // "图怎么画"的选项（图级）单独一条工具条，压在图上
   const chartOpts = ovView === "matrix"
-    ? `<button class="ghost" onclick="toggleOvOnlyData()">${ovOnlyData ? t("显示全部基准") : t("只看有数据的")}</button>`
+    ? `<button class="ghost${ovMatrixSort ? " on" : ""}" onclick="toggleOvMatrixSort()">${ovMatrixSort ? t("按原顺序") : t("按最高分排序")}</button>`
+      + `<button class="ghost" onclick="toggleOvOnlyData()">${ovOnlyData ? t("显示全部基准") : t("只看有数据的")}</button>`
     : viewControls();
   const chartBar = chartOpts
     ? `<div class="chart-bar">${chartOpts}</div>` : "";

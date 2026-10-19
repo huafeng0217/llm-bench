@@ -74,7 +74,7 @@ const ovCode = [
   grab("pinIdx"), grab("focusOpacity"), grab("pinRowHtml"), grab("pinRowsFor"),
   grab("pinPanelHtml"), grab("togglePin"), grab("hlPin"), grab("hlPinRow"),
   grab("nearestKey"), grab("scatterMeans"), grab("viewControls"), grab("viewHint"),
-  "const PIN_MAX = 3;", 'const MEAN_CAT = "__mean__";',
+  "const PIN_MAX = 3;", 'const MEAN_CAT = "__mean__";', "let ovMatrixSort = false;",
 ].join("\n");
 
 // 按视图渲染总览。ovRadarOff = 雷达图例里"被点掉"的模型集合（只影响画，不改归一区间）。
@@ -1165,7 +1165,7 @@ check("分数列统一两位小数（93.5 → 93.50，82.86 原样，空值 → 
 check("基准区默认按分类折叠（收起时不渲染卡片）",
   /let benchOpenCats = new Set\(\);/.test(src)
   && /function toggleBenchCat\(id\)/.test(src)
-  && /const open = catFilter \? true : benchOpenCats\.has\(c\.id\);/.test(src)
+  && /const open = \(catFilter \|\| benchQuery\) \? true : benchOpenCats\.has\(c\.id\);/.test(src)
   && /\(open \? cards\.join\(""\) : ""\)/.test(src)
   && /onclick="toggleBenchCat\('\$\{c\.id\}'\)"/.test(src));
 check("折叠行自带信息：分类里的小胶囊 + 就绪彩签，不再靠「展开」文字",
@@ -1240,6 +1240,25 @@ check("移动端：宽表卡内滚动 + 排行榜总览收成三列",
   && /\.ov-main th:nth-child\(5\), \.ov-main td:nth-child\(5\) \{ display:none; \}/.test(src)
   && /\.table-scroll \.ov-main, \.ov-main \{ min-width:0 !important; \}/.test(src)
   && /@media \(max-width: 640px\) \{/.test(src));
+// 可选优化三件：首次使用引导 / 基准搜索 / 矩阵按分数排序。
+check("首次使用引导：没跑过评测时在结论页顶部给三步，有数据自动消失",
+  /<div id="onboard"><\/div>/.test(src)
+  && /function renderOnboard\(\)/.test(src)
+  && /if \(evals > 0\) \{ box\.innerHTML = ""; return; \}/.test(src)
+  // 要盯"refresh 里真的调了"，否则去掉调用后其它两处守卫调用仍能匹配（负测发现）
+  && /_res\.total;\s*renderOnboard\(\);/.test(src)
+  && /class="ob-card"/.test(src));
+check("基准搜索：输入即过滤、搜索时全展开、无匹配有提示",
+  /id="bm-q"/.test(src) && /function onBenchQuery\(q\)/.test(src)
+  && /const matchQ = b => !benchQuery \|\|/.test(src)
+  && /const open = \(catFilter \|\| benchQuery\) \? true :/.test(src)
+  && /没有匹配「\{0\}」的基准/.test(src));
+check("矩阵可按最高分排序（默认仍是后端顺序）",
+  /let ovMatrixSort = false;/.test(src)
+  && /function toggleOvMatrixSort\(\) \{ ovMatrixSort = !ovMatrixSort; drawOverview\(\); \}/.test(src)
+  && /const rowMax = b =>/.test(src)
+  && /if \(ovMatrixSort\) bms\.sort\(/.test(src)
+  && /onclick="toggleOvMatrixSort\(\)"/.test(src));
 // ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
 // 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
 // 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。
