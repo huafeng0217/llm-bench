@@ -66,7 +66,7 @@ if (!scoreLine) throw new Error("找不到 score（分数统一两位小数）�
 // 总览这一整块：矩阵 + 两张图（能力雷达 / 准确率×延迟）。三张视图共用同一份
 // /api/leaderboard 数据，所以把图表那一组函数一起注入 —— 测的就是页面上真正跑的代码。
 const ovCode = [
-  escLine, scoreLine,
+  escLine, scoreLine, grab("setHtmlIfChanged"),
   grab("lbColors"), grab("svgNum"), grab("median"), grab("niceCeil"),
   grab("radarModel"), grab("radarSvg"), grab("radarTable"), grab("radarView"),
   grab("scatterPoints"), grab("scatterSvg"), grab("scatterView"),
@@ -582,7 +582,7 @@ check("准确率×延迟视图下不再显示「只看有数据的」按钮",
 // 从 famCover 开始切片：家族块用到的辅助函数与模板都在这一段里，
 // 连同 pct 一起注入，测的就是页面上真正跑的那几行代码。
 const i0 = script.indexOf("const famCover = m =>");
-const i1 = script.indexOf('document.getElementById("board").innerHTML');
+const i1 = script.indexOf('setHtmlIfChanged(document.getElementById("board")');
 if (i0 < 0 || i1 < 0) throw new Error("找不到排行榜模板片段（refresh 里的 famCover/overview/famBlock/details）");
 const pctLine = script.split("\n").find(l => l.startsWith("const pct = "));
 if (!pctLine) throw new Error("找不到 pct 的定义");
@@ -665,7 +665,7 @@ const bds = [{
 }];
 
 const boardHtml = new Function("bds", "expandedCats", "esc", "score",
-  pctLine + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
+  pctLine + "\n" + grab("setHtmlIfChanged") + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
 )(bds, { code: true, agent: true }, s => String(s ?? ""), v => (v == null ? "-" : Number(v).toFixed(2)));
 
 check("排行榜：部分评测带「部分 6/164」标签", boardHtml.includes("部分 6/164"));
@@ -1271,7 +1271,17 @@ check("成绩总览有「趋势」视图：只画跑完的评测，且说明不�
   // 盯调用点，不是词条表（EN 表里也含这串）
   && /\$\{t\("<b>换过裁判或评分口径<\/b>/.test(src)
   && /\?ov=/.test(src),
-  "趋势不能把部分评测混进来，也不能假装换过裁判的成绩连续");// ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
+  "趋势不能把部分评测混进来，也不能假装换过裁判的成绩连续");// 轮询重画不能把"用户正在操作的东西"换掉：2.5s 一轮的 refresh 里，总览/排行榜/基准区
+// 只在内容真的变化时才写 DOM（否则打开的下拉框会被新 DOM 关掉 —— 用户实测报过）。
+check("轮询重画：内容没变就不动 DOM（下拉框/焦点不会被 2.5s 轮询清掉）",
+  // 盯住条件判断本身：改成无条件赋值就一定红
+  /function setHtmlIfChanged\(el, html\) \{\s*if \(el && el\.innerHTML !== html\) el\.innerHTML = html;/.test(src)
+  && /const ovHtml = `/.test(src)
+  && /setHtmlIfChanged\(box, ovHtml\);/.test(src)
+  && /setHtmlIfChanged\(document\.getElementById\("board"\)/.test(src)
+  && /setHtmlIfChanged\(document\.getElementById\("benchmarks"\)/.test(src),
+  "无条件写 innerHTML 会把用户打开的下拉框清掉");
+// ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
 // 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
 // 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。
 const i18nSlugs = [...src.matchAll(/data-i18n(?:-html|-ph|-title)?="([^"]+)"/g)]
@@ -1427,7 +1437,7 @@ await enSmoke("AI 总结条目", () => {
 });
 // 排行榜（总览 + 展开后的两张表）
 await enSmoke("排行榜", () => new Function("bds", "expandedCats", "esc", "score",
-  pctLine + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
+  pctLine + "\n" + grab("setHtmlIfChanged") + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
 )(asciify(bds), { code: true, agent: true }, s2 => String(s2 ?? ""), v => (v == null ? "-" : Number(v).toFixed(2))));
 // 「新增模型 / 复用 API」是**两个控件**：左边选模式，右边那个列表随模式**变成**对应选项
 // （新增模型 → 服务商预设；复用 API → API 分组），两种选项不混在一个列表里。
@@ -1472,7 +1482,7 @@ check("添加模型：只有复用模式才回传 copy_api_from（新增模式�
 // 测不出这个差别，所以要单独用半角括号的组名渲染一遍。
 {
   const renderBoard = bd => new Function("bds", "expandedCats", "esc", "score",
-    pctLine + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
+    pctLine + "\n" + grab("setHtmlIfChanged") + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
   )(bd, { agent: true }, s2 => String(s2 ?? ""), v => (v == null ? "-" : Number(v).toFixed(2)));
   const withParen = (p1, p2) => {
     const bd = JSON.parse(JSON.stringify(asciify(bds)));

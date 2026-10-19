@@ -1533,8 +1533,8 @@ function renderBenchmarks() {
   const emptyTxt = benchQuery
     ? tf("没有匹配「{0}」的基准", [benchQuery])
     : t("该分类下暂无基准");
-  document.getElementById("benchmarks").innerHTML =
-    groups.join("") || `<div class="empty" style="grid-column:1/-1">${esc(emptyTxt)}</div>`;
+  setHtmlIfChanged(document.getElementById("benchmarks"),
+    groups.join("") || `<div class="empty" style="grid-column:1/-1">${esc(emptyTxt)}</div>`);
 }
 
 async function downloadBm(id) {
@@ -1551,6 +1551,13 @@ async function pollDownloadUntilDone() {
   const running = Object.values(dl).some(s => s.status === "running");
   loadBenchmarks();          // 用最新状态重渲染（完成后题数会自动出现）
   if (running) setTimeout(pollDownloadUntilDone, 3000);
+}
+
+// 内容没变就不动 DOM。每 2.5s 的 refresh 会重画好几块；无条件写 innerHTML 会把
+// "用户正在操作的东西"一起清掉 —— 打开的下拉框、焦点、展开的 details。
+// 趋势视图的基准下拉 2.5 秒就被关掉，就是踩的这个坑（任务表早就这么防了）。
+function setHtmlIfChanged(el, html) {
+  if (el && el.innerHTML !== html) el.innerHTML = html;
 }
 
 async function api(path, opts) {
@@ -2322,8 +2329,9 @@ ${t("缺组时按已跑组的权重归一化，所以「加权总分」不是完
       </tr>`).join("")).join("")}</tbody></table>
       ${(cat.families || []).map(f => famBlock(cat, f)).join("")}
     </div>`).join("");
-  document.getElementById("board").innerHTML = bds.length ? overview + details + mockNoteHtml()
-    : `<div class="card"><div class="empty">${t("完成一次评测后生成")}</div></div>`;
+  setHtmlIfChanged(document.getElementById("board"),
+    bds.length ? overview + details + mockNoteHtml()
+      : `<div class="card"><div class="empty">${t("完成一次评测后生成")}</div></div>`);
 }
 
 // 演示/mock 模型（base_url 是 mock://）的成绩不计入排行榜与总览 —— 后端就把它过滤掉了。
@@ -2530,7 +2538,7 @@ function drawOverview() {
         <table class="ov-table"><thead>${head}</thead><tbody>${body}</tbody></table>
       </div>${pick ? renderOvProfile(pick) : ""}`;
 
-  box.innerHTML = `
+  const ovHtml = `
     <div class="card" style="padding:14px 18px">
       <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:${chartBar ? "10" : "10"}px">
         <span class="muted" style="font-size:12.5px;line-height:1.75">${viewHint()}</span>
@@ -2539,6 +2547,7 @@ function drawOverview() {
       ${chartBar}
       ${inner}
     </div>`;
+  setHtmlIfChanged(box, ovHtml);
 }
 
 // 点模型名展开的能力画像（方案 3，与矩阵共用同一份数据）
