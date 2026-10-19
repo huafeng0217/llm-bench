@@ -1207,6 +1207,13 @@ check("顶部导航顺序跟内容一致（href 仍指向各自段落）",
   && src.indexOf('href="#sec2"') < src.indexOf('href="#sec1"'));
 check("六段编号徽章按新顺序重排（1..6，不能和导航错位）",
   [...src.matchAll(/<span class="no">(\d)<\/span>/g)].map(m => m[1]).join("") === "123456");
+// 六个段必须都在 .wrap 容器里。重排时如果把 wrap 的闭合 </div> 当成"最后一段的内容"一起搬走，
+// 后面的段就会跑到通栏宽度（用户实测：第 4 段开始突然变宽、表格铺满整个视口）。
+const wrapMenuIdx = src.indexOf('<!-- 任务行的「更多操作」菜单');
+const wrapCloseIdx = src.lastIndexOf("</div>", wrapMenuIdx);
+check("六个段都在 .wrap 容器内（重排不能把闭合标签搬走）",
+  wrapMenuIdx > 0 && wrapCloseIdx > 0
+  && [1, 2, 3, 4, 5, 6].every(n => src.indexOf(`<h2 id="sec${n}">`) < wrapCloseIdx));
 // ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
 // 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
 // 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。
