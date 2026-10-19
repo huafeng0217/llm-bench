@@ -16,34 +16,99 @@
          -webkit-font-smoothing:antialiased; }
   .wrap { max-width:1120px; margin:0 auto; padding:0 20px 80px; }
 
-  /* 顶栏 */
-  header { display:flex; align-items:center; gap:14px; padding:26px 0 8px; }
-  .logo { width:38px; height:38px; border-radius:11px; flex:0 0 auto;
+  /* ===== 顶栏（全宽、吸顶、带段导航）===== */
+  .topbar { position:sticky; top:0; z-index:200;
+            background:rgba(243,245,249,.86); backdrop-filter:blur(12px);
+            border-bottom:1px solid var(--border); }
+  .topbar-in { max-width:1120px; margin:0 auto; padding:10px 20px;
+               display:flex; align-items:center; gap:13px; flex-wrap:nowrap; }
+  .logo { width:30px; height:30px; border-radius:9px; flex:0 0 auto;
           background:linear-gradient(135deg,#3d6fe0,#6f9bf5); position:relative; }
-  .logo::after { content:""; position:absolute; inset:10px; border-radius:5px;
-                 border:2.5px solid rgba(255,255,255,.92); border-top-color:transparent;
+  .logo::after { content:""; position:absolute; inset:8px; border-radius:4px;
+                 border:2.4px solid rgba(255,255,255,.92); border-top-color:transparent;
                  border-left-color:transparent; transform:rotate(45deg) translate(-1px,-1px); }
-  h1 { font-size:19px; font-weight:650; letter-spacing:.2px; }
-  .tagline { color:var(--muted); font-size:12.5px; }
-  /* 语言开关：贴右上角，和顶栏同一行 */
-  .langsw { margin-left:auto; display:flex; gap:0; border:1px solid var(--border2);
+  .brandname { font-size:15px; font-weight:650; letter-spacing:.2px; flex:0 0 auto;
+               display:flex; align-items:baseline; gap:9px; min-width:0; }
+  /* 副标题是"这工具是干嘛的"：宽屏才显示 —— 窄屏上挤掉段导航更不划算 */
+  .tagline { display:none; color:var(--faint); font-size:11.5px; font-weight:400; letter-spacing:0;
+             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:44ch; }
+  @media (min-width:1240px) { .tagline { display:inline; } }
+  /* 段导航：整页六段，点一下跳过去；滚动时自动高亮当前段（JS scrollspy） */
+  .secnav { display:flex; gap:2px; margin-left:auto; background:var(--bg2);
+            border:1px solid var(--border); border-radius:11px; padding:3px; }
+  .secnav a { font-size:12px; color:var(--muted); text-decoration:none; padding:5px 11px; border-radius:8px;
+              white-space:nowrap; transition:background .15s, color .15s; }
+  .secnav a:hover { color:var(--text); background:var(--card); }
+  .secnav a.on { background:var(--card); color:var(--text); font-weight:600;
+                 box-shadow:0 1px 3px rgba(29,36,51,.10); }
+  /* 语言开关：贴右上角 */
+  .langsw { display:flex; gap:0; border:1px solid var(--border2);
             border-radius:9px; overflow:hidden; flex:0 0 auto; }
   .langsw button { background:transparent; border:none; border-radius:0; color:var(--muted);
                    padding:5px 11px; font-size:12px; font-weight:500; cursor:pointer; }
   .langsw button:hover { color:var(--text); background:var(--card2); filter:none; }
   .langsw button.on { background:var(--accent); color:#fff; }
-  .stats { display:flex; gap:10px; margin:16px 0 6px; }
-  .stat { position:relative; overflow:hidden; flex:1; background:var(--card); border:1px solid var(--border);
-          border-radius:12px; padding:12px 16px 12px 19px; }
-  .stat::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--c,var(--accent)); }
-  .stat b { font-size:22px; font-weight:650; display:block; line-height:1.35; color:var(--c,var(--text)); }
-  .stat span { color:var(--muted); font-size:12px; }
+
+  /* ===== 首屏记分牌 =====
+     一屏回答"谁第一 / 差多少"。数字**全部来自现有口径**：
+     分类第一 = 后端榜单里该分类 combined[0] 的模型；不在这里算"综合分"（跨分类平均
+     要新口径就得到后端定义权重，前端不发明算法）。 */
+  .hero { position:relative; overflow:hidden; margin-top:18px; border-radius:22px; color:#e9efff;
+          background:radial-gradient(1100px 420px at 16% -14%,#2b4f9e 0%,rgba(43,79,158,0) 62%),
+                     radial-gradient(720px 380px at 102% -6%,#3b2f7a 0%,rgba(59,47,122,0) 60%),#0d1526;
+          box-shadow:0 26px 60px -30px rgba(13,21,38,.62); }
+  .hero::after { content:""; position:absolute; inset:0; pointer-events:none; opacity:.32;
+          background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),
+                           linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);
+          background-size:56px 56px;
+          mask-image:radial-gradient(620px 320px at 76% 0%,#000 18%,transparent 78%);
+          -webkit-mask-image:radial-gradient(620px 320px at 76% 0%,#000 18%,transparent 78%); }
+  .hero-in { position:relative; padding:30px 32px 26px; }
+  .hero-eyebrow { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#8fa3c9; }
+  .hero-title { font-size:34px; line-height:1.18; font-weight:700; letter-spacing:-.4px;
+                margin-top:11px; color:#f2f6ff; }
+  .hero-title b { background:linear-gradient(92deg,#9dc0ff,#d3c0ff);
+                  -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .hero-note { color:#9db0d2; font-size:12px; margin-top:9px; max-width:74ch; line-height:1.65; }
+  /* 数字行：大数字用等宽字形，避免跳动 */
+  .hero-nums { display:flex; gap:34px; flex-wrap:wrap; margin-top:20px; align-items:flex-end; }
+  .hn b { display:block; font-size:30px; line-height:1.1; font-weight:700; letter-spacing:-.6px;
+          font-variant-numeric:tabular-nums; color:#fff; }
+  .hn b.big { font-size:52px; line-height:1; letter-spacing:-1.8px;
+              background:linear-gradient(180deg,#fff,#a9c4ff);
+              -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .hn span { font-size:11.5px; color:#93a7ca; }
+  /* 领奖台 */
+  .podium { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:22px; }
+  .pod { display:flex; align-items:center; gap:10px; padding:11px 13px; border-radius:13px;
+         background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.11); }
+  .pod .rib { width:24px; height:24px; border-radius:8px; display:grid; place-items:center;
+              font-size:11.5px; font-weight:700; background:rgba(255,255,255,.10); color:#dbe5f7; }
+  .pod .nm { display:flex; align-items:center; gap:7px; font-size:13px; font-weight:600; color:#eef3ff; }
+  .pod .w { margin-left:auto; font-size:12.5px; color:#a9bada; font-variant-numeric:tabular-nums; }
+  /* 赛道：一条 = 一个模型的分类第一数 */
+  .track { margin-top:22px; padding-top:16px; border-top:1px solid rgba(255,255,255,.10); }
+  .lane { display:grid; grid-template-columns:150px 1fr 58px; align-items:center; gap:12px; padding:4px 0; }
+  .lane .nm { display:flex; align-items:center; gap:7px; font-size:12px; color:#c2d0e8; }
+  .lane .rail { height:9px; border-radius:6px; background:rgba(255,255,255,.07); overflow:hidden; }
+  .lane .rail i { display:block; height:100%; border-radius:6px; box-shadow:0 0 18px -2px currentColor; }
+  .lane .v { text-align:right; font-size:12px; color:#dbe5f7; font-weight:600; font-variant-numeric:tabular-nums; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
+  @media (max-width:820px) {
+    .secnav { order:3; width:100%; margin-left:0; overflow-x:auto; }
+    .hero-title { font-size:26px; }
+    .hn b.big { font-size:40px; }
+    .podium { grid-template-columns:1fr; }
+    .lane { grid-template-columns:110px 1fr 48px; }
+  }
 
   /* 分区标题：和卡片正文拉开层级（14.5px 时几乎和正文同重），并加一条很淡的分隔线 ——
      整页六段，靠标题字号+留白+线才能一眼看出"这是新的一段"。 */
   h2 { font-size:16px; font-weight:650; letter-spacing:.1px;
        margin:10px 0 12px; padding-top:24px; border-top:1px solid var(--border);
-       display:flex; align-items:center; gap:9px; }
+       display:flex; align-items:center; gap:9px;
+       /* 顶栏吸顶后会盖住锚点落点，留出它的高度 */
+       scroll-margin-top:64px; }
   h2 .no { width:22px; height:22px; border-radius:7px; background:var(--card2); border:1px solid var(--border2);
            color:var(--accent2); font-size:12px; display:inline-flex; align-items:center; justify-content:center; font-weight:600; }
 
@@ -75,16 +140,16 @@
      高度跟旁边的小胶囊一致（5px 内边距），否则一行里一高一矮。 */
   button.sm { padding:5px 14px; font-size:12.5px; border-radius:9px; }
 
-  /* 更多操作（⋯）下拉菜单 */
-  .menu-wrap { position:relative; display:inline-block; }
-  /* 图标按钮（任务行的「更多操作」）：以前只有一圈淡淡的圆，看着像占位符。
-     给它一条描边和卡片底色，和 ghost 按钮同一套外形语言 —— 只是内容换成了图标。 */
-  .icon-btn { width:30px; height:30px; border-radius:50%; background:var(--card);
+  /* 更多操作（⋯）下拉菜单：**全页唯一一个**，挂在 body 下（见 #task-menu 的注释） */
+  /* 图标按钮：**只要一圈**。以前按钮自己没外形、靠 SVG 里画一个圆当底，
+     给按钮加描边后就变成"圈里套圈"（用户截图指出）。现在圆留给按钮，图标只留三个点。 */
+  .icon-btn { width:26px; height:26px; border-radius:50%; background:var(--card);
               border:1px solid var(--border2); color:var(--muted);
               display:inline-flex; align-items:center; justify-content:center;
               cursor:pointer; padding:0; transition:color .15s, background .15s, border-color .15s; }
   .icon-btn:hover { color:var(--accent2); border-color:var(--accent); background:var(--card2); filter:none; }
-  .menu { position:absolute; right:0; top:calc(100% + 4px); background:var(--card);
+  /* 菜单由 JS 用 placeMenu() 定位成 fixed（贴按钮右下方、贴底自动上翻） */
+  .menu { position:fixed; background:var(--card);
           border:1px solid var(--border2); border-radius:10px; box-shadow:0 8px 24px rgba(29,36,51,.16);
           min-width:124px; padding:5px; display:none; z-index:300; }
   .menu.open { display:block; }
@@ -331,29 +396,51 @@
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
+<!-- 顶栏：全宽吸顶 + 段导航（整页六段，点一下跳过去；滚动时 JS 自动高亮当前段） -->
+<div class="topbar">
+  <div class="topbar-in">
     <div class="logo"></div>
-    <div>
-      <h1>LLM Bench</h1>
-      <div class="tagline" data-i18n="填入任意 OpenAI 兼容接口（base_url + API Key + 模型名），自动跑基准测试并对比排名">填入任意 OpenAI 兼容接口（base_url + API Key + 模型名），自动跑基准测试并对比排名</div>
+    <div class="brandname">LLM Bench
+      <span class="tagline" data-i18n="填入任意 OpenAI 兼容接口（base_url + API Key + 模型名），自动跑基准测试并对比排名">填入任意 OpenAI 兼容接口（base_url + API Key + 模型名），自动跑基准测试并对比排名</span>
     </div>
+    <nav class="secnav" id="secnav">
+      <a href="#sec1" data-i18n="模型管理">模型管理</a>
+      <a href="#sec2" data-i18n="选择基准并发起评测">选择基准并发起评测</a>
+      <a href="#sec3" data-i18n="评测任务">评测任务</a>
+      <a href="#sec4" data-i18n="成绩总览">成绩总览</a>
+      <a href="#sec5" data-i18n="排行榜">排行榜</a>
+      <a href="#sec6" data-i18n="AI 总结">AI 总结</a>
+    </nav>
     <!-- 语言开关：切换后写 localStorage 并整页重载 —— 服务端返回的文案（基准简介、
          报错、判定）跟着变，重载是唯一能保证两边一致的做法，比局部重渲染可靠。 -->
     <div class="langsw" id="langsw" role="group" aria-label="Language">
       <button type="button" data-lang="zh" onclick="setLang('zh')">中文</button>
       <button type="button" data-lang="en" onclick="setLang('en')">EN</button>
     </div>
-  </header>
+  </div>
+</div>
 
-  <div class="stats">
-    <div class="stat" style="--c:#4a7de0"><b id="stat-models">0</b><span data-i18n="已接入模型">已接入模型</span></div>
-    <div class="stat" style="--c:#7a5ae0"><b id="stat-bms">0</b><span data-i18n="可用基准">可用基准</span></div>
-    <div class="stat" style="--c:#2fa36b"><b id="stat-evals">0</b><span data-i18n="评测任务">评测任务</span></div>
-    <div class="stat" style="--c:#b97e1e"><b id="stat-best">-</b><span data-i18n="最佳正确率">最佳正确率</span></div>
+<div class="wrap">
+  <!-- 首屏记分牌：**只用现有口径**。分类第一 = 后端榜单里该分类 combined[0] 的模型；
+       不跨分类求平均（那要新口径，得后端定义权重）。内容由 renderHero() 填。 -->
+  <div class="hero" id="top">
+    <div class="hero-in">
+      <div class="hero-eyebrow" id="hero-eyebrow" data-i18n="正在读取成绩…">正在读取成绩…</div>
+      <div class="hero-title" id="hero-title">&nbsp;</div>
+      <div class="hero-note" id="hero-note" data-i18n="分类第一 = 后端榜单里该分类的第一名；不跨分类求平均，所以不叫「综合分」。">分类第一 = 后端榜单里该分类的第一名；不跨分类求平均，所以不叫「综合分」。</div>
+      <div class="hero-nums">
+        <div class="hn"><b class="big" id="hero-wins">–</b><span data-i18n="个分类第一">个分类第一</span></div>
+        <div class="hn"><b id="stat-best">-</b><span data-i18n="最高单基准正确率">最高单基准正确率</span></div>
+        <div class="hn"><b id="stat-models">0</b><span data-i18n="已接入模型">已接入模型</span></div>
+        <div class="hn"><b id="stat-bms">0</b><span data-i18n="可用基准">可用基准</span></div>
+        <div class="hn"><b id="stat-evals">0</b><span data-i18n="评测任务">评测任务</span></div>
+      </div>
+      <div class="podium" id="hero-podium"></div>
+      <div class="track" id="hero-track"></div>
+    </div>
   </div>
 
-  <h2><span class="no">1</span><span data-i18n="模型管理">模型管理</span><span id="add-model-toggle" style="margin-left:auto"></span></h2>
+  <h2 id="sec1"><span class="no">1</span><span data-i18n="模型管理">模型管理</span><span id="add-model-toggle" style="margin-left:auto"></span></h2>
   <div class="muted" style="font-size:12.5px; margin:-4px 0 10px">
     <span data-i18n-html="没有 key 也能体验：模型名填 <code>demo</code>、base_url 填 <code>mock://local</code>。所有 API Key 只保存在本地 <code>data/</code> 目录，不会上传到任何服务器。">没有 key 也能体验：模型名填 <code>demo</code>、base_url 填 <code>mock://local</code>。所有 API Key 只保存在本地 <code>data/</code> 目录，不会上传到任何服务器。</span>
   </div>
@@ -408,7 +495,7 @@
   <div class="card" style="padding:6px 18px"><div class="table-scroll"><table><thead><tr><th class="tl" data-i18n="模型">模型</th><th style="width:110px" data-i18n="用途">用途</th><th class="tl" data-i18n="base_url">base_url</th><th class="tl" data-i18n="Key">Key</th><th style="width:150px"></th></tr></thead>
     <tbody id="models"><tr><td colspan="5" class="empty" data-i18n="暂无模型">暂无模型</td></tr></tbody></table></div></div>
 
-  <h2><span class="no">2</span><span data-i18n="选择基准并发起评测">选择基准并发起评测</span></h2>
+  <h2 id="sec2"><span class="no">2</span><span data-i18n="选择基准并发起评测">选择基准并发起评测</span></h2>
   <!-- .launch-scope 只做一件事：给下面的启动卡一个"能浮起来"的包含块（见 CSS 注释） -->
   <div class="launch-scope">
   <div id="cat-filter" class="catbar"></div>
@@ -433,7 +520,7 @@
   </div>
   </div><!-- /.launch-scope -->
 
-  <h2><span class="no">3</span><span data-i18n="评测任务">评测任务</span><span id="batch-toggle" style="margin-left:auto"></span></h2>
+  <h2 id="sec3"><span class="no">3</span><span data-i18n="评测任务">评测任务</span><span id="batch-toggle" style="margin-left:auto"></span></h2>
   <div class="card" style="padding:6px 18px"><div class="table-scroll"><table><thead><tr>
     <th id="th-check" style="width:32px; display:none"><input type="checkbox" id="task-check-all" onclick="toggleAllTasks(this)" title="全选本页" data-i18n-title="全选本页"></th>
     <th style="width:40px">#</th><th class="tl" data-i18n="模型">模型</th><th class="tl" data-i18n="基准">基准</th><th data-i18n="进度">进度</th><th data-i18n="正确率">正确率</th><th style="width:56px" data-i18n="失败">失败</th><th data-i18n="状态">状态</th><th style="width:130px"></th>
@@ -442,13 +529,13 @@
     <div id="task-controls" style="padding:8px 0"></div></div>
   <div id="items-box"></div>
 
-  <h2><span class="no">4</span><span data-i18n="成绩总览">成绩总览</span></h2>
+  <h2 id="sec4"><span class="no">4</span><span data-i18n="成绩总览">成绩总览</span></h2>
   <div id="overview"><div class="card"><div class="empty" data-i18n="完成一次评测后生成">完成一次评测后生成</div></div></div>
 
-  <h2><span class="no">5</span><span data-i18n="排行榜">排行榜</span></h2>
+  <h2 id="sec5"><span class="no">5</span><span data-i18n="排行榜">排行榜</span></h2>
   <div id="board"><div class="card"><div class="empty" data-i18n="完成一次评测后生成">完成一次评测后生成</div></div></div>
 
-  <h2><span class="no">6</span><span data-i18n="AI 总结">AI 总结</span></h2>
+  <h2 id="sec6"><span class="no">6</span><span data-i18n="AI 总结">AI 总结</span></h2>
   <div class="card">
     <div class="row">
       <select id="s-model"></select>
@@ -462,6 +549,10 @@
   </div>
   <div id="summary-box"></div>
 </div>
+
+<!-- 任务行的「更多操作」菜单：全页唯一一个，**挂在 body 下**（既不在表格里、也不在 .table-scroll 里），
+     所以不会被滚动容器裁剪，也不会被 sticky 操作列的层叠上下文压住。内容由 renderTaskMenu() 按行生成。 -->
+<div class="menu" id="task-menu"></div>
 
 <!-- 基准简介弹层：点卡片上的简介文字或「简介」按钮打开；点背景 / ✕ / Esc 关闭。
      用弹层而不是就地展开，是为了不遮挡下面的卡片与评测栏，也不改变任何卡片的高度。 -->
@@ -484,6 +575,9 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
+  "最近一次评测 {0} · 分类共 {1} 个": "Last run {0} · {1} categories",
+  "分类共 {0} 个": "{0} categories",
+  "分类第一 = 后端榜单里该分类的第一名；不跨分类求平均，所以不叫「综合分」。": "A category win = the category's #1 in the backend leaderboard; no cross-category average is computed, which is why it is not called an overall score.",
   // ---- 静态骨架 ----
   "LLM Bench - 大模型基准测评": "LLM Bench — LLM benchmark suite",
   "填入任意 OpenAI 兼容接口（base_url + API Key + 模型名），自动跑基准测试并对比排名":
@@ -953,6 +1047,11 @@ const EN = {
   "当前显示 {0}/{1} 个模型；点一下某个模型，会列出它由哪些分类等权平均出来。":
     "Showing {0}/{1} models; click one to see which categories make up its average.",
   "当前显示 {0}/{1} 个模型；点一下某个模型，数字会钉在下面。": "Showing {0}/{1} models; click one to pin its numbers below.",
+  "正在读取成绩…": "Loading scores…",
+  "个分类第一": "category wins",
+  "最高单基准正确率": "Best single-benchmark accuracy",
+  "<b>{0}</b> 拿下 {1} 个分类第一": "<b>{0}</b> wins {1} categories",
+  "{0} 个第一": "{0} win(s)",
 };
 // 语言：先看用户选过的（localStorage），没有就跟浏览器；都不是就中文
 let LANG = (() => {
@@ -1590,6 +1689,90 @@ async function startEval() {
   refresh();
 }
 
+// ===== 首屏记分牌 =====
+// 只用现有口径：**分类第一 = 后端榜单里该分类 combined[0] 的模型**（后端已按"跑得全的一批里
+// 分数最高"排好序，前端不重新排序、也不算跨分类平均）。这样 hero 的数字和下面排行榜能对上。
+function renderHero(bds) {
+  const title = document.getElementById("hero-title");
+  const trackEl = document.getElementById("hero-track");
+  const podEl = document.getElementById("hero-podium");
+  const winsEl = document.getElementById("hero-wins");
+  const eyebrowEl = document.getElementById("hero-eyebrow");
+  if (!title || !trackEl || !winsEl || !Array.isArray(bds)) return;
+
+  const wins = {};          // 模型 -> 分类第一数（没拿过第一的也是 0，要显示出来）
+  const colors = {};        // 模型 -> 身份色（后端给的）
+  const bestOf = {};        // 模型 -> 它最高的分类分（只用于并列时稳定排序，不当总分用）
+  let cats = 0;
+  for (const c of bds) {
+    cats++;
+    for (const m of (c.combined || [])) {
+      if (m.color) colors[m.model_name] = m.color;
+      if (wins[m.model_name] == null) wins[m.model_name] = 0;
+      if (m.avg_accuracy != null && (bestOf[m.model_name] == null || m.avg_accuracy > bestOf[m.model_name])) {
+        bestOf[m.model_name] = m.avg_accuracy;
+      }
+    }
+    const top = (c.combined || [])[0];      // 后端排好的：该分类第一
+    if (top) wins[top.model_name] = (wins[top.model_name] || 0) + 1;
+  }
+  const rows = Object.entries(wins).map(([name, n]) => ({ name, n, color: colors[name] || "var(--border2)" }))
+    .sort((a, b) => b.n - a.n || (bestOf[b.name] ?? 0) - (bestOf[a.name] ?? 0));
+  if (!rows.length) return;
+
+  const champ = rows[0];
+  title.innerHTML = tf("<b>{0}</b> 拿下 {1} 个分类第一", [esc(champ.name), champ.n]);
+  winsEl.textContent = champ.n;
+  // eyebrow 放"最近一次评测是什么时候"（数字行已经承担了计数，别重复）
+  const last = (evalsCache && evalsCache[0] && evalsCache[0].created_at) || "";
+  eyebrowEl.textContent = last
+    ? tf("最近一次评测 {0} · 分类共 {1} 个", [last.slice(0, 16), cats])
+    : tf("分类共 {0} 个", [cats]);
+
+  podEl.innerHTML = rows.slice(0, 3).map((r, i) =>
+    `<div class="pod"><span class="rib">${i + 1}</span>
+       <span class="nm"><i class="dot" style="background:${r.color}"></i>${esc(r.name)}</span>
+       <span class="w">${tf("{0} 个第一", [r.n])}</span></div>`).join("");
+
+  const maxN = rows[0].n || 1;
+  // 0 胜的模型也列出来（暗一点）：赛道是"全场成绩"，只画赢家会看不出还剩谁
+  trackEl.innerHTML = rows.map(r =>
+    `<div class="lane"${r.n ? "" : ' style="opacity:.55"'}>
+       <span class="nm"><i class="dot" style="background:${r.color}"></i>${esc(r.name)}</span>
+       <span class="rail"><i style="width:${(r.n / maxN * 100).toFixed(1)}%;background:${r.color};color:${r.color}"></i></span>
+       <span class="v">${r.n}</span></div>`).join("");
+}
+
+// 段导航高亮：以「**最后一个越过顶栏的标题**」为当前段。
+// 为什么不用 IntersectionObserver：观察目标只能是 h2（30px 高），再把触发带设在视口中线，
+// 点导航跳转后标题正好停在顶栏下方、永远进不了那条带 —— 高亮就一直停在第一段（用户实测）。
+// 现在改成确定性判定：每次滚动后取 top <= 顶栏高度的最后一个标题；滚到底时强制点亮最后一段。
+function syncSecNav() {
+  const nav = document.getElementById("secnav");
+  if (!nav) return;
+  const links = [...nav.querySelectorAll("a")];
+  const items = links
+    .map(a => ({ a, el: document.getElementById(a.getAttribute("href").slice(1)) }))
+    .filter(x => x.el);
+  if (!items.length) return;
+  const line = 96;                       // 顶栏高度 + 一点余量
+  let cur = items[0];
+  for (const it of items) if (it.el.getBoundingClientRect().top <= line) cur = it;
+  // 页面到底：最后一段的标题可能永远到不了判定线（下面内容不够长）
+  if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+    cur = items[items.length - 1];
+  }
+  links.forEach(a => a.classList.toggle("on", a === cur.a));
+}
+
+function initSecNav() {
+  let raf = 0;
+  const schedule = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; syncSecNav(); }); };
+  window.addEventListener("scroll", schedule, { passive: true });
+  window.addEventListener("resize", schedule);
+  syncSecNav();
+}
+
 async function refresh() {
   // 评测任务：收起时只显示最新 TASK_PREVIEW 条；展开后按 TASK_PAGE_SIZE 分页
   const _limit = tasksExpanded ? TASK_PAGE_SIZE : TASK_PREVIEW;
@@ -1599,10 +1782,9 @@ async function refresh() {
   evalsCache = es;      // 明细头部要用它的「正确 / 答错 / 失败」三档计数
   document.getElementById("stat-evals").textContent = _res.total;
   const tb = document.getElementById("evals");
-  // 展开中的「⋯」菜单：innerHTML 一换，节点就没了。
-  // 所以先把它的 id 记下来，重渲染后恢复 —— 否则 refresh 每 2.5 秒跑一次，
-  // 用户点开菜单后只有 2.5 秒的操作窗口，超时菜单就自己关掉。
-  const openedMenu = (document.querySelector(".menu.open") || {}).id || null;
+  // 「⋯」菜单是**页面上唯一的一个浮层**（挂在 body 下，不在表格里），
+  // 所以重渲染表格不会把它换掉，也不需要像以前那样"记 id 再恢复"。
+  // 只需要：行可能消失（任务被删）→ 关掉；行位置可能变 → 重新摆一次。
   const rowsHtml = es.length ? es.map(e => {
     const pct = e.total ? Math.round(e.done / e.total * 100) : 0;
     const stCls = e.status === "done" ? "st-done" : e.status === "failed" ? "st-failed" : e.status === "stopped" ? "st-stopped" : "st-running";
@@ -1659,31 +1841,23 @@ async function refresh() {
       <td class="acc" title="${accTitle}">${e.accuracy == null ? "-" : e.accuracy + "%"}</td>
       <td>${failed ? `<span class="st-failed" style="font-weight:550" title="${t("判分 / 执行失败：这几题没得到有效结果（被测模型没产出正文、裁判给不出可解析判定、服务商拦截、请求超时、题目本身报错等）。既不算对也不算答错，但按保守口径计入了正确率分母 —— 别把它读成「能力差这么多」。")}">${failed}</span>` : `<span class="muted">0</span>`}</td>
       <td class="${stCls}">${ST_TEXT[e.status] || e.status}</td>
-      <td><div class="menu-wrap">
-        <button class="icon-btn" onclick="toggleMenu(event, ${e.id})" aria-label="${t("更多操作")}" title="${t("更多操作")}">
-          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-            <circle cx="10" cy="10" r="8.4" fill="none" stroke="currentColor" stroke-width="1.6"/>
-            <circle cx="6.6" cy="10" r="1.5" fill="currentColor"/>
-            <circle cx="10" cy="10" r="1.5" fill="currentColor"/>
-            <circle cx="13.4" cy="10" r="1.5" fill="currentColor"/>
-          </svg>
-        </button>
-        <div class="menu" id="menu-${e.id}">
-          <button class="menu-item" onclick="showItems(${e.id})">${t("明细")}</button>
-          ${running ? `<button class="menu-item" onclick="stopEval(${e.id})">${t("停止")}</button>` : ""}
-          ${resumable ? `<button class="menu-item" onclick="resumeEval(${e.id})">${tf("继续（补跑剩余 {0} 题）", [e.total - e.done])}</button>` : ""}
-          <button class="menu-item danger" onclick="delEval(${e.id})">${t("删除")}</button>
-        </div>
-      </div></td></tr>`;
+      <td><button class="icon-btn" id="menu-btn-${e.id}" onclick="toggleMenu(event, ${e.id})" aria-label="${t("更多操作")}" title="${t("更多操作")}">
+        <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+          <circle cx="6.4" cy="10" r="1.7" fill="currentColor"/>
+          <circle cx="10" cy="10" r="1.7" fill="currentColor"/>
+          <circle cx="13.6" cy="10" r="1.7" fill="currentColor"/>
+        </svg>
+      </button></td></tr>`;
   }).join("") : `<tr><td colspan="${batchMode ? 9 : 8}" class="empty">${t("暂无任务")}</td></tr>`;
   // 内容没变就不动 DOM：否则每次 refresh 都会重置 hover / 展开态。
   // 没有任务在跑时这个字符串是稳定的，于是绝大多数轮询都变成零副作用。
   if (tb.innerHTML !== rowsHtml) {
     tb.innerHTML = rowsHtml;
-    if (openedMenu) {
-      const m = document.getElementById(openedMenu);
-      if (m) m.classList.add("open");
-    }
+  }
+  // 菜单开着的行被删掉 → 关掉；否则按新位置重新摆（行高可能变）
+  if (openTaskMenuId != null) {
+    if (!es.some(x => x.id === openTaskMenuId)) closeTaskMenu();
+    else placeMenu(document.getElementById("task-menu"), document.getElementById("menu-btn-" + openTaskMenuId));
   }
   currentEvalIds = es.map(e => e.id);
   document.getElementById("th-check").style.display = batchMode ? "" : "none";
@@ -1707,6 +1881,7 @@ async function refresh() {
     if (bestAcc === null || r.accuracy > bestAcc) bestAcc = r.accuracy;
   })));
   document.getElementById("stat-best").textContent = bestAcc !== null ? bestAcc + "%" : "-";
+  renderHero(bds);
   // 家族在综合榜里算「一项」，覆盖一栏要顺带显示它的官方权重覆盖率 ——
   // 否则「只跑了一个子集」和「跑满四个组」在表里看起来一样。
   const famCover = m => (m.families || []).map(f =>
@@ -2880,18 +3055,63 @@ async function resumeEval(id) {
   refresh();
 }
 
-function toggleMenu(ev, id) {
-  ev.stopPropagation();
-  const menu = document.getElementById("menu-" + id);
-  if (!menu) return;
-  const wasOpen = menu.classList.contains("open");
-  document.querySelectorAll(".menu.open").forEach(m => m.classList.remove("open"));
-  if (!wasOpen) menu.classList.add("open");
+// 菜单开在任务表里，而任务表包在 .table-scroll（overflow-x:auto）里 ——
+// 滚动容器会把绝对定位的菜单裁掉，实测只露出「Detail / Dele…」半截。
+// 所以打开时改成 fixed，按按钮的屏幕坐标贴到它右下方（fixed 不受滚动容器裁剪）。
+function placeMenu(menu, btn) {
+  if (!menu || !btn) return;
+  const r = btn.getBoundingClientRect();
+  menu.style.position = "fixed";
+  menu.style.top = Math.round(r.bottom + 6) + "px";
+  menu.style.right = Math.round(window.innerWidth - r.right) + "px";
+  menu.style.left = "auto";
+  // 视口底部放不下时往上翻（菜单约 2~4 项，翻上去一定放得下）
+  const h = menu.offsetHeight;
+  if (r.bottom + 6 + h > window.innerHeight - 8) {
+    menu.style.top = Math.max(8, Math.round(r.top - 6 - h)) + "px";
+  }
 }
 
-document.addEventListener("click", () => {
-  document.querySelectorAll(".menu.open").forEach(m => m.classList.remove("open"));
-});
+// 「⋯」菜单：**全页只有一个**，挂在 body 下（#task-menu），不在表格里。
+// 为什么不能放在行内：① 表格包在 .table-scroll（overflow-x:auto）里，滚动容器会裁掉绝对定位的菜单；
+// ② 上一轮给操作列加了 position:sticky，而 sticky 会创建**层叠上下文** ——
+//    行内菜单的 z-index 再高也逃不出那一行，后面的行会画在它上面（用户截图：菜单下半截被下一行"Done"盖住）。
+// 移到 body 下就没有祖先层叠上下文了，菜单永远在最上层。
+function renderTaskMenu(id) {
+  const menu = document.getElementById("task-menu");
+  const e = (evalsCache || []).find(x => x.id === id);
+  if (!menu || !e) return null;
+  const running = e.status === "running" || e.status === "pending";
+  const resumable = !running && e.done > 0 && e.total > 0 && e.done < e.total;
+  menu.innerHTML = `<button class="menu-item" onclick="showItems(${id})">${t("明细")}</button>`
+    + (running ? `<button class="menu-item" onclick="stopEval(${id})">${t("停止")}</button>` : "")
+    + (resumable ? `<button class="menu-item" onclick="resumeEval(${id})">${tf("继续（补跑剩余 {0} 题）", [e.total - e.done])}</button>` : "")
+    + `<button class="menu-item danger" onclick="delEval(${id})">${t("删除")}</button>`;
+  return menu;
+}
+
+function closeTaskMenu() {
+  const menu = document.getElementById("task-menu");
+  if (menu) menu.classList.remove("open");
+  openTaskMenuId = null;
+}
+
+let openTaskMenuId = null;    // 当前菜单对应哪个任务（重渲染后要重新摆）
+
+function toggleMenu(ev, id) {
+  ev.stopPropagation();
+  const menu = document.getElementById("task-menu");
+  if (!menu) return;
+  if (menu.classList.contains("open") && openTaskMenuId === id) { closeTaskMenu(); return; }
+  openTaskMenuId = id;
+  renderTaskMenu(id);
+  menu.classList.add("open");                   // 先显示再量高度（display:none 时量到 0）
+  placeMenu(menu, document.getElementById("menu-btn-" + id));
+}
+
+document.addEventListener("click", () => { closeTaskMenu(); });
+// 滚动时关掉菜单：fixed 之后它不会跟着内容走，留着会"悬空"在别的行上
+window.addEventListener("scroll", () => { closeTaskMenu(); }, true);
 
 let itemsCache = [];   // 当前明细数据（供展开原始输出取用）
 let evalsCache = [];   // 最近一次任务列表：明细头部要用它的「正确 / 答错 / 失败」计数
@@ -3197,6 +3417,7 @@ function pollSummary() {
 }
 
 applyI18n();
+initSecNav();
 setAddModelOpen(false); loadModels(); loadBenchmarks(); refresh();
 // 沙箱探测是异步的（要调 docker 约 1 秒），拿到结果后重新渲染一次基准卡片，
 // 好让「需要 Docker」的标签能显示出「未就绪」

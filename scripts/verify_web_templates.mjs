@@ -1068,6 +1068,63 @@ check("逐题明细：安全类把这一档换成本口径的说法（越狱成�
   /\(benchMeta\[ev\.benchmark\] \|\| \{\}\)\.adverse_label \|\| t\("答错"\)/.test(src)
   && /\$\{adverse\} \$\{done - ok - bad\}/.test(src));
 
+// ---------------- 首屏记分牌（hero）----------------
+// 一屏回答"谁第一/差多少"。**口径只能用现有的**：分类第一 = 后端榜单里该分类 combined[0]，
+// 不跨分类求平均（那等于前端发明一个"综合分"，和排行榜/散点会打架）。
+check("首屏有 hero 记分牌（标题 / 大数字 / 领奖台 / 赛道）",
+  /<div class="hero" id="top">/.test(src)
+  && /id="hero-title"/.test(src) && /id="hero-wins"/.test(src)
+  && /id="hero-podium"/.test(src) && /id="hero-track"/.test(src)
+  && /function renderHero\(bds\)/.test(src));
+check("首屏数字用现有口径：分类第一取 combined[0]，不自己算平均",
+  /const top = \(c\.combined \|\| \[\]\)\[0\];/.test(src)
+  && /不跨分类求平均/.test(src)
+  && !/function renderHero[\s\S]{0,2400}?\.reduce\(/.test(src),      // 没有"求平均/求和"式聚合
+  "hero 里不许出现对分类分做 reduce 的聚合");
+check("首屏的四个统计沿用原来的 id（refresh 还在更新它们）",
+  ["stat-models", "stat-bms", "stat-evals", "stat-best"].every(id =>
+    (src.match(new RegExp(`id="${id}"`, "g")) || []).length === 1)
+  && /getElementById\("stat-best"\)\.textContent/.test(src));
+// 顶栏：吸顶 + 六段导航，锚点必须都真的存在（否则点了跳不动）
+check("顶栏吸顶 + 六段导航（锚点 sec1..sec6 都存在）",
+  /\.topbar \{[^}]*position:sticky/.test(src)
+  && /class="secnav" id="secnav"/.test(src)
+  && [1, 2, 3, 4, 5, 6].every(n => src.includes(`href="#sec${n}"`) && src.includes(`id="sec${n}"`))
+  && /scroll-margin-top:64px/.test(src));
+// 段导航高亮：把 syncSecNav 抠出来喂"标题位置"，验证点亮的是**当前那一段**。
+// 为什么不用 IntersectionObserver：观察目标只能是 h2（30px 高），触发带设在视口中线，
+// 点导航跳转后标题停在顶栏下方、永远进不了那条带 → 高亮一直停在第一段（用户实测报过）。
+function navLit(tops, { scrollY = 0, innerH = 900, scrollH = 20000 } = {}) {
+  const secs = tops.map((t, i) => ({ id: "sec" + (i + 1), getBoundingClientRect: () => ({ top: t }) }));
+  const links = secs.map((s, i) => {
+    const link = {
+      on: false, textContent: "L" + (i + 1),
+      getAttribute: () => "#" + s.id,
+      classList: {
+        toggle: (cls, v) => { if (cls === "on") link.on = v; },
+      },
+    };
+    return link;
+  });
+  const doc = {
+    getElementById: id => (id === "secnav" ? { querySelectorAll: () => links } : secs.find(s => s.id === id) || null),
+    documentElement: { scrollHeight: scrollH },
+  };
+  const win = { innerHeight: innerH, scrollY };
+  new Function("document", "window", grab("syncSecNav") + "\nsyncSecNav();")(doc, win);
+  const lit = links.filter(l => l.on).map(l => l.textContent);
+  return lit.length === 1 ? lit[0] : "(" + lit.join(",") + ")";
+}
+check("段导航高亮跟着滚动走：点亮当前段，而不是永远停在第一段",
+  // 前四段已滚过顶栏、第五段标题还在下方 → 点亮第四段
+  navLit([-4000, -3000, -2000, -1000, 300, 1200]) === "L4"
+  // 刚进页面：所有标题都在顶栏下方 → 点亮第一段
+  && navLit([400, 1200, 2100, 3000, 3800, 4600]) === "L1"
+  // 六个标题都越过顶栏（读到底部）→ 点亮最后一段
+  && navLit([-5000, -4000, -3000, -2000, -1000, 50]) === "L6"
+  // 页面到底（最后一段标题还没到判定线）→ 强制点亮最后一段
+  && navLit([-900, -800, -700, -600, -500, 400], { scrollY: 99999 }) === "L6",
+  `实际：${navLit([-4000, -3000, -2000, -1000, 300, 1200])} / ${navLit([400, 1200, 2100, 3000, 3800, 4600])} / ${navLit([-5000, -4000, -3000, -2000, -1000, 50])} / ${navLit([-900, -800, -700, -600, -500, 400], { scrollY: 99999 })}`);
 // ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
 // 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
 // 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。
@@ -1093,9 +1150,30 @@ check("模型表与任务表窄屏横向滚动，url 与 Key 不折行、操作�
 // 排行榜「覆盖」列的家族权重徽章要不换行就会溢出格子、压到表格右边缘（截图可见）
 check("排行榜覆盖列的徽章允许换行（不再溢出格子）",
   /\.ov-cov \.tag\s*\{[^}]*white-space:normal/.test(src) && /class="muted ov-cov"/.test(src));
-// 任务行的「更多操作」以前是一圈若隐若现的圆，像没做完的占位符
-check("任务行的更多操作按钮有描边（看得出能点）",
-  /\.icon-btn\s*\{[^}]*border:1px solid var\(--border2\)/.test(src));
+// 任务行的「更多操作」：**只要一圈**、且按钮别比里面的点大太多（用户两次都提过）。
+// 以前按钮没外形、靠 SVG 画一个圆当底；给按钮加描边后就"圈里套圈"。
+check("更多操作按钮只有一圈：26px 描边按钮 + 图标里只有三个点",
+  /\.icon-btn\s*\{[^}]*width:26px; height:26px[^}]*border:1px solid var\(--border2\)/.test(src)
+  && !/class="icon-btn"[\s\S]{0,300}?<circle[^>]*fill="none"/.test(src)
+  && /class="icon-btn"[\s\S]{0,400}?<circle cx="6\.4"[^>]*r="1\.7"[\s\S]{0,120}?<circle cx="10"[^>]*r="1\.7"[\s\S]{0,120}?<circle cx="13\.6"/.test(src));
+// 菜单必须**移出表格**：① .table-scroll 是滚动容器（会裁掉 absolute 菜单）；
+// ② 操作列是 position:sticky，而 sticky 会创建层叠上下文 —— 行内菜单 z-index 再高也逃不出那一行，
+//    后面的行会画在它上面（用户截图：菜单下半截被下一行 "Done" 盖住）。
+// 所以全页只留一个 #task-menu，直接挂在 body 下；内容由 renderTaskMenu() 按行生成。
+check("更多操作菜单是页面上唯一的浮层（挂在 body 下，不在表格里）",
+  /<div class="menu" id="task-menu"><\/div>/.test(src)
+  // 位置：在 .wrap 收尾之后（= body 直系子元素），而不是在任务表里
+  && src.indexOf('id="task-menu"') > src.indexOf('id="summary-box"')
+  && !/id="menu-\$\{e\.id\}"/.test(src)                    // 行内菜单已移除
+  && /function renderTaskMenu\(id\)/.test(src)
+  && /menu\.innerHTML = `<button class="menu-item" onclick="showItems\(\$\{id\}\)">/.test(src)
+  && /function placeMenu\(menu, btn\)/.test(src)
+  && /menu\.style\.position = "fixed"/.test(src)
+  // toggleMenu 打开的是全局那个菜单；重渲染后按新位置重摆（行高会变）
+  && /const menu = document\.getElementById\("task-menu"\);[\s\S]{0,300}?placeMenu\(menu, document\.getElementById\("menu-btn-" \+ id\)\)/.test(src)
+  && /id="menu-btn-\$\{e\.id\}"/.test(src)
+  && /if \(openTaskMenuId != null\) \{[\s\S]{0,200}?placeMenu\(document\.getElementById\("task-menu"\)/.test(src)
+  && /window\.addEventListener\("scroll"[\s\S]{0,160}?closeTaskMenu\(\)/.test(src));
 // 评测启动卡：30 多张基准卡，选完卡不用再滚到底才能启动。
 // sticky 只能在**包含块**内活动 —— 所以必须有一个把网格和启动卡都包住的 .launch-scope；
 // 少了它，启动卡的包含块是它自己，永远浮不起来（真浏览器实测 launchBottomGap = -1361）。
