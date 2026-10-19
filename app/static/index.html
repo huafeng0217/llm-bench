@@ -450,12 +450,12 @@
       <span class="tagline" data-i18n="填入任意 OpenAI 兼容接口（base_url + API Key + 模型名），自动跑基准测试并对比排名">填入任意 OpenAI 兼容接口（base_url + API Key + 模型名），自动跑基准测试并对比排名</span>
     </div>
     <nav class="secnav" id="secnav">
-      <a href="#sec1" data-i18n="模型管理">模型管理</a>
-      <a href="#sec2" data-i18n="选择基准并发起评测">选择基准并发起评测</a>
-      <a href="#sec3" data-i18n="评测任务">评测任务</a>
-      <a href="#sec4" data-i18n="成绩总览">成绩总览</a>
       <a href="#sec5" data-i18n="排行榜">排行榜</a>
+      <a href="#sec4" data-i18n="成绩总览">成绩总览</a>
       <a href="#sec6" data-i18n="AI 总结">AI 总结</a>
+      <a href="#sec3" data-i18n="评测任务">评测任务</a>
+      <a href="#sec2" data-i18n="选择基准并发起评测">选择基准并发起评测</a>
+      <a href="#sec1" data-i18n="模型管理">模型管理</a>
     </nav>
     <!-- 语言开关：切换后写 localStorage 并整页重载 —— 服务端返回的文案（基准简介、
          报错、判定）跟着变，重载是唯一能保证两边一致的做法，比局部重渲染可靠。 -->
@@ -486,7 +486,62 @@
     </div>
   </div>
 
-  <h2 id="sec1"><span class="no">1</span><span data-i18n="模型管理">模型管理</span><span id="add-model-toggle" style="margin-left:auto"></span></h2>
+  <h2 id="sec5"><span class="no">1</span><span data-i18n="排行榜">排行榜</span></h2>
+  <div id="board"><div class="card"><div class="empty" data-i18n="完成一次评测后生成">完成一次评测后生成</div></div></div>
+
+  <h2 id="sec4"><span class="no">2</span><span data-i18n="成绩总览">成绩总览</span></h2>
+  <div id="overview"><div class="card"><div class="empty" data-i18n="完成一次评测后生成">完成一次评测后生成</div></div></div>
+
+  <h2 id="sec6"><span class="no">3</span><span data-i18n="AI 总结">AI 总结</span></h2>
+  <div class="card">
+    <div class="row">
+      <select id="s-model"></select>
+      <button id="s-gen" style="flex:0 0 auto" onclick="genSummary()" data-i18n="生成总结">生成总结</button>
+    </div>
+    <div class="muted" style="margin-top:8px" data-i18n-html="总结只依据下方「本次依据的数据」，由所选模型写成。<b>所有统计量（排名、覆盖率、差距是否显著）都是程序算好的</b>，模型只负责解释，因此换个模型来写，数字也不会变。">
+      总结只依据下方「本次依据的数据」，由所选模型写成。
+      <b>所有统计量（排名、覆盖率、差距是否显著）都是程序算好的</b>，模型只负责解释，
+      因此换个模型来写，数字也不会变。
+    </div>
+  </div>
+  <div id="summary-box"></div>
+</div>
+
+  <h2 id="sec3"><span class="no">4</span><span data-i18n="评测任务">评测任务</span><span id="batch-toggle" style="margin-left:auto"></span></h2>
+  <div class="card" style="padding:6px 18px"><div class="table-scroll"><table><thead><tr>
+    <th id="th-check" style="width:32px; display:none"><input type="checkbox" id="task-check-all" onclick="toggleAllTasks(this)" title="全选本页" data-i18n-title="全选本页"></th>
+    <th style="width:40px">#</th><th class="tl" data-i18n="模型">模型</th><th class="tl" data-i18n="基准">基准</th><th data-i18n="进度">进度</th><th data-i18n="正确率">正确率</th><th style="width:56px" data-i18n="失败">失败</th><th data-i18n="状态">状态</th><th style="width:130px"></th>
+  </tr></thead><tbody id="evals"><tr><td colspan="8" class="empty" data-i18n="暂无任务">暂无任务</td></tr></tbody></table></div>
+    <div id="batch-bar" style="padding:4px 0"></div>
+    <div id="task-controls" style="padding:8px 0"></div></div>
+  <div id="items-box"></div>
+
+  <h2 id="sec2"><span class="no">5</span><span data-i18n="选择基准并发起评测">选择基准并发起评测</span></h2>
+  <!-- .launch-scope 只做一件事：给下面的启动卡一个"能浮起来"的包含块（见 CSS 注释） -->
+  <div class="launch-scope">
+  <div id="cat-filter" class="catbar"></div>
+  <div id="benchmarks" class="grid"></div>
+  <div class="card launch-card" style="margin-top:12px">
+    <div class="row">
+      <select id="e-model" onchange="updateEvalHint()"></select>
+      <input id="e-limit" type="number" min="0" placeholder="题目数（0 或留空 = 全部）" data-i18n-ph="题目数（0 或留空 = 全部）">
+      <select id="e-judge" onchange="updateEvalHint()" style="display:none"></select>
+      <button id="start-btn" style="flex:0 0 auto" onclick="startEval()" data-i18n="开始评测">开始评测</button>
+      <div class="muted" id="e-hint" style="flex-basis:100%;margin-top:2px" data-i18n="请先选择一个基准（点击上方卡片）和模型。">请先选择一个基准（点击上方卡片）和模型。</div>
+    </div>
+    <details style="margin-top:12px">
+      <summary class="disclosure" data-i18n="高级参数（可选，不填用默认值）">高级参数（可选，不填用默认值）</summary>
+      <div class="row" style="margin-top:10px">
+        <label class="muted"><span data-i18n="输出 token 上限">输出 token 上限</span><input id="e-maxtokens" type="number" value="2048" min="16" max="32768"></label>
+        <label class="muted"><span data-i18n="单题超时（秒）">单题超时（秒）</span><input id="e-timeout" type="number" value="90" min="5" max="600"></label>
+        <label class="muted"><span data-i18n="并发数">并发数</span><input id="e-conc" type="number" value="8" min="1" max="32"></label>
+      </div>
+      <div class="muted" style="margin-top:6px" data-i18n="思考型模型（DeepSeek V4、R1、o 系列等）的输出上限要包含思考 token，2048 是安全值；并发调高速度快但可能触发服务商限流。">思考型模型（DeepSeek V4、R1、o 系列等）的输出上限要包含思考 token，2048 是安全值；并发调高速度快但可能触发服务商限流。</div>
+    </details>
+  </div>
+  </div><!-- /.launch-scope -->
+
+  <h2 id="sec1"><span class="no">6</span><span data-i18n="模型管理">模型管理</span><span id="add-model-toggle" style="margin-left:auto"></span></h2>
   <div class="muted" style="font-size:12.5px; margin:-4px 0 10px">
     <span data-i18n-html="没有 key 也能体验：模型名填 <code>demo</code>、base_url 填 <code>mock://local</code>。所有 API Key 只保存在本地 <code>data/</code> 目录，不会上传到任何服务器。">没有 key 也能体验：模型名填 <code>demo</code>、base_url 填 <code>mock://local</code>。所有 API Key 只保存在本地 <code>data/</code> 目录，不会上传到任何服务器。</span>
   </div>
@@ -540,61 +595,6 @@
   </div>
   <div class="card" style="padding:6px 18px"><div class="table-scroll"><table><thead><tr><th class="tl" data-i18n="模型">模型</th><th style="width:110px" data-i18n="用途">用途</th><th class="tl" data-i18n="base_url">base_url</th><th class="tl" data-i18n="Key">Key</th><th style="width:150px"></th></tr></thead>
     <tbody id="models"><tr><td colspan="5" class="empty" data-i18n="暂无模型">暂无模型</td></tr></tbody></table></div></div>
-
-  <h2 id="sec2"><span class="no">2</span><span data-i18n="选择基准并发起评测">选择基准并发起评测</span></h2>
-  <!-- .launch-scope 只做一件事：给下面的启动卡一个"能浮起来"的包含块（见 CSS 注释） -->
-  <div class="launch-scope">
-  <div id="cat-filter" class="catbar"></div>
-  <div id="benchmarks" class="grid"></div>
-  <div class="card launch-card" style="margin-top:12px">
-    <div class="row">
-      <select id="e-model" onchange="updateEvalHint()"></select>
-      <input id="e-limit" type="number" min="0" placeholder="题目数（0 或留空 = 全部）" data-i18n-ph="题目数（0 或留空 = 全部）">
-      <select id="e-judge" onchange="updateEvalHint()" style="display:none"></select>
-      <button id="start-btn" style="flex:0 0 auto" onclick="startEval()" data-i18n="开始评测">开始评测</button>
-      <div class="muted" id="e-hint" style="flex-basis:100%;margin-top:2px" data-i18n="请先选择一个基准（点击上方卡片）和模型。">请先选择一个基准（点击上方卡片）和模型。</div>
-    </div>
-    <details style="margin-top:12px">
-      <summary class="disclosure" data-i18n="高级参数（可选，不填用默认值）">高级参数（可选，不填用默认值）</summary>
-      <div class="row" style="margin-top:10px">
-        <label class="muted"><span data-i18n="输出 token 上限">输出 token 上限</span><input id="e-maxtokens" type="number" value="2048" min="16" max="32768"></label>
-        <label class="muted"><span data-i18n="单题超时（秒）">单题超时（秒）</span><input id="e-timeout" type="number" value="90" min="5" max="600"></label>
-        <label class="muted"><span data-i18n="并发数">并发数</span><input id="e-conc" type="number" value="8" min="1" max="32"></label>
-      </div>
-      <div class="muted" style="margin-top:6px" data-i18n="思考型模型（DeepSeek V4、R1、o 系列等）的输出上限要包含思考 token，2048 是安全值；并发调高速度快但可能触发服务商限流。">思考型模型（DeepSeek V4、R1、o 系列等）的输出上限要包含思考 token，2048 是安全值；并发调高速度快但可能触发服务商限流。</div>
-    </details>
-  </div>
-  </div><!-- /.launch-scope -->
-
-  <h2 id="sec3"><span class="no">3</span><span data-i18n="评测任务">评测任务</span><span id="batch-toggle" style="margin-left:auto"></span></h2>
-  <div class="card" style="padding:6px 18px"><div class="table-scroll"><table><thead><tr>
-    <th id="th-check" style="width:32px; display:none"><input type="checkbox" id="task-check-all" onclick="toggleAllTasks(this)" title="全选本页" data-i18n-title="全选本页"></th>
-    <th style="width:40px">#</th><th class="tl" data-i18n="模型">模型</th><th class="tl" data-i18n="基准">基准</th><th data-i18n="进度">进度</th><th data-i18n="正确率">正确率</th><th style="width:56px" data-i18n="失败">失败</th><th data-i18n="状态">状态</th><th style="width:130px"></th>
-  </tr></thead><tbody id="evals"><tr><td colspan="8" class="empty" data-i18n="暂无任务">暂无任务</td></tr></tbody></table></div>
-    <div id="batch-bar" style="padding:4px 0"></div>
-    <div id="task-controls" style="padding:8px 0"></div></div>
-  <div id="items-box"></div>
-
-  <h2 id="sec4"><span class="no">4</span><span data-i18n="成绩总览">成绩总览</span></h2>
-  <div id="overview"><div class="card"><div class="empty" data-i18n="完成一次评测后生成">完成一次评测后生成</div></div></div>
-
-  <h2 id="sec5"><span class="no">5</span><span data-i18n="排行榜">排行榜</span></h2>
-  <div id="board"><div class="card"><div class="empty" data-i18n="完成一次评测后生成">完成一次评测后生成</div></div></div>
-
-  <h2 id="sec6"><span class="no">6</span><span data-i18n="AI 总结">AI 总结</span></h2>
-  <div class="card">
-    <div class="row">
-      <select id="s-model"></select>
-      <button id="s-gen" style="flex:0 0 auto" onclick="genSummary()" data-i18n="生成总结">生成总结</button>
-    </div>
-    <div class="muted" style="margin-top:8px" data-i18n-html="总结只依据下方「本次依据的数据」，由所选模型写成。<b>所有统计量（排名、覆盖率、差距是否显著）都是程序算好的</b>，模型只负责解释，因此换个模型来写，数字也不会变。">
-      总结只依据下方「本次依据的数据」，由所选模型写成。
-      <b>所有统计量（排名、覆盖率、差距是否显著）都是程序算好的</b>，模型只负责解释，
-      因此换个模型来写，数字也不会变。
-    </div>
-  </div>
-  <div id="summary-box"></div>
-</div>
 
 <!-- 任务行的「更多操作」菜单：全页唯一一个，**挂在 body 下**（既不在表格里、也不在 .table-scroll 里），
      所以不会被滚动容器裁剪，也不会被 sticky 操作列的层叠上下文压住。内容由 renderTaskMenu() 按行生成。 -->

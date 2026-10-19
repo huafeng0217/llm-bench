@@ -213,15 +213,8 @@ EN: dict[str, str] = {
     "{0}：{1} 个完整评测的均值 {2}%（平均 {3} ms）":
         "{0}: mean of {1} complete runs {2}% ({3} ms avg)",
     "准确率与延迟散点图": "Accuracy vs. latency scatter plot",
-    "正在读取成绩…": "Loading scores…",
-    "分类第一 = 该项目在后端榜单里、该分类第一名的模型；不跨分类求平均，所以不叫「综合分」。":
-        "A category win = this model is the category's #1 in the backend leaderboard; no cross-category average is computed, which is why it is not called an overall score.",
-    "个分类第一": "category wins",
-    "最高单基准正确率": "Best single-benchmark accuracy",
-    "<b>{0}</b> 拿下 {1} 个分类第一": "<b>{0}</b> wins {1} categories",
-    "{0} 个模型 · {1} 个基准 · {2} 场评测 · 分类共 {3} 个":
-        "{0} models · {1} benchmarks · {2} runs · {3} categories",
-    "{0} 个第一": "{0} win(s)",
+    # 注：首屏 hero 那几条词条只在**前端**用（前端有自己的 EN 表），
+    # 后端表不用跟着存 —— 之前顺手加进来是冗余，已清掉。
     "所有模型都被图例摘掉了 —— 点下面的模型名可以把它们放回来。":
         "Every model is hidden by the legend — click a model name below to bring it back.",
     "当前显示 {0}/{1} 个模型；点一下某个模型，会列出它由哪些分类等权平均出来。":

@@ -1193,6 +1193,20 @@ check("分类 chip 选单分类时自动展开；另有「展开全部 / 收起�
   /benchOpenCats\.clear\(\);/.test(src)
   && /function toggleBenchAll\(\)/.test(src)
   && /toggleBenchAll\(\)/.test(src) && /catchip allbtn/.test(src));
+// ---------------- 版面顺序：结论先行 ----------------
+// 结论段（排行榜 / 成绩总览 / AI 总结）必须排在配置段（评测任务 / 选择基准 / 模型管理）之前。
+// 这一期只搬 DOM、不动元素 id —— 锚点仍绑在各自内容上，滚动/吸底/折叠都不受影响。
+const secOrder = [...src.matchAll(/<h2 id="(sec\d)">/g)].map(m => m[1]);
+check("结论先行：六段顺序 = 排行榜 → 成绩总览 → AI 总结 → 评测任务 → 选择基准 → 模型管理",
+  secOrder.join(",") === "sec5,sec4,sec6,sec3,sec2,sec1", "实际：" + secOrder.join(","));
+check("顶部导航顺序跟内容一致（href 仍指向各自段落）",
+  src.indexOf('href="#sec5"') < src.indexOf('href="#sec4"')
+  && src.indexOf('href="#sec4"') < src.indexOf('href="#sec6"')
+  && src.indexOf('href="#sec6"') < src.indexOf('href="#sec3"')
+  && src.indexOf('href="#sec3"') < src.indexOf('href="#sec2"')
+  && src.indexOf('href="#sec2"') < src.indexOf('href="#sec1"'));
+check("六段编号徽章按新顺序重排（1..6，不能和导航错位）",
+  [...src.matchAll(/<span class="no">(\d)<\/span>/g)].map(m => m[1]).join("") === "123456");
 // ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
 // 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
 // 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。
