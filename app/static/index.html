@@ -249,8 +249,12 @@
   .cat-head .ready-tag { margin-left:auto; flex:0 0 auto; }
   .catchip.allbtn { border-style:dashed; color:var(--muted); }
   /* 基准搜索：36 个基准折叠成 8 行之后，还得能按名字直接找 */
-  .bm-search { display:flex; gap:8px; align-items:center; margin:10px 0 0; }
-  .bm-search input { flex:1; max-width:420px; }
+  /* 搜索框的上下留白要成对：上面 16 与标题分开，下面 10 与分类 chip 分开
+     （第一版只写了 margin-top:10、chip 行又没上边距 → 输入框和 chip 贴在一起，看着很挤）。 */
+  .bm-search { display:flex; gap:8px; align-items:center; margin:16px 0 10px; }
+  .bm-search input { flex:1; max-width:380px; padding-left:32px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2398a2b3' stroke-width='2.2' stroke-linecap='round'><circle cx='11' cy='11' r='7'/><path d='M20 20l-4.6-4.6'/></svg>");
+    background-repeat:no-repeat; background-position:11px 50%; }
   /* 首次使用引导：没跑过评测时给三步，而不是让人对着空表发愣 */
   .ob-card { border:1px solid var(--border); border-radius:14px; background:var(--card);
              padding:14px 18px; margin-top:14px; }

@@ -1252,7 +1252,10 @@ check("基准搜索：输入即过滤、搜索时全展开、无匹配有提示"
   /id="bm-q"/.test(src) && /function onBenchQuery\(q\)/.test(src)
   && /const matchQ = b => !benchQuery \|\|/.test(src)
   && /const open = \(catFilter \|\| benchQuery\) \? true :/.test(src)
-  && /没有匹配「\{0\}」的基准/.test(src));
+  && /没有匹配「\{0\}」的基准/.test(src)
+  // 间距：上 16 下 10（第一版只写了 margin-top:10、chip 行没上边距 → 输入框和 chip 贴在一起）
+  && /\.bm-search \{ display:flex; gap:8px; align-items:center; margin:16px 0 10px; \}/.test(src)
+  && /\.bm-search input \{[^}]*background-image:url\("data:image\/svg\+xml/.test(src));
 check("矩阵可按最高分排序（默认仍是后端顺序）",
   /let ovMatrixSort = false;/.test(src)
   && /function toggleOvMatrixSort\(\) \{ ovMatrixSort = !ovMatrixSort; drawOverview\(\); \}/.test(src)
