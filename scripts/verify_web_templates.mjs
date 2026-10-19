@@ -1262,7 +1262,16 @@ check("矩阵可按最高分排序（默认仍是后端顺序）",
   && /const rowMax = b =>/.test(src)
   && /if \(ovMatrixSort\) bms\.sort\(/.test(src)
   && /onclick="toggleOvMatrixSort\(\)"/.test(src));
-// ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
+// 趋势（A1）：第 4 个视图，数据来自 /api/evaluations；只画跑完的，并写明"换裁判不可比"。
+check("成绩总览有「趋势」视图：只画跑完的评测，且说明不可比",
+  /\["trend", t\("趋势"\)\]/.test(src)
+  && /function trendView\(\)/.test(src)
+  && /e\.status === "done" && e\.total > 0 && e\.done >= e\.total/.test(src)
+  && /\/api\/evaluations\?limit=500/.test(src)
+  // 盯调用点，不是词条表（EN 表里也含这串）
+  && /\$\{t\("<b>换过裁判或评分口径<\/b>/.test(src)
+  && /\?ov=/.test(src),
+  "趋势不能把部分评测混进来，也不能假装换过裁判的成绩连续");// ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
 // 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
 // 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。
 const i18nSlugs = [...src.matchAll(/data-i18n(?:-html|-ph|-title)?="([^"]+)"/g)]

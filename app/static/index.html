@@ -721,6 +721,16 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
+  "趋势": "Trend",
+  "正在读取评测历史…": "Loading run history…",
+  "还没有跑完的评测，趋势需要至少一场完整评测": "No completed runs yet — a trend needs at least one",
+  "这个基准还没有完整评测": "This benchmark has no completed runs yet",
+  "趋势图看同一个基准上各模型的成绩随时间怎么走（只画跑完的评测）。": "Trend shows how each model's score on one benchmark moved over time (completed runs only).",
+  "选一个基准看它的历史": "Pick a benchmark to see its history",
+  "共 {0} 场完整评测、{1} 个模型": "{0} completed runs across {1} models",
+  "{0} 上各模型的成绩趋势": "Score trend on {0} by model",
+  "每个点 = 一场跑完的评测（部分评测不画：分数天然偏低，会把曲线带偏）。": "Each dot is one completed run (partial runs are skipped: their scores are biased low and would skew the line).",
+  "<b>换过裁判或评分口径</b>的两次评测本来就不可比，图上不区分 —— 看趋势前先确认这段时间没换过裁判。": "Runs judged with a different judge or scoring mode are not comparable — the chart does not separate them, so check that the judge did not change in this period.",
   "清空": "Clear",
   "按最高分排序": "Sort by top score",
   "按原顺序": "Original order",
@@ -2337,7 +2347,11 @@ let ovMatrixSort = false; // 矩阵：行按该行最高分降序（默认保留
 function toggleOvMatrixSort() { ovMatrixSort = !ovMatrixSort; drawOverview(); }
 let ovPickModel = null;  // 已展开能力画像的模型 id
 let lbData = null;       // /api/leaderboard 原始数据（雷达/散点与排行榜共用这一份口径）
-let ovView = "matrix";   // 成绩总览的视图：matrix | radar | scatter
+// 成绩总览的视图：matrix | radar | scatter | trend。支持 ?ov=trend 直接打开某个视图（分享/排查）。
+let ovView = (() => {
+  const q = new URLSearchParams(location.search).get("ov");
+  return ["matrix", "radar", "scatter", "trend"].includes(q) ? q : "matrix";
+})();
 let ovRadarOff = new Set();  // 雷达图图例里被点掉的模型（只影响画，不改归一区间）
 let ovScatterUnit = "cat";   // 散点粒度：cat = 模型×分类（默认，点少且不混基准）| bench = 模型×基准（下钻用）
 let ovScatterOff = new Set();// 散点图例里被点掉的模型（参考线不动，只有点和菱形消失）
@@ -2424,6 +2438,7 @@ function viewControls() {
 }
 
 function viewHint() {
+  if (ovView === "trend") return t("趋势图看同一个基准上各模型的成绩随时间怎么走（只画跑完的评测）。");
   if (ovView === "radar") return t("雷达图看能力结构：哪个分类强、哪个分类是短板。");
   if (ovView === "scatter") return t("散点图看性价比：谁又快又准（默认一个点 = 一个模型的一个分类，可切到基准下钻）。");
   return `${t("行 = 基准，列 = 模型。")}<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle">
@@ -2491,7 +2506,8 @@ function drawOverview() {
 
   const pick = models.find(m => m.id === ovPickModel);
 
-  const tabs = [["matrix", t("矩阵")], ["radar", t("能力雷达")], ["scatter", t("准确率 × 延迟")]];
+  const tabs = [["matrix", t("矩阵")], ["radar", t("能力雷达")],
+                ["scatter", t("准确率 × 延迟")], ["trend", t("趋势")]];
   // 卡片头部只放"看哪个视图"（卡片级）
   const switcher = `<span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span class="seg">${tabs.map(([v, label]) =>
@@ -2508,6 +2524,7 @@ function drawOverview() {
   let inner;
   if (ovView === "radar") inner = radarView();
   else if (ovView === "scatter") inner = scatterView();
+  else if (ovView === "trend") inner = trendView();
   else if (!groups.length) inner = `<div class="empty">${t("还没有任何成绩")}</div>`;
   else inner = `<div style="overflow-x:auto">
         <table class="ov-table"><thead>${head}</thead><tbody>${body}</tbody></table>
@@ -2718,6 +2735,131 @@ function radarTable(mm) {
     return `<tr><td class="ov-bench"><span class="mdot" style="background:${colors[nm] || "var(--faint)"}"></span>${esc(nm)}</td>${cells}</tr>`;
   }).join("");
   return `<table class="ov-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+
+// ---------- 成绩总览 · 趋势（同一基准，各模型随时间） ----------
+// 数据就是任务表：/api/evaluations 返回的每一行是"某模型跑某基准的一次成绩"，自带 finished_at。
+// 只画**跑完的**（done >= total）：部分评测的分数天然偏低，混进曲线会让人误判"退步了"。
+// 另外换过裁判/评分口径的两次评测本来就不可比 —— 这个前端无法自动识别，所以写在说明里，不假装连续。
+let trendRows = null;      // 全部评测（懒加载一次；最多取 500 条）
+let trendBm = null;        // 当前选中的基准 id
+let trendBusy = false;
+
+async function loadTrend() {
+  if (trendRows || trendBusy) return;
+  trendBusy = true;
+  try {
+    const r = await api("/api/evaluations?limit=500");
+    trendRows = Array.isArray(r.items) ? r.items : [];
+  } catch (e) {
+    trendRows = [];
+  }
+  trendBusy = false;
+  if (ovView === "trend") drawOverview();
+}
+
+// 可画趋势的基准：按"完整评测次数"从多到少（评测最多的基准最值得看）
+function trendBmList() {
+  const cnt = new Map();
+  for (const e of trendRows || []) {
+    if (e.status !== "done" || !(e.total > 0) || e.done < e.total || e.accuracy == null) continue;
+    cnt.set(e.benchmark, (cnt.get(e.benchmark) || 0) + 1);
+  }
+  return [...cnt.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
+}
+
+function setTrendBm(id) { trendBm = id; drawOverview(); }
+
+function trendView() {
+  if (!trendRows) {
+    if (!trendBusy) loadTrend();
+    return `<div class="loading">${t("正在读取评测历史…")}</div>`;
+  }
+  const list = trendBmList();
+  if (!list.length) return `<div class="empty">${t("还没有跑完的评测，趋势需要至少一场完整评测")}</div>`;
+  const cur = trendBm && list.some(([id]) => id === trendBm) ? trendBm : list[0][0];
+  trendBm = cur;
+  const bmName = (lbData ? (lbData.groups || []).flatMap(g => g.benchmarks || []).find(b => b.id === cur) || {} : {}).name
+    || (trendRows.find(e => e.benchmark === cur) || {}).benchmark_name || cur;
+  // "2026-10-19 22:24:28" 是本地时间；换成 ISO 让 Date.parse 按本地时区解释
+  const ts = e => Date.parse(String(e.finished_at || e.created_at || "").replace(" ", "T")) || 0;
+  const rows = (trendRows || [])
+    .filter(e => e.benchmark === cur && e.status === "done" && e.total > 0 && e.done >= e.total && e.accuracy != null)
+    .sort((a, b) => ts(a) - ts(b));
+  if (!rows.length) return `<div class="empty">${t("这个基准还没有完整评测")}</div>`;
+
+  const colors = lbColors(lbData);
+  const byModel = new Map();
+  for (const e of rows) {
+    if (!byModel.has(e.model_name)) byModel.set(e.model_name, []);
+    byModel.get(e.model_name).push(e);
+  }
+  const names = [...byModel.keys()];
+
+  const W = 680, H = 380, mL = 54, mR = 26, mT = 18, mB = 46;
+  const iw = W - mL - mR, ih = H - mT - mB;
+  const t0 = Math.min(...rows.map(ts));
+  const t1 = Math.max(...rows.map(ts));
+  const span = Math.max(1, t1 - t0);
+  const X = v => (t0 === t1 ? mL + iw / 2 : mL + (v - t0) / span * iw);
+  const Y = v => mT + (100 - Math.max(0, Math.min(100, v))) / 100 * ih;
+  const d2 = v => { const d = new Date(v); return `${d.getMonth() + 1}/${d.getDate()}`; };
+  const dTime = v => { const d = new Date(v); const p = n => String(n).padStart(2, "0");
+    return `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+
+  let g = "";
+  // 横向网格 + y 轴刻度（0/25/50/75/100）
+  [0, 25, 50, 75, 100].forEach(v => {
+    const y = Y(v);
+    g += `<line x1="${mL}" y1="${svgNum(y)}" x2="${mL + iw}" y2="${svgNum(y)}" stroke="var(--border)" stroke-width="1"/>`;
+    g += `<text x="${mL - 8}" y="${svgNum(y + 4)}" text-anchor="end" font-size="10" fill="var(--faint)">${v}%</text>`;
+  });
+  // x 轴：最多 4 个日期刻度（点太少时按实际时间点标）
+  const xTicks = t0 === t1 ? [t0] : [0, 1, 2, 3].map(k => t0 + span * k / 3);
+  xTicks.forEach(v => {
+    const x = X(v);
+    g += `<line x1="${svgNum(x)}" y1="${mT + ih}" x2="${svgNum(x)}" y2="${mT + ih + 4}" stroke="var(--border2)" stroke-width="1"/>`;
+    g += `<text x="${svgNum(x)}" y="${mT + ih + 18}" text-anchor="middle" font-size="10" fill="var(--muted)">${d2(v)}</text>`;
+  });
+
+  // 一条线一个模型：按时间连线，点带原生 title（悬停看"哪次评测、多少分"）
+  names.forEach(nm => {
+    const col = colors[nm] || "#8a94a6";
+    const pts = byModel.get(nm);
+    const xy = pts.map(e => [X(ts(e)), Y(e.accuracy)]);
+    if (xy.length > 1) {
+      g += `<polyline fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+             opacity=".85" points="${xy.map(([x, y]) => `${svgNum(x)},${svgNum(y)}`).join(" ")}"/>`;
+    }
+    pts.forEach((e, i) => {
+      const [x, y] = xy[i];
+      g += `<circle cx="${svgNum(x)}" cy="${svgNum(y)}" r="3.4" fill="${col}" stroke="#fff" stroke-width="1">
+        <title>${esc(nm)} · ${esc(bmName)} · ${score(e.accuracy)}%（${e.done}/${e.total} 题 · ${dTime(ts(e))}）</title></circle>`;
+    });
+  });
+
+  g += `<line x1="${mL}" y1="${mT + ih}" x2="${mL + iw}" y2="${mT + ih}" stroke="var(--border2)" stroke-width="1"/>`;
+  g += `<line x1="${mL}" y1="${mT}" x2="${mL}" y2="${mT + ih}" stroke="var(--border2)" stroke-width="1"/>`;
+
+  const sel = `<select class="trend-sel" onchange="setTrendBm(this.value)" title="${t("选一个基准看它的历史")}">
+      ${list.map(([id]) => {
+        const nm2 = (lbData ? (lbData.groups || []).flatMap(gg => gg.benchmarks || []).find(b => b.id === id) || {} : {}).name || id;
+        return `<option value="${esc(id)}"${id === cur ? " selected" : ""}>${esc(nm2)}</option>`;
+      }).join("")}
+    </select>`;
+  const legend = names.map(nm =>
+    `<span style="white-space:nowrap;font-size:11px"><span class="mdot" style="background:${colors[nm] || "#8a94a6"}"></span>${esc(nm)}</span>`).join("");
+
+  return `
+    <div class="chart-bar">${sel}<span class="muted" style="font-size:11.5px">${tf("共 {0} 场完整评测、{1} 个模型", [rows.length, names.length])}</span></div>
+    <div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" class="chart-svg" role="img"
+        aria-label="${esc(tf("{0} 上各模型的成绩趋势", [bmName]))}">${g}</svg></div>
+    <div class="muted" style="font-size:11.5px;line-height:1.7;margin:6px 0 2px;display:flex;gap:4px 14px;flex-wrap:wrap">${legend}</div>
+    <div class="muted" style="font-size:11.5px;line-height:1.7">
+      ${t("每个点 = 一场跑完的评测（部分评测不画：分数天然偏低，会把曲线带偏）。")}
+      <br>${t("<b>换过裁判或评分口径</b>的两次评测本来就不可比，图上不区分 —— 看趋势前先确认这段时间没换过裁判。")}
+    </div>`;
 }
 
 function radarView() {
