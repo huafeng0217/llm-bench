@@ -113,7 +113,10 @@
            color:var(--accent2); font-size:12px; display:inline-flex; align-items:center; justify-content:center; font-weight:600; }
 
   .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin-bottom:12px;
-          box-shadow:0 1px 3px rgba(29,36,51,.05); }
+          box-shadow:0 1px 3px rgba(29,36,51,.05);
+          transition:box-shadow .16s ease, border-color .16s ease; }
+  /* 试过给「结果卡」加一条左侧强调边（inset 3px 主题色）—— 用户反馈"突兀、像边框错位"。
+     层级该由深色 hero 和大数字承担，不该给单张卡加装饰边。这里留个注释防止再犯。 */
   .pill { display:flex; gap:8px; align-items:flex-start; background:var(--bg2); border:1px solid var(--border);
           border-radius:10px; padding:9px 13px; color:var(--muted); font-size:12.5px; margin-bottom:10px; }
   .pill::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--accent); margin-top:7px; flex:0 0 auto; }
@@ -296,6 +299,24 @@
            background:linear-gradient(90deg,#3d6fe0,#6f9bf5); }
   .st-running { color:var(--accent2); } .st-done { color:var(--green); } .st-failed { color:var(--red); } .st-stopped { color:var(--amber); }
   .acc { font-weight:650; }
+  /* 排行榜的数字是全站的"成绩单"：13px 挤在表格里太委屈了。
+     只放大 #board 里的百分比（矩阵里的要留紧凑），并给得分条同一档高度 —— 数字和条要配。 */
+  #board .score-cell .acc { font-size:21px; font-weight:750; letter-spacing:-.5px;
+                            font-variant-numeric:tabular-nums; min-width:78px; line-height:1; }
+  #board .score-cell .bar { height:9px; }
+  #board .score-cell { gap:12px; }
+  /* 基准卡片：悬停轻微抬起 + 阴影，让 36 张卡"能点"这件事有手感（原来只有边框变色） */
+  .bm:hover { transform:translateY(-2px); box-shadow:0 10px 24px -18px rgba(29,36,51,.55); }
+  /* 首屏骨架：数据到之前先占位，别让大数字先显示 0 再跳 */
+  .skel { color:transparent !important; border-radius:8px;
+          background:linear-gradient(90deg, rgba(255,255,255,.10) 25%, rgba(255,255,255,.24) 37%, rgba(255,255,255,.10) 63%);
+          background-size:400% 100%; animation:skel 1.25s ease-in-out infinite; }
+  @keyframes skel { from { background-position:100% 0; } to { background-position:0 0; } }
+  /* 系统开了"减少动态效果"就全关掉（骨架、过渡、动画） */
+  @media (prefers-reduced-motion: reduce) {
+    .skel { animation:none; }
+    *, *::before, *::after { transition:none !important; animation:none !important; }
+  }
   .muted { color:var(--muted); font-size:12px; }
   .empty { color:var(--faint); font-size:13px; padding:14px 0; text-align:center; }
   /* 整块为空（不是表格单元格里那种）时给一个虚线占位方块：一行灰字太像"没加载出来"。
@@ -377,15 +398,22 @@
   /* 分类表头用最浅的一档，普通格子用稍深一档 —— 两者若同色，表头会和数据格子糊在一起 */
   .ov-table td.ov-group { text-align:left; background:var(--card2); font-weight:600; font-size:12.5px; border-radius:6px; }
   .ov-table td.ov-empty { color:var(--faint); }
-  .ov-table td.ov-cell { font-weight:600; border-radius:6px; cursor:default; }
-  /* 每个基准行的最高分单独用一种颜色挑出来，其余格子统一底色 ——
-     不再用深浅色阶：色阶要盯着比深浅才看得出差别，而"谁在这一项上最好"是一眼就该看到的。 */
+  .ov-table td.ov-cell { font-weight:600; border-radius:7px; cursor:default; }
+  /* 两种颜色就够：**最高分实心蓝、其余中性底**。
+     试过"底色深浅 = 分数"的热力网格（幂曲线色阶 + 最高分描边），用户否掉了 ——
+     ① 色深编码的就是格子里已经写着的数字（纯冗余）；
+     ② 单色蓝阶在 50~80% 这段对比太弱（68.69 vs 64.65 肉眼分不出），想表达的"差距"没传达；
+     ③ 整片浅蓝方块像荧光笔涂过，和"白卡 + 一个强调色"的整体语言打架。
+     矩阵要回答的是"哪个格子最好"，是分类比较，不是连续量级 —— 色深用错了通道。 */
   .ov-table td.ov-top { background:var(--accent); color:#fff; }
   .ov-table td.ov-plain { background:var(--bg2); color:var(--text); }
-  /* 部分评测（没跑完整题库）：虚线框 + 小标记，且**不参与**最高分评选 ——
+  /* 部分评测（没跑完整题库）：琥珀色斜纹 + 虚线框，**不参与**最高分评选 ——
      否则「跑 6 题全对」会把一项基准的最高分占掉，看起来像真实水平 */
-  .ov-table td.ov-partial { background:var(--bg2); color:var(--text); box-shadow:inset 0 0 0 1px var(--border2); }
-  .ov-table .ov-part { display:block; font-size:9px; line-height:1; color:var(--faint); font-weight:500; margin-top:2px; }
+  .ov-table td.ov-partial { color:var(--text);
+      background:repeating-linear-gradient(135deg, rgba(185,126,30,.13) 0 6px, rgba(185,126,30,.05) 6px 12px);
+      box-shadow:inset 0 0 0 1px rgba(185,126,30,.45); }
+  .ov-table .ov-part { display:block; font-size:9px; line-height:1; color:var(--amber, #b97e1e); font-weight:500; margin-top:2px; }
+
   /* 家族子集（如 BFCL v4 的 16 个）在行标题下角标出官方分组与权重 */
   .ov-table td.ov-bench .ov-grp { display:block; font-size:10px; color:var(--faint); font-weight:500; }
   /* 总览「覆盖」列：家族（BFCL v4）那枚权重徽章原来在 150px 的格子里不换行，
@@ -426,10 +454,10 @@
   <div class="hero" id="top">
     <div class="hero-in">
       <div class="hero-eyebrow" id="hero-eyebrow" data-i18n="正在读取成绩…">正在读取成绩…</div>
-      <div class="hero-title" id="hero-title">&nbsp;</div>
+      <div class="hero-title skel" id="hero-title" style="min-height:42px;width:min(560px,76%);max-width:100%">&nbsp;</div>
       <div class="hero-note" id="hero-note" data-i18n="分类第一 = 后端榜单里该分类的第一名；不跨分类求平均，所以不叫「综合分」。">分类第一 = 后端榜单里该分类的第一名；不跨分类求平均，所以不叫「综合分」。</div>
       <div class="hero-nums">
-        <div class="hn"><b class="big" id="hero-wins">–</b><span data-i18n="个分类第一">个分类第一</span></div>
+        <div class="hn"><b class="big skel" id="hero-wins">–</b><span data-i18n="个分类第一">个分类第一</span></div>
         <div class="hn"><b id="stat-best">-</b><span data-i18n="最高单基准正确率">最高单基准正确率</span></div>
         <div class="hn"><b id="stat-models">0</b><span data-i18n="已接入模型">已接入模型</span></div>
         <div class="hn"><b id="stat-bms">0</b><span data-i18n="可用基准">可用基准</span></div>
@@ -575,6 +603,8 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
+  "蓝色 = 该基准上参与评测的模型中的最高分": "Blue = the best score on this benchmark among the models that ran it",
+  "（仅在完整评测之间评），并列最高会同时标出；其余格子统一底色。": " (judged among complete runs only); ties are all highlighted and every other cell keeps the same neutral fill.",
   "最近一次评测 {0} · 分类共 {1} 个": "Last run {0} · {1} categories",
   "分类共 {0} 个": "{0} categories",
   "分类第一 = 后端榜单里该分类的第一名；不跨分类求平均，所以不叫「综合分」。": "A category win = the category's #1 in the backend leaderboard; no cross-category average is computed, which is why it is not called an overall score.",
@@ -833,8 +863,6 @@ const EN = {
     "{0}s elapsed · slower than the estimated {1}s — reasoning models take longer on a long summary (the percentage is an estimate)",
   "已用 {0} 秒 · 预计 {1} 秒左右（模型是一次性返回的，进度百分比为估算）":
     "{0}s elapsed · about {1}s expected (the model returns everything at once; the percentage is an estimate)",
-  "带「部分 x/y」的格子表示这次只跑了部分题库，分数仅供参考、":
-    "Cells marked “partial x/y” mean only part of the dataset was run, so the score is indicative and ",
   "平均延迟": "Avg latency",
   "并发跑多道题时，只要其中几道是难题（实测单题可达 200~280 秒），整体进度就会几分钟不动 —— 不代表卡死。容器只在模型返回代码之后才启动，所以「没有容器」也是正常的。":
     "With several items in flight, a few hard ones (measured: up to 200–280s each) can leave overall progress unchanged for minutes — that does not mean it is stuck. Containers start only after the model returns code, so “no container” is normal too.",
@@ -878,8 +906,6 @@ const EN = {
     "Missing groups are renormalised over the groups that ran, so this “weighted score” is not a complete BFCL result — every row shows how much official weight it covers.",
   "自己判自己会让分数失去意义，请换一个判别器":
     "a model scoring itself makes the number meaningless; pick another judge",
-  "蓝色 = 该基准上参与评测的模型中的最高分":
-    "Blue = best score among the models that ran this benchmark",
   "行 = 基准，列 = 模型。": "Rows are benchmarks, columns are models. ",
   "裁判不能是被测模型自己": "The judge cannot be the model under test",
   "裁判：{0}": "Judge: {0}",
@@ -903,8 +929,6 @@ const EN = {
   "领先": " leads ",
   "题数": "Items",
   "题目": "Item",
-  "（仅在完整评测之间评），并列最高会同时标出；其余格子统一底色。":
-    " (complete runs only); ties are marked as well and the rest share one colour.",
   "（先在模型管理里添加一个判别器）": "(add a judge model first)",
   "（先添加被测模型）": "(add a model under test first)",
   "（分类内各项的平均分 · 每项取完整评测中的最高分；家族按**官方加权总分**算一项）":
@@ -925,6 +949,8 @@ const EN = {
     'No API key needed to try it: set the model name to <code>demo</code> and base_url to <code>mock://local</code>. API keys are only stored locally under <code>data/</code> and never uploaded anywhere.',
   "总结只依据下方「本次依据的数据」，由所选模型写成。<b>所有统计量（排名、覆盖率、差距是否显著）都是程序算好的</b>，模型只负责解释，因此换个模型来写，数字也不会变。":
     'The summary is written by the selected model, based only on the data listed below. <b>All statistics (ranking, coverage, whether a gap is significant) are computed by the program</b> — the model only explains them, so the numbers stay the same no matter which model writes it.',
+  "带斜纹的格子表示这次只跑了部分题库，分数仅供参考、":
+    "Hatched cells ran only part of the benchmark, so the score is indicative only and ",
   "矩阵": "Matrix",
   "能力雷达": "Radar",
   "准确率 × 延迟": "Accuracy × Latency",
@@ -1167,6 +1193,10 @@ let modelList = null;
 let familySel = {};
 
 const pct = w => (w == null ? "" : Math.round(w * 100) + "%");
+
+// 分数统一**两位小数**：后端存的是 93.5 这样的原始值，直接插值就会和 82.86 混在一列里
+//（小数点对不齐，看着像"数字没垂直对齐"）。所有分数列都走这个函数，不再各写各的。
+const score = v => (v == null || Number.isNaN(Number(v)) ? "-" : Number(v).toFixed(2));
 
 async function loadBenchmarks() {
   const [bs, dl] = await Promise.all([api("/api/benchmarks"), api("/api/benchmarks/downloads")]);
@@ -1723,6 +1753,10 @@ function renderHero(bds) {
   const champ = rows[0];
   title.innerHTML = tf("<b>{0}</b> 拿下 {1} 个分类第一", [esc(champ.name), champ.n]);
   winsEl.textContent = champ.n;
+  // 数据到了：撤掉骨架占位（否则大数字一直是灰条）
+  title.classList.remove("skel");
+  title.style.minHeight = ""; title.style.width = "";
+  winsEl.classList.remove("skel");
   // eyebrow 放"最近一次评测是什么时候"（数字行已经承担了计数，别重复）
   const last = (evalsCache && evalsCache[0] && evalsCache[0].created_at) || "";
   eyebrowEl.textContent = last
@@ -1838,7 +1872,7 @@ async function refresh() {
       <td class="muted">${e.id}</td><td class="tl" style="font-weight:550">${esc(e.model_name)}</td>
       <td class="tl" title="${tf("输出上限 {0} tokens · 单题超时 {1}s · 并发 {2}", [e.max_tokens ?? 2048, e.timeout_s ?? 90, e.concurrency ?? 8])}"><span style="font-weight:550">${esc(e.benchmark)}</span></td>
       <td><div class="score-cell"><div class="bar"><i style="width:${pct}%"></i></div><span class="muted" style="min-width:64px;text-align:right">${e.done}/${e.total}</span></div>${liveHtml}</td>
-      <td class="acc" title="${accTitle}">${e.accuracy == null ? "-" : e.accuracy + "%"}</td>
+      <td class="acc" title="${accTitle}">${score(e.accuracy)}%</td>
       <td>${failed ? `<span class="st-failed" style="font-weight:550" title="${t("判分 / 执行失败：这几题没得到有效结果（被测模型没产出正文、裁判给不出可解析判定、服务商拦截、请求超时、题目本身报错等）。既不算对也不算答错，但按保守口径计入了正确率分母 —— 别把它读成「能力差这么多」。")}">${failed}</span>` : `<span class="muted">0</span>`}</td>
       <td class="${stCls}">${ST_TEXT[e.status] || e.status}</td>
       <td><button class="icon-btn" id="menu-btn-${e.id}" onclick="toggleMenu(event, ${e.id})" aria-label="${t("更多操作")}" title="${t("更多操作")}">
@@ -1880,12 +1914,14 @@ async function refresh() {
     if (r.partial) return;
     if (bestAcc === null || r.accuracy > bestAcc) bestAcc = r.accuracy;
   })));
-  document.getElementById("stat-best").textContent = bestAcc !== null ? bestAcc + "%" : "-";
+  document.getElementById("stat-best").textContent = bestAcc !== null ? score(bestAcc) + "%" : "-";
   renderHero(bds);
   // 家族在综合榜里算「一项」，覆盖一栏要顺带显示它的官方权重覆盖率 ——
   // 否则「只跑了一个子集」和「跑满四个组」在表里看起来一样。
+  // 家族权重徽章跟「1/1」放**同一行**（以前用 <br> 换行，那一行就比别的行高，
+  // 同一列的综合得分数字跟着低半格 —— 用户一眼看出来"数字没对齐"）。
   const famCover = m => (m.families || []).map(f =>
-    `<br><span class="tag" title="${tf("官方加权总分 {0}% · 已跑 {1}/{2} 个子集", [f.score, f.subsets_run, f.subsets_total])}">${tf("{0} 权重 {1}", [esc(f.id), pct(f.weight_covered)])}</span>`).join("");
+    `<span class="tag" style="margin-left:6px;vertical-align:middle" title="${tf("官方加权总分 {0}% · 已跑 {1}/{2} 个子集", [f.score, f.subsets_run, f.subsets_total])}">${tf("{0} 权重 {1}", [esc(f.id), pct(f.weight_covered)])}</span>`).join("");
   // 模型配色：**颜色存在后端**（models.color，创建模型时就定下来，见 app/model_colors.py），
   // 前端只负责取来用。以前是在这里把模型名排序、依次取 8 色 —— 那样「加一个名字靠前的
   // 模型」会让榜上其他模型集体变色（实测 6 个里 4 个变色），删一个更是全部变色，
@@ -1972,7 +2008,7 @@ async function refresh() {
           <td class="tl"><span style="display:inline-block;width:12px;color:var(--faint)">${open ? "▾" : "▸"}</span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:3px;background:${c.color};margin-right:6px"></span>${esc(c.name)}</td>
           <td class="tl" style="font-weight:550"><span class="mdot" style="background:${mcolor(champ.model_name)}"></span>${esc(champ.model_name)}</td>
           <td>${distBar(c)}</td>
-          <td><div class="score-cell"><div class="bar"><i style="width:${Math.min(champ.avg_accuracy, 100)}%"></i></div><span class="acc">${champ.avg_accuracy}%</span></div></td>
+          <td><div class="score-cell"><div class="bar"><i style="width:${Math.min(champ.avg_accuracy, 100)}%"></i></div><span class="acc">${score(champ.avg_accuracy)}%</span></div></td>
           <td class="muted ov-cov">${champ.covered}/${champ.total}${famCover(champ)}</td>
         </tr>`;
       }).join("")}</tbody></table>
@@ -2021,7 +2057,7 @@ ${t("缺组时按已跑组的权重归一化，所以「加权总分」不是完
           ${i === 0 ? `<td class="tl muted" rowspan="${b.rows.length}" style="vertical-align:top;font-size:12px">${esc(b.group_name)}<br><span style="font-size:10.5px">${tf("权重 {0}", [pct(b.group_weight)])}</span></td>` : ""}
           ${i === 0 ? `<td class="tl" rowspan="${b.rows.length}" style="font-weight:600;vertical-align:top">${esc(b.benchmark_name.replace(f.name + " · ", ""))}</td>` : ""}
           <td class="tl">${r.partial ? `<span class="muted" title="${t("只跑了部分题库，不排名次")}">—</span>` : `<span class="rank r${i+1}">${i+1}</span>`} ${esc(r.model_name)}${r.partial ? ` <span class="tag warn">${tf("部分 {0}/{1}", [r.total, r.full_count])}</span>` : ""}</td>
-          <td><div class="score-cell"><span class="acc">${r.accuracy}%</span><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div></div></td>
+          <td><div class="score-cell"><span class="acc">${score(r.accuracy)}%</span><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div></div></td>
           <td class="muted">${r.total}</td>
         </tr>`).join("")).join("")}</tbody></table>
       </details>
@@ -2036,7 +2072,7 @@ ${t("缺组时按已跑组的权重归一化，所以「加权总分」不是完
       <tbody>${cat.combined.map((m, i) => `<tr>
         <td><span class="rank r${i+1}">${i+1}</span></td>
         <td class="tl" style="font-weight:550"><span class="mdot" style="background:${mcolor(m.model_name)}"></span>${esc(m.model_name)}</td>
-        <td><div class="score-cell"><span class="acc">${m.avg_accuracy}%</span><div class="bar"><i style="width:${Math.min(m.avg_accuracy, 100)}%"></i></div></div></td>
+        <td><div class="score-cell"><span class="acc">${score(m.avg_accuracy)}%</span><div class="bar"><i style="width:${Math.min(m.avg_accuracy, 100)}%"></i></div></div></td>
         <td class="muted">${m.covered}/${m.total}${m.covered < m.total ? ` <span class="tag warn">${t("未跑全")}</span>` : ''}${m.partial ? ` <span class="tag warn" title="${t("这些项只有部分评测，分数不计入综合得分")}">${tf("{0} 项为部分", [m.partial])}</span>` : ''}${famCover(m)}</td>
       </tr>`).join("")}</tbody></table>
       <div style="font-weight:600;font-size:13px;margin:16px 0 6px">${t("分项")}${(cat.families || []).length ? ` <span class="muted" style="font-weight:400">${tf("（家族子集已折叠，见下方「{0}」块）", [cat.families.map(f => f.name).join("、")])}</span>` : ""}</div>
@@ -2044,7 +2080,7 @@ ${t("缺组时按已跑组的权重归一化，所以「加权总分」不是完
       <tbody>${cat.boards.map(b => b.rows.map((r, i) => `<tr>
         ${i === 0 ? `<td class="tl" rowspan="${b.rows.length}" style="font-weight:600;vertical-align:top">${esc(b.benchmark_name)}</td>` : ""}
         <td class="tl">${r.partial ? `<span class="muted" title="${t("只跑了部分题库，不排名次")}">—</span>` : `<span class="rank r${i+1}">${i+1}</span>`} <span class="mdot" style="background:${mcolor(r.model_name)}"></span>${esc(r.model_name)}${r.partial ? ` <span class="tag warn" title="${tf("只跑了 {0}/{1} 题，分数仅供参考", [r.total, r.full_count])}">${tf("部分 {0}/{1}", [r.total, r.full_count])}</span>` : ''}</td>
-        <td><div class="score-cell"><span class="acc">${r.accuracy}%</span><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div></div></td><td>${r.total}</td>
+        <td><div class="score-cell"><span class="acc">${score(r.accuracy)}%</span><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div></div></td><td>${r.total}</td>
         <td class="muted">${r.avg_latency_ms} ms</td>
         <td class="muted">${r.prompt_tokens + r.completion_tokens}</td>
       </tr>`).join("")).join("")}</tbody></table>
@@ -2165,7 +2201,7 @@ function viewHint() {
   return `${t("行 = 基准，列 = 模型。")}<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle">
           <i style="display:inline-block;width:26px;height:11px;border-radius:3px;background:var(--accent)"></i></span>
           <b>${t("蓝色 = 该基准上参与评测的模型中的最高分")}</b>${t("（仅在完整评测之间评），并列最高会同时标出；其余格子统一底色。")}
-          <br>${t("带「部分 x/y」的格子表示这次只跑了部分题库，分数仅供参考、")}<b>${t("不参与最高分评选")}</b>。
+          <br>${t("带斜纹的格子表示这次只跑了部分题库，分数仅供参考、")}<b>${t("不参与最高分评选")}</b>。
           <br>${t("悬停任一格子可以看到题量与任务号。")}`;
 }
 
@@ -2198,17 +2234,17 @@ function drawOverview() {
       const cells = models.map(m => {
         const s = b.scores[m.id];
         if (!s) return `<td class="ov-empty">—</td>`;
-        // 只把该基准的最高分挑出来，其余格子统一底色。
-        // 并列最高时**每个都标** —— 它们确实并列，挑一个既武断又会误导。
+        // 只把该基准的最高分挑出来，其余格子统一底色。并列最高时**每个都标**
+        //（它们确实并列，挑一个既武断又会误导）。
         const top = max !== null && !s.partial && s.accuracy === max;
         if (s.partial) {
           return `<td class="ov-cell ov-partial"
                       title="${tf("{0} · {1}：{2}%（只跑了 {3}/{4} 题，属部分评测，不参与最高分评选 · 任务 #{5}）", [esc(b.name), esc(m.name), s.accuracy, s.total, s.full_count, s.eval_id])}"
-                      >${s.accuracy}%<span class="ov-part">${tf("部分 {0}/{1}", [s.total, s.full_count])}</span></td>`;
+                      >${score(s.accuracy)}%<span class="ov-part">${tf("部分 {0}/{1}", [s.total, s.full_count])}</span></td>`;
         }
         return `<td class="ov-cell ${top ? "ov-top" : "ov-plain"}"
                     title="${tf("{0} · {1}：{2}%（{3} 题 · 任务 #{4}）{5}", [esc(b.name), esc(m.name), s.accuracy, s.total, s.eval_id, top ? t(" —— 该基准最高") : ""])}"
-                    >${s.accuracy}%</td>`;
+                    >${score(s.accuracy)}%</td>`;
       }).join("");
       return `<tr><td class="ov-bench" title="${esc(b.id)}">${esc(b.name)}${b.group_name
         ? `<span class="ov-grp" title="${tf("官方分组 {0} · 官方权重 {1}", [esc(b.group_name), pct(b.group_weight)])}">${esc(b.group_name)} · ${pct(b.group_weight)}</span>` : ""}</td>${cells}</tr>`;

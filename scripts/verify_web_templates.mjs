@@ -58,12 +58,15 @@ const results = [];
 const check = (name, ok, detail = "") => results.push([name, !!ok, detail]);
 const escLine = script.split("\n").find(l => l.startsWith("const esc = "));
 if (!escLine) throw new Error("找不到 esc 的定义");
+// 分数格式化（两位小数）：矩阵/排行榜的分数列都走它
+const scoreLine = script.split("\n").find(l => l.startsWith("const score = "));
+if (!scoreLine) throw new Error("找不到 score（分数统一两位小数）的定义");
 
 // ---------------- 成绩总览 ----------------
 // 总览这一整块：矩阵 + 两张图（能力雷达 / 准确率×延迟）。三张视图共用同一份
 // /api/leaderboard 数据，所以把图表那一组函数一起注入 —— 测的就是页面上真正跑的代码。
 const ovCode = [
-  escLine,
+  escLine, scoreLine,
   grab("lbColors"), grab("svgNum"), grab("median"), grab("niceCeil"),
   grab("radarModel"), grab("radarSvg"), grab("radarTable"), grab("radarView"),
   grab("scatterPoints"), grab("scatterSvg"), grab("scatterView"),
@@ -102,11 +105,46 @@ const ovData = {
 
 const ovHtml = renderOverview(ovData, "matrix", null, null);
 
-check("总览：完整成绩拿到最高分高亮", ovHtml.includes("ov-cell ov-top"));
+check("总览：完整成绩拿到最高分高亮", /class="ov-cell[^"]*\bov-top\b/.test(ovHtml));
 check("总览：部分评测格不参与最高分高亮（100% 也不高亮）",
-  !/ov-cell ov-partial"[^>]*>\s*100%<\/td>/.test(ovHtml),
+  // 分数统一两位小数后是 "100.00%"；两种写法都算，避免断言因为格式变化而恒真
+  !/class="ov-cell[^"]*\bov-top\b[^"]*"[^>]*>\s*100(\.00)?%<span class="ov-part"/.test(ovHtml),
   "100% 的部分评测被当成了最高分");
 check("总览：部分评测格带 ov-partial 标记", ovHtml.includes("ov-cell ov-partial"));
+// 矩阵：两种颜色就够（最高分实心蓝、其余中性）。试过"底色深浅 = 分数"的热力网格，用户否掉了：
+// 色深编码的就是格子里已经写着的数字（纯冗余）；单色蓝阶在 50~80% 这段拉不开对比；
+// 整片浅蓝方块和"白卡 + 一个强调色"的整体语言打架。这条断言同时**防止热力网格被重新引入**。
+check("总览：矩阵只有两种底色（最高分实心蓝、其余中性），不再用色深编码分数",
+  /\.ov-table td\.ov-top \{ background:var\(--accent\); color:#fff; \}/.test(src)
+  && /\.ov-table td\.ov-plain \{ background:var\(--bg2\)/.test(src)
+  && !/ov-heat/.test(src)
+  && !/Math\.pow\(Math\.max\(0, Math\.min\(1, s\.accuracy/.test(src)
+  && /class="ov-cell \$\{top \? "ov-top" : "ov-plain"\}"/.test(src),
+  "热力网格是被否掉的方案，别再引回来");
+check("总览：部分评测格用斜纹（和真实成绩一眼分开，仍不参与最高分评选）",
+  /\.ov-table td\.ov-partial \{[\s\S]{0,240}?repeating-linear-gradient/.test(src)
+  && /class="ov-cell ov-partial"/.test(ovHtml));
+// 行高必须齐：覆盖列的家族徽章以前用 <br> 换行，那一行比邻行高，同列的综合得分数字就低半格
+check("排行榜「覆盖」列徽章不换行（行高等齐，数字才对得齐）",
+  !/const famCover =[\s\S]{0,200}?<br>/.test(src)
+  && /const famCover[\s\S]{0,240}?margin-left:6px;vertical-align:middle/.test(src));
+// ===== 精致化：排行榜大数字 / 悬停手感 / 骨架屏 =====
+// 结果卡试过加一条 3px 主题色左边缘，用户反馈"突兀、像边框错位" → 回退，并留断言防止再加。
+check("结果卡不再加左侧强调边（层级交给深色 hero 和大数字）",
+  !/\.card\.key/.test(src) && !/class="card key"/.test(src));
+check("排行榜百分比放大成「成绩单」字号（只影响 #board，矩阵保持紧凑）",
+  /#board \.score-cell \.acc \{ font-size:21px/.test(src)
+  && /#board \.score-cell \.bar \{ height:9px/.test(src)
+  && !/\.ov-table td \{[^}]*font-size:21px/.test(src));
+check("基准卡片悬停轻微抬起（36 张卡「能点」有手感）",
+  /\.bm:hover \{ transform:translateY\(-2px\)/.test(src));
+check("首屏数字有骨架占位，数据到了再撤（不会先显示 0 再跳）",
+  src.includes('class="hero-title skel"') && src.includes('<b class="big skel" id="hero-wins">')
+  && /title\.classList\.remove\("skel"\)/.test(src)
+  && /winsEl\.classList\.remove\("skel"\)/.test(src));
+check("尊重系统的「减少动态效果」设置",
+  /@media \(prefers-reduced-motion: reduce\)/.test(src)
+  && /\.skel \{ animation:none/.test(src));
 check("总览：部分评测格显示「部分 6/164」", ovHtml.includes("部分 6/164"));
 check("总览：图例说明不参与最高分评选", ovHtml.includes("不参与最高分评选"));
 check("总览：点模型名仍能展开能力画像", ovHtml.includes("模型乙 的能力画像"));
@@ -626,9 +664,9 @@ const bds = [{
   boards: [], families: [],
 }];
 
-const boardHtml = new Function("bds", "expandedCats", "esc",
+const boardHtml = new Function("bds", "expandedCats", "esc", "score",
   pctLine + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
-)(bds, { code: true, agent: true }, s => String(s ?? ""));
+)(bds, { code: true, agent: true }, s => String(s ?? ""), v => (v == null ? "-" : Number(v).toFixed(2)));
 
 check("排行榜：部分评测带「部分 6/164」标签", boardHtml.includes("部分 6/164"));
 check("排行榜：部分评测不排名次", boardHtml.includes('title="只跑了部分题库，不排名次"'));
@@ -1125,6 +1163,15 @@ check("段导航高亮跟着滚动走：点亮当前段，而不是永远停在�
   // 页面到底（最后一段标题还没到判定线）→ 强制点亮最后一段
   && navLit([-900, -800, -700, -600, -500, 400], { scrollY: 99999 }) === "L6",
   `实际：${navLit([-4000, -3000, -2000, -1000, 300, 1200])} / ${navLit([400, 1200, 2100, 3000, 3800, 4600])} / ${navLit([-5000, -4000, -3000, -2000, -1000, 50])} / ${navLit([-900, -800, -700, -600, -500, 400], { scrollY: 99999 })}`);
+// 分数列统一**两位小数**：后端存的是 93.5 这样的原始值，直接插值会和 82.86 混在一列里，
+// 小数点对不齐（用户报"数字没垂直对齐"，实际是格式不统一）。分数列一律走 score()。
+const scoreFn = new Function(scoreLine + "\nreturn score;")();
+check("分数列统一两位小数（93.5 → 93.50，82.86 原样，空值 → -）",
+  scoreFn(93.5) === "93.50" && scoreFn(82.86) === "82.86"
+  && scoreFn(74) === "74.00" && scoreFn(null) === "-"
+  // 排行榜 / 矩阵 / 任务表 / 首屏 四处都必须用它（不能再出现裸的 ${x.accuracy}%）
+  && (src.match(/\$\{score\(/g) || []).length >= 6
+  && !/\$\{(champ\.avg_accuracy|r\.accuracy|m\.avg_accuracy|s\.accuracy|e\.accuracy)\}%/.test(src));
 // ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
 // 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
 // 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。
@@ -1280,9 +1327,9 @@ await enSmoke("AI 总结条目", () => {
   )(asciify(entry), asciify(stats), s => String(s ?? ""), null);
 });
 // 排行榜（总览 + 展开后的两张表）
-await enSmoke("排行榜", () => new Function("bds", "expandedCats", "esc",
+await enSmoke("排行榜", () => new Function("bds", "expandedCats", "esc", "score",
   pctLine + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
-)(asciify(bds), { code: true, agent: true }, s2 => String(s2 ?? "")));
+)(asciify(bds), { code: true, agent: true }, s2 => String(s2 ?? ""), v => (v == null ? "-" : Number(v).toFixed(2))));
 // 「新增模型 / 复用 API」是**两个控件**：左边选模式，右边那个列表随模式**变成**对应选项
 // （新增模型 → 服务商预设；复用 API → API 分组），两种选项不混在一个列表里。
 // 复用选项以 (base_url, api_key) 为单位、且分组由后端按**真 key** 做：
@@ -1325,9 +1372,9 @@ check("添加模型：只有复用模式才回传 copy_api_from（新增模式�
 // 英文模式下表头会整串铺开（96px 的列被撑爆），而上面那条冒烟用的假数据是全角括号，
 // 测不出这个差别，所以要单独用半角括号的组名渲染一遍。
 {
-  const renderBoard = bd => new Function("bds", "expandedCats", "esc",
+  const renderBoard = bd => new Function("bds", "expandedCats", "esc", "score",
     pctLine + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
-  )(bd, { agent: true }, s2 => String(s2 ?? ""));
+  )(bd, { agent: true }, s2 => String(s2 ?? ""), v => (v == null ? "-" : Number(v).toFixed(2)));
   const withParen = (p1, p2) => {
     const bd = JSON.parse(JSON.stringify(asciify(bds)));
     for (const cat of bd)
