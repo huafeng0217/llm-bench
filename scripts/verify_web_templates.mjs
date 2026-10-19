@@ -1198,17 +1198,6 @@ const wrapCloseIdx = src.lastIndexOf("</div>", wrapMenuIdx);
 check("六个段都在 .wrap 容器内（重排不能把闭合标签搬走）",
   wrapMenuIdx > 0 && wrapCloseIdx > 0
   && [1, 2, 3, 4, 5, 6].every(n => src.indexOf(`<h2 id="sec${n}">`) < wrapCloseIdx));
-// 配色：hero 的装饰色必须和页面 accent 同一色相（蓝），紫/品红只做**数据色**（模型身份）。
-// 之前 hero 里有两处紫罗兰装饰（右上光晕 #3b2f7a、标题渐变收在 #d3c0ff），是全页唯一的第三支色相；
-// 而且标题里的模型名用了那支薰衣草，和图例/排行榜里同名模型的品红色对不上。
-check("hero 配色收敛：装饰色只用 accent 的蓝，模型名改用模型身份色（深底提亮）",
-  !/radial-gradient\(720px 380px at 102% -6%,#3b2f7a/.test(src)
-  && !/background:linear-gradient\(92deg,#9dc0ff,#d3c0ff\)/.test(src)
-  && /const onDark = hex =>/.test(src)
-  && /const champInk = onDark\(champ\.color\);/.test(src)
-  // 真正传进去才算：模板占位存在但第三个参数恒为 "" 的话等于没改（这条一开始就被自己踩了）
-  && /champInk \? ` style="color:\$\{champInk\}"` : ""/.test(src),
-  "紫罗兰装饰会让 hero 和页面的蓝色系脱节，模型名也应该跟数据色走");
 // ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
 // 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
 // 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。

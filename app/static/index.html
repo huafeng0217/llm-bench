@@ -54,15 +54,9 @@
      一屏回答"谁第一 / 差多少"。数字**全部来自现有口径**：
      分类第一 = 后端榜单里该分类 combined[0] 的模型；不在这里算"综合分"（跨分类平均
      要新口径就得到后端定义权重，前端不发明算法）。 */
-  /* 配色规则（改这块之前先读）：
-     ① 装饰色只用页面 accent 的色相 —— 也就是这支蓝（#4a7de0 ≈ 219°）。深色底用同色相的
-        深蓝/浅蓝做明暗层次，**不要引入紫/品红/橙/青**；
-     ② 品红/紫/橙/青是**数据色**（模型身份），只在表示"这是哪个模型"时出现（图例、点、条、名字），
-        不拿来做背景光晕或文字渐变 —— 之前右上光晕是 #3b2f7a、标题渐变收在 #d3c0ff，
-        是全页仅有的两处紫色装饰，看着"浮"、也和排行榜里同名模型的品红色对不上。 */
   .hero { position:relative; overflow:hidden; margin-top:18px; border-radius:22px; color:#e9efff;
           background:radial-gradient(1100px 420px at 16% -14%,#2b4f9e 0%,rgba(43,79,158,0) 62%),
-                     radial-gradient(720px 380px at 102% -6%,#1b3c6e 0%,rgba(27,60,110,0) 60%),#0d1526;
+                     radial-gradient(720px 380px at 102% -6%,#3b2f7a 0%,rgba(59,47,122,0) 60%),#0d1526;
           box-shadow:0 26px 60px -30px rgba(13,21,38,.62); }
   .hero::after { content:""; position:absolute; inset:0; pointer-events:none; opacity:.32;
           background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),
@@ -71,12 +65,11 @@
           mask-image:radial-gradient(620px 320px at 76% 0%,#000 18%,transparent 78%);
           -webkit-mask-image:radial-gradient(620px 320px at 76% 0%,#000 18%,transparent 78%); }
   .hero-in { position:relative; padding:30px 32px 26px; }
-  .hero-eyebrow { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#9db0d2; }
+  .hero-eyebrow { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#8fa3c9; }
   .hero-title { font-size:34px; line-height:1.18; font-weight:700; letter-spacing:-.4px;
                 margin-top:11px; color:#f2f6ff; }
-  /* 模型名不用固定渐变：由 renderHero 用该模型的身份色内联（深底上提亮），
-     这样 hero 里的名字和图例/排行榜里的颜色是同一个 —— 兜底的浅蓝只在取不到色时出现。 */
-  .hero-title b { color:#cfe0ff; }
+  .hero-title b { background:linear-gradient(92deg,#9dc0ff,#d3c0ff);
+                  -webkit-background-clip:text; background-clip:text; color:transparent; }
   .hero-note { color:#9db0d2; font-size:12px; margin-top:9px; max-width:74ch; line-height:1.65; }
   /* 数字行：大数字用等宽字形，避免跳动 */
   .hero-nums { display:flex; gap:34px; flex-wrap:wrap; margin-top:20px; align-items:flex-end; }
@@ -85,7 +78,7 @@
   .hn b.big { font-size:52px; line-height:1; letter-spacing:-1.8px;
               background:linear-gradient(180deg,#fff,#a9c4ff);
               -webkit-background-clip:text; background-clip:text; color:transparent; }
-  .hn span { font-size:11.5px; color:#9db0d2; }
+  .hn span { font-size:11.5px; color:#93a7ca; }
   /* 领奖台 */
   .podium { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:22px; }
   .pod { display:flex; align-items:center; gap:10px; padding:11px 13px; border-radius:13px;
@@ -628,7 +621,6 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
-  "<b{2}>{0}</b> 拿下 {1} 个分类第一": "<b{2}>{0}</b> wins {1} categories",
   "结论": "Results",
   "评测": "Runs",
   "配置": "Setup",
@@ -1231,16 +1223,6 @@ let familySel = {};
 
 const pct = w => (w == null ? "" : Math.round(w * 100) + "%");
 
-// 深色底上用的文字色：把模型身份色按比例往白里提（只调明度、不改色相）。
-// 模型色里有些很深（比如 #2f6bd8），直接放 #0d1526 上会糊成一片，这是唯一需要"改一下"的地方。
-const onDark = hex => {
-  const m = /^#([0-9a-f]{6})$/i.exec(String(hex || ""));
-  if (!m) return "";
-  const n = parseInt(m[1], 16);
-  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(c => Math.round(c + (255 - c) * .42));
-  return "#" + ch.map(c => c.toString(16).padStart(2, "0")).join("");
-};
-
 // 分数统一**两位小数**：后端存的是 93.5 这样的原始值，直接插值就会和 82.86 混在一列里
 //（小数点对不齐，看着像"数字没垂直对齐"）。所有分数列都走这个函数，不再各写各的。
 const score = v => (v == null || Number.isNaN(Number(v)) ? "-" : Number(v).toFixed(2));
@@ -1842,10 +1824,7 @@ function renderHero(bds) {
   if (!rows.length) return;
 
   const champ = rows[0];
-  // 模型名用**它自己的身份色**（深底提亮），和图例/排行榜里的颜色对齐
-  const champInk = onDark(champ.color);
-  title.innerHTML = tf("<b{2}>{0}</b> 拿下 {1} 个分类第一",
-    [esc(champ.name), champ.n, champInk ? ` style="color:${champInk}"` : ""]);
+  title.innerHTML = tf("<b>{0}</b> 拿下 {1} 个分类第一", [esc(champ.name), champ.n]);
   winsEl.textContent = champ.n;
   // 数据到了：撤掉骨架占位（否则大数字一直是灰条）
   title.classList.remove("skel");
