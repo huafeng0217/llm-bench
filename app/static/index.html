@@ -33,15 +33,16 @@
   .tagline { display:none; color:var(--faint); font-size:11.5px; font-weight:400; letter-spacing:0;
              white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:44ch; }
   @media (min-width:1240px) { .tagline { display:inline; } }
-  /* 段导航：整页六段，点一下跳过去；滚动时自动高亮当前段（JS scrollspy） */
-  .secnav { display:flex; gap:2px; margin-left:auto; background:var(--bg2);
-            border:1px solid var(--border); border-radius:11px; padding:3px; }
-  .secnav a { font-size:12px; color:var(--muted); text-decoration:none; padding:5px 11px; border-radius:8px;
-              white-space:nowrap; transition:background .15s, color .15s; }
-  .secnav a:hover { color:var(--text); background:var(--card); }
-  .secnav a.on { background:var(--card); color:var(--text); font-weight:600;
-                 box-shadow:0 1px 3px rgba(29,36,51,.10); }
-  /* 语言开关：贴右上角 */
+  /* 顶部三个页签：结论（排行榜/成绩总览/AI 总结）/ 评测（选基准/任务）/ 配置（模型管理）。
+     用页签而不是"一屏六段"：首屏只留结论，评测与配置按需切换 —— 原来那段滚动导航职责重复，已移除。 */
+  .tabs { display:flex; gap:2px; margin-left:auto; background:var(--bg2);
+          border:1px solid var(--border); border-radius:11px; padding:3px; }
+  .tabs .tab { border:none; background:transparent; border-radius:8px; padding:6px 16px;
+               font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; white-space:nowrap;
+               transition:background .12s, color .12s; }
+  .tabs .tab:hover { color:var(--text); background:var(--card); filter:none; }
+  .tabs .tab.on { background:var(--card); color:var(--text); box-shadow:0 1px 3px rgba(29,36,51,.12); }
+  .tabpane[hidden] { display:none; }
   .langsw { display:flex; gap:0; border:1px solid var(--border2);
             border-radius:9px; overflow:hidden; flex:0 0 auto; }
   .langsw button { background:transparent; border:none; border-radius:0; color:var(--muted);
@@ -449,13 +450,10 @@
     <div class="brandname">LLM Bench
       <span class="tagline" data-i18n="填入任意 OpenAI 兼容接口（base_url + API Key + 模型名），自动跑基准测试并对比排名">填入任意 OpenAI 兼容接口（base_url + API Key + 模型名），自动跑基准测试并对比排名</span>
     </div>
-    <nav class="secnav" id="secnav">
-      <a href="#sec5" data-i18n="排行榜">排行榜</a>
-      <a href="#sec4" data-i18n="成绩总览">成绩总览</a>
-      <a href="#sec6" data-i18n="AI 总结">AI 总结</a>
-      <a href="#sec3" data-i18n="评测任务">评测任务</a>
-      <a href="#sec2" data-i18n="选择基准并发起评测">选择基准并发起评测</a>
-      <a href="#sec1" data-i18n="模型管理">模型管理</a>
+    <nav class="tabs" id="tabs" role="tablist">
+      <button type="button" class="tab on" data-tab="conclusion" onclick="setTab('conclusion')" data-i18n="结论">结论</button>
+      <button type="button" class="tab" data-tab="eval" onclick="setTab('eval')" data-i18n="评测">评测</button>
+      <button type="button" class="tab" data-tab="config" onclick="setTab('config')" data-i18n="配置">配置</button>
     </nav>
     <!-- 语言开关：切换后写 localStorage 并整页重载 —— 服务端返回的文案（基准简介、
          报错、判定）跟着变，重载是唯一能保证两边一致的做法，比局部重渲染可靠。 -->
@@ -467,133 +465,135 @@
 </div>
 
 <div class="wrap">
-  <!-- 首屏记分牌：**只用现有口径**。分类第一 = 后端榜单里该分类 combined[0] 的模型；
-       不跨分类求平均（那要新口径，得后端定义权重）。内容由 renderHero() 填。 -->
-  <div class="hero" id="top">
-    <div class="hero-in">
-      <div class="hero-eyebrow" id="hero-eyebrow" data-i18n="正在读取成绩…">正在读取成绩…</div>
-      <div class="hero-title skel" id="hero-title" style="min-height:42px;width:min(560px,76%);max-width:100%">&nbsp;</div>
-      <div class="hero-note" id="hero-note" data-i18n="分类第一 = 后端榜单里该分类的第一名；不跨分类求平均，所以不叫「综合分」。">分类第一 = 后端榜单里该分类的第一名；不跨分类求平均，所以不叫「综合分」。</div>
-      <div class="hero-nums">
-        <div class="hn"><b class="big skel" id="hero-wins">–</b><span data-i18n="个分类第一">个分类第一</span></div>
-        <div class="hn"><b id="stat-best">-</b><span data-i18n="最高单基准正确率">最高单基准正确率</span></div>
-        <div class="hn"><b id="stat-models">0</b><span data-i18n="已接入模型">已接入模型</span></div>
-        <div class="hn"><b id="stat-bms">0</b><span data-i18n="可用基准">可用基准</span></div>
-        <div class="hn"><b id="stat-evals">0</b><span data-i18n="评测任务">评测任务</span></div>
+  <div class="tabpane" id="pane-conclusion" data-pane="conclusion">
+    <!-- 首屏记分牌：**只用现有口径**。分类第一 = 后端榜单里该分类 combined[0] 的模型；
+         不跨分类求平均（那要新口径，得后端定义权重）。内容由 renderHero() 填。 -->
+    <div class="hero" id="top">
+      <div class="hero-in">
+        <div class="hero-eyebrow" id="hero-eyebrow" data-i18n="正在读取成绩…">正在读取成绩…</div>
+        <div class="hero-title skel" id="hero-title" style="min-height:42px;width:min(560px,76%);max-width:100%">&nbsp;</div>
+        <div class="hero-note" id="hero-note" data-i18n="分类第一 = 后端榜单里该分类的第一名；不跨分类求平均，所以不叫「综合分」。">分类第一 = 后端榜单里该分类的第一名；不跨分类求平均，所以不叫「综合分」。</div>
+        <div class="hero-nums">
+          <div class="hn"><b class="big skel" id="hero-wins">–</b><span data-i18n="个分类第一">个分类第一</span></div>
+          <div class="hn"><b id="stat-best">-</b><span data-i18n="最高单基准正确率">最高单基准正确率</span></div>
+          <div class="hn"><b id="stat-models">0</b><span data-i18n="已接入模型">已接入模型</span></div>
+          <div class="hn"><b id="stat-bms">0</b><span data-i18n="可用基准">可用基准</span></div>
+          <div class="hn"><b id="stat-evals">0</b><span data-i18n="评测任务">评测任务</span></div>
+        </div>
+        <div class="podium" id="hero-podium"></div>
+        <div class="track" id="hero-track"></div>
       </div>
-      <div class="podium" id="hero-podium"></div>
-      <div class="track" id="hero-track"></div>
     </div>
-  </div>
-
-  <h2 id="sec5"><span class="no">1</span><span data-i18n="排行榜">排行榜</span></h2>
-  <div id="board"><div class="card"><div class="empty" data-i18n="完成一次评测后生成">完成一次评测后生成</div></div></div>
-
-  <h2 id="sec4"><span class="no">2</span><span data-i18n="成绩总览">成绩总览</span></h2>
-  <div id="overview"><div class="card"><div class="empty" data-i18n="完成一次评测后生成">完成一次评测后生成</div></div></div>
-
-  <h2 id="sec6"><span class="no">3</span><span data-i18n="AI 总结">AI 总结</span></h2>
-  <div class="card">
-    <div class="row">
-      <select id="s-model"></select>
-      <button id="s-gen" style="flex:0 0 auto" onclick="genSummary()" data-i18n="生成总结">生成总结</button>
-    </div>
-    <div class="muted" style="margin-top:8px" data-i18n-html="总结只依据下方「本次依据的数据」，由所选模型写成。<b>所有统计量（排名、覆盖率、差距是否显著）都是程序算好的</b>，模型只负责解释，因此换个模型来写，数字也不会变。">
-      总结只依据下方「本次依据的数据」，由所选模型写成。
-      <b>所有统计量（排名、覆盖率、差距是否显著）都是程序算好的</b>，模型只负责解释，
-      因此换个模型来写，数字也不会变。
-    </div>
-  </div>
-  <div id="summary-box"></div>
-
-  <h2 id="sec3"><span class="no">4</span><span data-i18n="评测任务">评测任务</span><span id="batch-toggle" style="margin-left:auto"></span></h2>
-  <div class="card" style="padding:6px 18px"><div class="table-scroll"><table><thead><tr>
-    <th id="th-check" style="width:32px; display:none"><input type="checkbox" id="task-check-all" onclick="toggleAllTasks(this)" title="全选本页" data-i18n-title="全选本页"></th>
-    <th style="width:40px">#</th><th class="tl" data-i18n="模型">模型</th><th class="tl" data-i18n="基准">基准</th><th data-i18n="进度">进度</th><th data-i18n="正确率">正确率</th><th style="width:56px" data-i18n="失败">失败</th><th data-i18n="状态">状态</th><th style="width:130px"></th>
-  </tr></thead><tbody id="evals"><tr><td colspan="8" class="empty" data-i18n="暂无任务">暂无任务</td></tr></tbody></table></div>
-    <div id="batch-bar" style="padding:4px 0"></div>
-    <div id="task-controls" style="padding:8px 0"></div></div>
-  <div id="items-box"></div>
-
-  <h2 id="sec2"><span class="no">5</span><span data-i18n="选择基准并发起评测">选择基准并发起评测</span></h2>
-  <!-- .launch-scope 只做一件事：给下面的启动卡一个"能浮起来"的包含块（见 CSS 注释） -->
-  <div class="launch-scope">
-  <div id="cat-filter" class="catbar"></div>
-  <div id="benchmarks" class="grid"></div>
-  <div class="card launch-card" style="margin-top:12px">
-    <div class="row">
-      <select id="e-model" onchange="updateEvalHint()"></select>
-      <input id="e-limit" type="number" min="0" placeholder="题目数（0 或留空 = 全部）" data-i18n-ph="题目数（0 或留空 = 全部）">
-      <select id="e-judge" onchange="updateEvalHint()" style="display:none"></select>
-      <button id="start-btn" style="flex:0 0 auto" onclick="startEval()" data-i18n="开始评测">开始评测</button>
-      <div class="muted" id="e-hint" style="flex-basis:100%;margin-top:2px" data-i18n="请先选择一个基准（点击上方卡片）和模型。">请先选择一个基准（点击上方卡片）和模型。</div>
-    </div>
-    <details style="margin-top:12px">
-      <summary class="disclosure" data-i18n="高级参数（可选，不填用默认值）">高级参数（可选，不填用默认值）</summary>
-      <div class="row" style="margin-top:10px">
-        <label class="muted"><span data-i18n="输出 token 上限">输出 token 上限</span><input id="e-maxtokens" type="number" value="2048" min="16" max="32768"></label>
-        <label class="muted"><span data-i18n="单题超时（秒）">单题超时（秒）</span><input id="e-timeout" type="number" value="90" min="5" max="600"></label>
-        <label class="muted"><span data-i18n="并发数">并发数</span><input id="e-conc" type="number" value="8" min="1" max="32"></label>
-      </div>
-      <div class="muted" style="margin-top:6px" data-i18n="思考型模型（DeepSeek V4、R1、o 系列等）的输出上限要包含思考 token，2048 是安全值；并发调高速度快但可能触发服务商限流。">思考型模型（DeepSeek V4、R1、o 系列等）的输出上限要包含思考 token，2048 是安全值；并发调高速度快但可能触发服务商限流。</div>
-    </details>
-  </div>
-  </div><!-- /.launch-scope -->
-
-  <h2 id="sec1"><span class="no">6</span><span data-i18n="模型管理">模型管理</span><span id="add-model-toggle" style="margin-left:auto"></span></h2>
-  <div class="muted" style="font-size:12.5px; margin:-4px 0 10px">
-    <span data-i18n-html="没有 key 也能体验：模型名填 <code>demo</code>、base_url 填 <code>mock://local</code>。所有 API Key 只保存在本地 <code>data/</code> 目录，不会上传到任何服务器。">没有 key 也能体验：模型名填 <code>demo</code>、base_url 填 <code>mock://local</code>。所有 API Key 只保存在本地 <code>data/</code> 目录，不会上传到任何服务器。</span>
-  </div>
-  <div id="add-model-box" style="display:none">
+    <h2 id="sec5"><span class="no">1</span><span data-i18n="排行榜">排行榜</span></h2>
+    <div id="board"><div class="card"><div class="empty" data-i18n="完成一次评测后生成">完成一次评测后生成</div></div></div>
+    <h2 id="sec4"><span class="no">2</span><span data-i18n="成绩总览">成绩总览</span></h2>
+    <div id="overview"><div class="card"><div class="empty" data-i18n="完成一次评测后生成">完成一次评测后生成</div></div></div>
+    <h2 id="sec6"><span class="no">3</span><span data-i18n="AI 总结">AI 总结</span></h2>
     <div class="card">
-      <div class="row" style="margin-bottom:10px">
-        <!-- 两个控件分工：左边选**模式**，右边那个列表随模式**变成**对应的选项 ——
-             新增模型 → 服务商预设（点一下自动填 base_url）
-             复用 API → 已添加过的 API 分组（base_url + 脱敏 Key，并列出用它的模型）
-             两种选项刻意不混在一个列表里：它们回答的是不同问题（"用哪家的端点" vs "沿用哪套 API"）。
-             为什么复用要以 (base_url, api_key) 为单位、而不是按模型：同一套 API 上往往挂着
-             好几个模型（你的库里 DashScope 就挂了 2 个）。分组在后端按**真 key** 做 ——
-             前端只有脱敏串（sk-AAAA-mid1-BBBB 与 sk-AAAA-mid2-BBBB 脱敏后一模一样），
-             前端分组会把两把不同的 key 错并成一项；每组给一个代表 model_id，选中即"用这套 API"。
-             key 只以脱敏形式出现：既够区分同一端点下的多把 key，也不外泄真值。 -->
-        <select id="m-mode" onchange="applyMode()" style="flex:0 0 150px"
-                title="新增模型：自己填一套连接信息；复用 API：沿用已添加过的某套 base_url + Key"
-                data-i18n-title="新增模型：自己填一套连接信息；复用 API：沿用已添加过的某套 base_url + Key">
-          <option value="new" data-i18n="新增模型">新增模型</option>
-          <option value="reuse" data-i18n="复用 API">复用 API</option>
-        </select>
-        <select id="m-preset" onchange="applyPreset()" style="flex:0 0 240px">
-          <option value="" data-i18n="选择服务商（自动填 base_url）…">选择服务商（自动填 base_url）…</option>
-          <option value="https://api.deepseek.com">DeepSeek</option>
-          <option value="https://dashscope.aliyuncs.com/compatible-mode/v1" data-i18n="通义千问（阿里）">通义千问（阿里）</option>
-          <option value="https://api.moonshot.cn/v1" data-i18n="Kimi（月之暗面）">Kimi（月之暗面）</option>
-          <option value="https://open.bigmodel.cn/api/paas/v4/" data-i18n="智谱 GLM">智谱 GLM</option>
-          <option value="https://api.openai.com/v1">OpenAI</option>
-          <option value="https://openrouter.ai/api/v1">OpenRouter</option>
-          <option value="http://localhost:11434/v1" data-i18n="本地 Ollama">本地 Ollama</option>
-          <option value="custom" data-i18n="自定义（手动填写）">自定义（手动填写）</option>
-        </select>
-        <select id="m-group" onchange="applyGroup()" style="display:none;flex:1 1 320px">
-          <option value="" data-i18n="选择要复用的 API…">选择要复用的 API…</option>
-        </select>
-      </div>
       <div class="row">
-        <input id="m-name" placeholder="模型名（API 调用的名字，如 deepseek-v4-flash）" data-i18n-ph="模型名（API 调用的名字，如 deepseek-v4-flash）">
-        <input id="m-url" placeholder="base_url（必填），如 https://api.deepseek.com" data-i18n-ph="base_url（必填），如 https://api.deepseek.com">
-        <input id="m-key" placeholder="API Key" type="password">
-        <select id="m-kind" style="flex:0 0 150px" title="判别器只用于给安全类基准判分，不会出现在被测模型里" data-i18n-title="判别器只用于给安全类基准判分，不会出现在被测模型里">
-          <option value="test" data-i18n="被测模型">被测模型</option>
-          <option value="judge" data-i18n="判别器">判别器</option>
-        </select>
-        <button style="flex:0 0 auto" class="ghost" onclick="testConn()" data-i18n="测试连接">测试连接</button>
-        <button style="flex:0 0 auto" onclick="addModel()" data-i18n="添加">添加</button>
+        <select id="s-model"></select>
+        <button id="s-gen" style="flex:0 0 auto" onclick="genSummary()" data-i18n="生成总结">生成总结</button>
       </div>
-      <div class="muted" id="m-copy-hint" style="margin-top:-2px"></div>
-      <div class="muted" id="m-test-result" style="margin-top:8px"></div>
+      <div class="muted" style="margin-top:8px" data-i18n-html="总结只依据下方「本次依据的数据」，由所选模型写成。<b>所有统计量（排名、覆盖率、差距是否显著）都是程序算好的</b>，模型只负责解释，因此换个模型来写，数字也不会变。">
+        总结只依据下方「本次依据的数据」，由所选模型写成。
+        <b>所有统计量（排名、覆盖率、差距是否显著）都是程序算好的</b>，模型只负责解释，
+        因此换个模型来写，数字也不会变。
+      </div>
     </div>
+    <div id="summary-box"></div>
   </div>
-  <div class="card" style="padding:6px 18px"><div class="table-scroll"><table><thead><tr><th class="tl" data-i18n="模型">模型</th><th style="width:110px" data-i18n="用途">用途</th><th class="tl" data-i18n="base_url">base_url</th><th class="tl" data-i18n="Key">Key</th><th style="width:150px"></th></tr></thead>
-    <tbody id="models"><tr><td colspan="5" class="empty" data-i18n="暂无模型">暂无模型</td></tr></tbody></table></div></div>
+
+  <div class="tabpane" id="pane-eval" data-pane="eval" hidden>
+    <h2 id="sec2"><span class="no">4</span><span data-i18n="选择基准并发起评测">选择基准并发起评测</span></h2>
+    <!-- .launch-scope 只做一件事：给下面的启动卡一个"能浮起来"的包含块（见 CSS 注释） -->
+    <div class="launch-scope">
+    <div id="cat-filter" class="catbar"></div>
+    <div id="benchmarks" class="grid"></div>
+    <div class="card launch-card" style="margin-top:12px">
+      <div class="row">
+        <select id="e-model" onchange="updateEvalHint()"></select>
+        <input id="e-limit" type="number" min="0" placeholder="题目数（0 或留空 = 全部）" data-i18n-ph="题目数（0 或留空 = 全部）">
+        <select id="e-judge" onchange="updateEvalHint()" style="display:none"></select>
+        <button id="start-btn" style="flex:0 0 auto" onclick="startEval()" data-i18n="开始评测">开始评测</button>
+        <div class="muted" id="e-hint" style="flex-basis:100%;margin-top:2px" data-i18n="请先选择一个基准（点击上方卡片）和模型。">请先选择一个基准（点击上方卡片）和模型。</div>
+      </div>
+      <details style="margin-top:12px">
+        <summary class="disclosure" data-i18n="高级参数（可选，不填用默认值）">高级参数（可选，不填用默认值）</summary>
+        <div class="row" style="margin-top:10px">
+          <label class="muted"><span data-i18n="输出 token 上限">输出 token 上限</span><input id="e-maxtokens" type="number" value="2048" min="16" max="32768"></label>
+          <label class="muted"><span data-i18n="单题超时（秒）">单题超时（秒）</span><input id="e-timeout" type="number" value="90" min="5" max="600"></label>
+          <label class="muted"><span data-i18n="并发数">并发数</span><input id="e-conc" type="number" value="8" min="1" max="32"></label>
+        </div>
+        <div class="muted" style="margin-top:6px" data-i18n="思考型模型（DeepSeek V4、R1、o 系列等）的输出上限要包含思考 token，2048 是安全值；并发调高速度快但可能触发服务商限流。">思考型模型（DeepSeek V4、R1、o 系列等）的输出上限要包含思考 token，2048 是安全值；并发调高速度快但可能触发服务商限流。</div>
+      </details>
+    </div>
+    </div><!-- /.launch-scope -->
+    <h2 id="sec3"><span class="no">5</span><span data-i18n="评测任务">评测任务</span><span id="batch-toggle" style="margin-left:auto"></span></h2>
+    <div class="card" style="padding:6px 18px"><div class="table-scroll"><table><thead><tr>
+      <th id="th-check" style="width:32px; display:none"><input type="checkbox" id="task-check-all" onclick="toggleAllTasks(this)" title="全选本页" data-i18n-title="全选本页"></th>
+      <th style="width:40px">#</th><th class="tl" data-i18n="模型">模型</th><th class="tl" data-i18n="基准">基准</th><th data-i18n="进度">进度</th><th data-i18n="正确率">正确率</th><th style="width:56px" data-i18n="失败">失败</th><th data-i18n="状态">状态</th><th style="width:130px"></th>
+    </tr></thead><tbody id="evals"><tr><td colspan="8" class="empty" data-i18n="暂无任务">暂无任务</td></tr></tbody></table></div>
+      <div id="batch-bar" style="padding:4px 0"></div>
+      <div id="task-controls" style="padding:8px 0"></div></div>
+    <div id="items-box"></div>
+  </div>
+
+  <div class="tabpane" id="pane-config" data-pane="config" hidden>
+    <h2 id="sec1"><span class="no">6</span><span data-i18n="模型管理">模型管理</span><span id="add-model-toggle" style="margin-left:auto"></span></h2>
+    <div class="muted" style="font-size:12.5px; margin:-4px 0 10px">
+      <span data-i18n-html="没有 key 也能体验：模型名填 <code>demo</code>、base_url 填 <code>mock://local</code>。所有 API Key 只保存在本地 <code>data/</code> 目录，不会上传到任何服务器。">没有 key 也能体验：模型名填 <code>demo</code>、base_url 填 <code>mock://local</code>。所有 API Key 只保存在本地 <code>data/</code> 目录，不会上传到任何服务器。</span>
+    </div>
+    <div id="add-model-box" style="display:none">
+      <div class="card">
+        <div class="row" style="margin-bottom:10px">
+          <!-- 两个控件分工：左边选**模式**，右边那个列表随模式**变成**对应的选项 ——
+               新增模型 → 服务商预设（点一下自动填 base_url）
+               复用 API → 已添加过的 API 分组（base_url + 脱敏 Key，并列出用它的模型）
+               两种选项刻意不混在一个列表里：它们回答的是不同问题（"用哪家的端点" vs "沿用哪套 API"）。
+               为什么复用要以 (base_url, api_key) 为单位、而不是按模型：同一套 API 上往往挂着
+               好几个模型（你的库里 DashScope 就挂了 2 个）。分组在后端按**真 key** 做 ——
+               前端只有脱敏串（sk-AAAA-mid1-BBBB 与 sk-AAAA-mid2-BBBB 脱敏后一模一样），
+               前端分组会把两把不同的 key 错并成一项；每组给一个代表 model_id，选中即"用这套 API"。
+               key 只以脱敏形式出现：既够区分同一端点下的多把 key，也不外泄真值。 -->
+          <select id="m-mode" onchange="applyMode()" style="flex:0 0 150px"
+                  title="新增模型：自己填一套连接信息；复用 API：沿用已添加过的某套 base_url + Key"
+                  data-i18n-title="新增模型：自己填一套连接信息；复用 API：沿用已添加过的某套 base_url + Key">
+            <option value="new" data-i18n="新增模型">新增模型</option>
+            <option value="reuse" data-i18n="复用 API">复用 API</option>
+          </select>
+          <select id="m-preset" onchange="applyPreset()" style="flex:0 0 240px">
+            <option value="" data-i18n="选择服务商（自动填 base_url）…">选择服务商（自动填 base_url）…</option>
+            <option value="https://api.deepseek.com">DeepSeek</option>
+            <option value="https://dashscope.aliyuncs.com/compatible-mode/v1" data-i18n="通义千问（阿里）">通义千问（阿里）</option>
+            <option value="https://api.moonshot.cn/v1" data-i18n="Kimi（月之暗面）">Kimi（月之暗面）</option>
+            <option value="https://open.bigmodel.cn/api/paas/v4/" data-i18n="智谱 GLM">智谱 GLM</option>
+            <option value="https://api.openai.com/v1">OpenAI</option>
+            <option value="https://openrouter.ai/api/v1">OpenRouter</option>
+            <option value="http://localhost:11434/v1" data-i18n="本地 Ollama">本地 Ollama</option>
+            <option value="custom" data-i18n="自定义（手动填写）">自定义（手动填写）</option>
+          </select>
+          <select id="m-group" onchange="applyGroup()" style="display:none;flex:1 1 320px">
+            <option value="" data-i18n="选择要复用的 API…">选择要复用的 API…</option>
+          </select>
+        </div>
+        <div class="row">
+          <input id="m-name" placeholder="模型名（API 调用的名字，如 deepseek-v4-flash）" data-i18n-ph="模型名（API 调用的名字，如 deepseek-v4-flash）">
+          <input id="m-url" placeholder="base_url（必填），如 https://api.deepseek.com" data-i18n-ph="base_url（必填），如 https://api.deepseek.com">
+          <input id="m-key" placeholder="API Key" type="password">
+          <select id="m-kind" style="flex:0 0 150px" title="判别器只用于给安全类基准判分，不会出现在被测模型里" data-i18n-title="判别器只用于给安全类基准判分，不会出现在被测模型里">
+            <option value="test" data-i18n="被测模型">被测模型</option>
+            <option value="judge" data-i18n="判别器">判别器</option>
+          </select>
+          <button style="flex:0 0 auto" class="ghost" onclick="testConn()" data-i18n="测试连接">测试连接</button>
+          <button style="flex:0 0 auto" onclick="addModel()" data-i18n="添加">添加</button>
+        </div>
+        <div class="muted" id="m-copy-hint" style="margin-top:-2px"></div>
+        <div class="muted" id="m-test-result" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div class="card" style="padding:6px 18px"><div class="table-scroll"><table><thead><tr><th class="tl" data-i18n="模型">模型</th><th style="width:110px" data-i18n="用途">用途</th><th class="tl" data-i18n="base_url">base_url</th><th class="tl" data-i18n="Key">Key</th><th style="width:150px"></th></tr></thead>
+      <tbody id="models"><tr><td colspan="5" class="empty" data-i18n="暂无模型">暂无模型</td></tr></tbody></table></div></div>
+  </div>
 </div>
 
 <!-- 任务行的「更多操作」菜单：全页唯一一个，**挂在 body 下**（既不在表格里、也不在 .table-scroll 里），
@@ -621,6 +621,9 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
+  "结论": "Results",
+  "评测": "Runs",
+  "配置": "Setup",
   "+{0}": "+{0}",
   "一次展开或收起所有分类": "Expand or collapse every category at once",
   "收起全部": "Collapse all",
@@ -1847,35 +1850,27 @@ function renderHero(bds) {
        <span class="v">${r.n}</span></div>`).join("");
 }
 
-// 段导航高亮：以「**最后一个越过顶栏的标题**」为当前段。
-// 为什么不用 IntersectionObserver：观察目标只能是 h2（30px 高），再把触发带设在视口中线，
-// 点导航跳转后标题正好停在顶栏下方、永远进不了那条带 —— 高亮就一直停在第一段（用户实测）。
-// 现在改成确定性判定：每次滚动后取 top <= 顶栏高度的最后一个标题；滚到底时强制点亮最后一段。
-function syncSecNav() {
-  const nav = document.getElementById("secnav");
-  if (!nav) return;
-  const links = [...nav.querySelectorAll("a")];
-  const items = links
-    .map(a => ({ a, el: document.getElementById(a.getAttribute("href").slice(1)) }))
-    .filter(x => x.el);
-  if (!items.length) return;
-  const line = 96;                       // 顶栏高度 + 一点余量
-  let cur = items[0];
-  for (const it of items) if (it.el.getBoundingClientRect().top <= line) cur = it;
-  // 页面到底：最后一段的标题可能永远到不了判定线（下面内容不够长）
-  if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
-    cur = items[items.length - 1];
-  }
-  links.forEach(a => a.classList.toggle("on", a === cur.a));
+// 顶部三页签：用 [hidden] 切页，**不重渲染** —— 各段的渲染挂载点与内部状态都保持原样
+// （排行榜/矩阵/折叠状态/启动卡的吸底都不受影响）。上次看的页签记在 localStorage 里。
+const TABS = ["conclusion", "eval", "config"];
+let activeTab = (() => {
+  // ?tab=eval 可以直接打开某个页签（方便分享链接/排查），其次用上次记住的
+  const q = new URLSearchParams(location.search).get("tab");
+  if (TABS.includes(q)) return q;
+  try { const v = localStorage.getItem("bench_tab"); return TABS.includes(v) ? v : "conclusion"; }
+  catch { return "conclusion"; }
+})();
+
+function setTab(tab) {
+  if (!TABS.includes(tab)) tab = "conclusion";
+  activeTab = tab;
+  try { localStorage.setItem("bench_tab", tab); } catch { /* 隐私模式下写不了，忽略 */ }
+  document.querySelectorAll(".tabpane").forEach(p => { p.hidden = p.dataset.pane !== tab; });
+  document.querySelectorAll("#tabs .tab").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
+  window.scrollTo(0, 0);      // 换页签回到顶部，否则会停在"上一个页签的同一高度"
 }
 
-function initSecNav() {
-  let raf = 0;
-  const schedule = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; syncSecNav(); }); };
-  window.addEventListener("scroll", schedule, { passive: true });
-  window.addEventListener("resize", schedule);
-  syncSecNav();
-}
+function initTabs() { setTab(activeTab); }
 
 async function refresh() {
   // 评测任务：收起时只显示最新 TASK_PREVIEW 条；展开后按 TASK_PAGE_SIZE 分页
@@ -3523,7 +3518,7 @@ function pollSummary() {
 }
 
 applyI18n();
-initSecNav();
+initTabs();
 setAddModelOpen(false); loadModels(); loadBenchmarks(); refresh();
 // 沙箱探测是异步的（要调 docker 约 1 秒），拿到结果后重新渲染一次基准卡片，
 // 好让「需要 Docker」的标签能显示出「未就绪」

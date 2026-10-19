@@ -1123,46 +1123,33 @@ check("首屏的四个统计沿用原来的 id（refresh 还在更新它们）",
   ["stat-models", "stat-bms", "stat-evals", "stat-best"].every(id =>
     (src.match(new RegExp(`id="${id}"`, "g")) || []).length === 1)
   && /getElementById\("stat-best"\)\.textContent/.test(src));
-// 顶栏：吸顶 + 六段导航，锚点必须都真的存在（否则点了跳不动）
-check("顶栏吸顶 + 六段导航（锚点 sec1..sec6 都存在）",
+// 顶栏：吸顶 + 三个页签（结论 / 评测 / 配置）。用页签而不是"一屏六段"：
+// 首屏只留结论，评测与配置按需切换；原来那段滚动导航职责重复，已一并移除。
+check("顶栏吸顶 + 三个页签（结论 / 评测 / 配置），旧的段导航已移除",
   /\.topbar \{[^}]*position:sticky/.test(src)
-  && /class="secnav" id="secnav"/.test(src)
-  && [1, 2, 3, 4, 5, 6].every(n => src.includes(`href="#sec${n}"`) && src.includes(`id="sec${n}"`))
-  && /scroll-margin-top:64px/.test(src));
-// 段导航高亮：把 syncSecNav 抠出来喂"标题位置"，验证点亮的是**当前那一段**。
-// 为什么不用 IntersectionObserver：观察目标只能是 h2（30px 高），触发带设在视口中线，
-// 点导航跳转后标题停在顶栏下方、永远进不了那条带 → 高亮一直停在第一段（用户实测报过）。
-function navLit(tops, { scrollY = 0, innerH = 900, scrollH = 20000 } = {}) {
-  const secs = tops.map((t, i) => ({ id: "sec" + (i + 1), getBoundingClientRect: () => ({ top: t }) }));
-  const links = secs.map((s, i) => {
-    const link = {
-      on: false, textContent: "L" + (i + 1),
-      getAttribute: () => "#" + s.id,
-      classList: {
-        toggle: (cls, v) => { if (cls === "on") link.on = v; },
-      },
-    };
-    return link;
-  });
-  const doc = {
-    getElementById: id => (id === "secnav" ? { querySelectorAll: () => links } : secs.find(s => s.id === id) || null),
-    documentElement: { scrollHeight: scrollH },
-  };
-  const win = { innerHeight: innerH, scrollY };
-  new Function("document", "window", grab("syncSecNav") + "\nsyncSecNav();")(doc, win);
-  const lit = links.filter(l => l.on).map(l => l.textContent);
-  return lit.length === 1 ? lit[0] : "(" + lit.join(",") + ")";
-}
-check("段导航高亮跟着滚动走：点亮当前段，而不是永远停在第一段",
-  // 前四段已滚过顶栏、第五段标题还在下方 → 点亮第四段
-  navLit([-4000, -3000, -2000, -1000, 300, 1200]) === "L4"
-  // 刚进页面：所有标题都在顶栏下方 → 点亮第一段
-  && navLit([400, 1200, 2100, 3000, 3800, 4600]) === "L1"
-  // 六个标题都越过顶栏（读到底部）→ 点亮最后一段
-  && navLit([-5000, -4000, -3000, -2000, -1000, 50]) === "L6"
-  // 页面到底（最后一段标题还没到判定线）→ 强制点亮最后一段
-  && navLit([-900, -800, -700, -600, -500, 400], { scrollY: 99999 }) === "L6",
-  `实际：${navLit([-4000, -3000, -2000, -1000, 300, 1200])} / ${navLit([400, 1200, 2100, 3000, 3800, 4600])} / ${navLit([-5000, -4000, -3000, -2000, -1000, 50])} / ${navLit([-900, -800, -700, -600, -500, 400], { scrollY: 99999 })}`);
+  && /class="tabs" id="tabs"/.test(src)
+  && ["conclusion", "eval", "config"].every(t => src.includes(`data-tab="${t}"`))
+  && !/class="secnav"/.test(src) && !/syncSecNav/.test(src));
+// 三个 pane 分组：结论页装 hero + 排行榜/成绩总览/AI 总结；评测页 = 选基准 + 任务；配置页 = 模型管理。
+check("三个 pane 分组正确（hero 归结论页；评测页里「选择基准」在「评测任务」前）",
+  /<div class="tabpane" id="pane-conclusion" data-pane="conclusion">/.test(src)
+  && /<div class="tabpane" id="pane-eval" data-pane="eval" hidden>/.test(src)
+  && /<div class="tabpane" id="pane-config" data-pane="config" hidden>/.test(src)
+  && src.indexOf('id="pane-conclusion"') < src.indexOf('<div class="hero"')
+  && src.indexOf('<div class="hero"') < src.indexOf('<h2 id="sec5">')
+  && src.indexOf('id="pane-eval"') < src.indexOf('<h2 id="sec2">')
+  && src.indexOf('<h2 id="sec2">') < src.indexOf('<h2 id="sec3">')
+  && src.indexOf('id="pane-config"') < src.indexOf('<h2 id="sec1">'));
+// 切页签只改 [hidden]，不重渲染 —— 各段挂载点与内部状态（折叠/吸底/图表）都保持原样；
+// 状态记进 localStorage，另外支持 ?tab=eval 直接打开某页（分享链接、排查都方便）。
+check("切页签是切 [hidden]（不重渲染）+ 记住上次页签 + 支持 ?tab=",
+  /function setTab\(tab\)/.test(src)
+  && /p\.hidden = p\.dataset\.pane !== tab/.test(src)
+  && /b\.classList\.toggle\("on", b\.dataset\.tab === tab\)/.test(src)
+  && /localStorage\.setItem\("bench_tab", tab\)/.test(src)
+  && /new URLSearchParams\(location\.search\)\.get\("tab"\)/.test(src)
+  && /\.tabpane\[hidden\] \{ display:none; \}/.test(src)
+  && /initTabs\(\);/.test(src));
 // 分数列统一**两位小数**：后端存的是 93.5 这样的原始值，直接插值会和 82.86 混在一列里，
 // 小数点对不齐（用户报"数字没垂直对齐"，实际是格式不统一）。分数列一律走 score()。
 const scoreFn = new Function(scoreLine + "\nreturn score;")();
@@ -1197,14 +1184,11 @@ check("分类 chip 选单分类时自动展开；另有「展开全部 / 收起�
 // 结论段（排行榜 / 成绩总览 / AI 总结）必须排在配置段（评测任务 / 选择基准 / 模型管理）之前。
 // 这一期只搬 DOM、不动元素 id —— 锚点仍绑在各自内容上，滚动/吸底/折叠都不受影响。
 const secOrder = [...src.matchAll(/<h2 id="(sec\d)">/g)].map(m => m[1]);
-check("结论先行：六段顺序 = 排行榜 → 成绩总览 → AI 总结 → 评测任务 → 选择基准 → 模型管理",
-  secOrder.join(",") === "sec5,sec4,sec6,sec3,sec2,sec1", "实际：" + secOrder.join(","));
-check("顶部导航顺序跟内容一致（href 仍指向各自段落）",
-  src.indexOf('href="#sec5"') < src.indexOf('href="#sec4"')
-  && src.indexOf('href="#sec4"') < src.indexOf('href="#sec6"')
-  && src.indexOf('href="#sec6"') < src.indexOf('href="#sec3"')
-  && src.indexOf('href="#sec3"') < src.indexOf('href="#sec2"')
-  && src.indexOf('href="#sec2"') < src.indexOf('href="#sec1"'));
+check("结论先行：六段顺序 = 排行榜 → 成绩总览 → AI 总结 → 选择基准 → 评测任务 → 模型管理",
+  secOrder.join(",") === "sec5,sec4,sec6,sec2,sec3,sec1", "实际：" + secOrder.join(","));
+check("页签顺序 = 结论 → 评测 → 配置",
+  src.indexOf('data-tab="conclusion"') < src.indexOf('data-tab="eval"')
+  && src.indexOf('data-tab="eval"') < src.indexOf('data-tab="config"'));
 check("六段编号徽章按新顺序重排（1..6，不能和导航错位）",
   [...src.matchAll(/<span class="no">(\d)<\/span>/g)].map(m => m[1]).join("") === "123456");
 // 六个段必须都在 .wrap 容器里。重排时如果把 wrap 的闭合 </div> 当成"最后一段的内容"一起搬走，
