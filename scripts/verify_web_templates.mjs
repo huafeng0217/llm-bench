@@ -1213,6 +1213,33 @@ check("主按钮用渐变、其余按钮保持中性；页脚深色收尾",
   // 类名别撞车：.foot 是卡片/弹窗底部的（.bm .foot / .modal .foot），页面页脚必须用 .page-foot
   && !/^\.foot \{[^}]*background:linear-gradient\(180deg,#0d1526/m.test(src)
   && /data-i18n="所有数据都在本机 data\/ 目录，不会上传到任何服务器"/.test(src));
+// 细节收尾：读数据时的占位、键盘焦点、空状态、移动端。
+// 读取中不能谎报“完成一次评测后生成”（首屏会闪一下空话）；键盘操作要有可见焦点环；
+// 窄屏下表格要卡内滚动（否则整页横向溢出），排行榜总览只留三列保证“综合得分”不用滑动。
+// 只看**静态骨架**（<script> 之前）：这两处占位是读数据时显示的，不能谎报“完成一次评测后生成”。
+// 用 count === 2 而不是 test()，否则只改掉其中一个占位时断言仍然通过（负测发现的）。
+const staticHtml = src.slice(0, src.indexOf("<script>"));
+check("读取中有独立占位（loading），空状态用虚线卡片",
+  (staticHtml.match(/class="loading" data-i18n="正在读取成绩…"/g) || []).length === 2
+  // 静态骨架里不能再有"空状态"（说明还是先渲染空话）；注意别用整段 includes 判 —— 注释里就写着这句话
+  // 只盯这两块：全站还有别处合法的静态空状态（AI 总结、逐题明细）
+  && !/id="board"><div class="card"><div class="empty"/.test(staticHtml)
+  && !/id="overview"><div class="card"><div class="empty"/.test(staticHtml)
+  && /\.loading::after \{/.test(src)
+  && /\.empty \{ color:var\(--faint\)[^}]*border:1px dashed var\(--border2\)/.test(src));
+check("键盘焦点可见（:focus-visible），并尊重减少动效",
+  /:where\(a, button, \.catchip, \.tab, summary\):focus-visible \{/.test(src)
+  && /\.topbar :where\(a, button\):focus-visible \{ outline-color:#9db0d2/.test(src)
+  && /html \{ scroll-behavior:smooth; \}/.test(src)
+  && /::selection \{ background:rgba\(74,125,224,\.22\)/.test(src));
+check("移动端：宽表卡内滚动 + 排行榜总览收成三列",
+  /#board > \.card, #overview > \.card \{ overflow-x:auto; \}/.test(src)
+  && /class="ov-main"/.test(src)
+  && /\.ov-main, \.ov-table \{ min-width:820px; \}/.test(src)
+  && /@media \(max-width: 760px\) \{/.test(src)
+  && /\.ov-main th:nth-child\(5\), \.ov-main td:nth-child\(5\) \{ display:none; \}/.test(src)
+  && /\.table-scroll \.ov-main, \.ov-main \{ min-width:0 !important; \}/.test(src)
+  && /@media \(max-width: 640px\) \{/.test(src));
 // ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
 // 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
 // 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。

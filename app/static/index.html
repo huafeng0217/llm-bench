@@ -35,6 +35,39 @@
   .tagline { display:none; color:#8fa3c9; font-size:11.5px; font-weight:400; letter-spacing:0;
              white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:44ch; }
   @media (min-width:1240px) { .tagline { display:inline; } }
+  /* 窄屏：顶栏挤得下（页签与语言开关都要在），hero 收紧，内容两边留 14px */
+  @media (max-width: 640px) {
+    .wrap { padding:0 14px 56px; }
+    .topbar-in { padding:8px 12px; gap:8px; }
+    .brandname { font-size:13.5px; }
+    .tabs { padding:2px; }
+    .tabs .tab { padding:6px 10px; font-size:12px; }
+    .langsw button { padding:4px 7px; font-size:12px; }
+    .hero { border-radius:16px; }
+    .hero-in { padding:22px 18px 20px; }
+    .hero-title { font-size:24px; }
+    .hero-nums { gap:16px 22px; }
+    .hn b { font-size:24px; } .hn b.big { font-size:40px; }
+    h2 { font-size:15px; padding-top:18px; }
+    .page-foot { margin-top:40px; }
+    .page-foot-in { padding:16px 14px; }
+  }
+  /* 更窄（手机竖屏）：排行榜总览的「分数分布」是辅助列，收起来 → 分类/冠军/综合得分/覆盖四列正好放下，
+     不然要横向滑才能看到最重要的「综合得分」。矩阵仍保留横向滚动（六列没法压）。 */
+  @media (max-width: 760px) {
+    /* 排行榜总览在手机上只留「分类 / 冠军模型 / 综合得分」三列：
+       「分数分布」是辅助列、「覆盖」可点开分类看 —— 否则就得横向滑动才能看到最重要的综合得分。
+       同时解除桌面上的固定列宽，让三列按内容自适应。 */
+    /* 注意：.table-scroll table 有 min-width:760px（0,1,1），靠 !important + 后代选择器才压得住 */
+    .table-scroll .ov-main, .ov-main { min-width:0 !important; }
+    .ov-main th:nth-child(3), .ov-main td:nth-child(3),
+    .ov-main th:nth-child(5), .ov-main td:nth-child(5) { display:none; }
+    .ov-main th:nth-child(1), .ov-main th:nth-child(4),
+    .ov-main td:nth-child(1), .ov-main td:nth-child(4) { width:auto !important; }
+    #board .score-cell .bar { min-width:36px; }
+    #board .score-cell .acc { min-width:60px; font-size:16px; }
+    .hero-nums { gap:14px 18px; }
+  }
   /* 顶部三个页签：结论（排行榜/成绩总览/AI 总结）/ 评测（选基准/任务）/ 配置（模型管理）。
      用页签而不是"一屏六段"：首屏只留结论，评测与配置按需切换 —— 原来那段滚动导航职责重复，已移除。 */
   .tabs { display:flex; gap:2px; margin-left:auto; background:rgba(255,255,255,.07);
@@ -352,7 +385,20 @@
     *, *::before, *::after { transition:none !important; animation:none !important; }
   }
   .muted { color:var(--muted); font-size:12px; }
-  .empty { color:var(--faint); font-size:13px; padding:14px 0; text-align:center; }
+  /* 空状态与"读取中"分开：读取中不能谎报"完成一次评测后生成"（首屏会闪一下空话）。 */
+  .empty { color:var(--faint); font-size:13px; padding:34px 16px; text-align:center;
+           border:1px dashed var(--border2); border-radius:12px; }
+  .loading { color:var(--faint); font-size:13px; padding:30px 16px; text-align:center; }
+  .loading::after { content:""; display:block; width:120px; height:3px; margin:12px auto 0;
+                    border-radius:2px; background:linear-gradient(90deg,var(--bg2),var(--border2),var(--bg2));
+                    background-size:200% 100%; animation:loadbar 1.2s ease-in-out infinite; }
+  @keyframes loadbar { from { background-position:180% 0; } to { background-position:-80% 0; } }
+  /* 键盘可达：只在键盘操作时描边（鼠标点击不出现），深色顶栏里用浅色环 */
+  :where(a, button, .catchip, .tab, summary):focus-visible {
+    outline:2px solid var(--accent); outline-offset:2px; border-radius:7px; }
+  .topbar :where(a, button):focus-visible { outline-color:#9db0d2; }
+  ::selection { background:rgba(74,125,224,.22); }
+  html { scroll-behavior:smooth; }
   /* 整块为空（不是表格单元格里那种）时给一个虚线占位方块：一行灰字太像"没加载出来"。
      纯 CSS，不引图片；td.empty 的表格空行保持一行灰字，不放大方块。 */
   .card > .empty { padding:30px 0 26px; }
@@ -384,6 +430,10 @@
      折行会让行高参差，比横向滚动难看得多。 */
   .table-scroll { overflow-x:auto; }
   .table-scroll table { min-width:760px; }
+  /* 排行榜总览 / 成绩总览矩阵：窄屏下表格比卡片宽，会让整页横向溢出（移动端实测整页被撑宽）。
+     这两张表**始终**在卡内滚动，并给一个最小宽度，避免列被挤成一字一行。 */
+  #board > .card, #overview > .card { overflow-x:auto; }
+  .ov-main, .ov-table { min-width:820px; }
   .nowrap { white-space:nowrap; }
   /* 横向滚动时把**操作列钉在右边**：窄屏最先被裁掉的恰好是「设为判别器 / 删除」，
      那是不可接受的一列。钉住它、加一道左侧阴影，滚动条只滚中间的数据列。 */
@@ -500,9 +550,9 @@
       </div>
     </div>
     <h2 id="sec5"><span class="no">1</span><span data-i18n="排行榜">排行榜</span></h2>
-    <div id="board"><div class="card"><div class="empty" data-i18n="完成一次评测后生成">完成一次评测后生成</div></div></div>
+    <div id="board"><div class="card"><div class="loading" data-i18n="正在读取成绩…">正在读取成绩…</div></div></div>
     <h2 id="sec4"><span class="no">2</span><span data-i18n="成绩总览">成绩总览</span></h2>
-    <div id="overview"><div class="card"><div class="empty" data-i18n="完成一次评测后生成">完成一次评测后生成</div></div></div>
+    <div id="overview"><div class="card"><div class="loading" data-i18n="正在读取成绩…">正在读取成绩…</div></div></div>
     <h2 id="sec6"><span class="no">3</span><span data-i18n="AI 总结">AI 总结</span></h2>
     <div class="card">
       <div class="row">
@@ -2092,7 +2142,7 @@ async function refresh() {
     <div class="card" style="padding:14px 18px">
       <div class="cat-head" style="margin:0"><span class="dot" style="background:var(--accent)"></span>${t("总览")}<span class="cnt">${t("点击分类查看详情，可同时展开多个")}</span></div>
       ${modelLegend()}
-      <table style="margin-top:10px"><thead><tr><th class="tl" style="width:190px">${t("分类")}</th><th class="tl">${t("冠军模型")}</th><th style="width:210px" title="${t("轨道上一个点 = 一个模型，颜色区分模型（同一模型在冠军名前的点、展开后的表里都是同色）。**每行按该分类自己的分数区间放大**，两端标出该行的最低/最高分 —— 位置不是 0–100 的绝对值。冠军 = 跑得最全的一批里分数最高，所以不一定是分数最高的那个，悬停里会点名分数更高但没跑全的模型")}">${t("分数分布")}</th><th style="width:190px">${t("综合得分")}</th><th style="width:172px">${t("覆盖")}</th></tr></thead>
+      <div class="table-scroll"><table class="ov-main" style="margin-top:10px"><thead><tr><th class="tl" style="width:190px">${t("分类")}</th><th class="tl">${t("冠军模型")}</th><th style="width:210px" title="${t("轨道上一个点 = 一个模型，颜色区分模型（同一模型在冠军名前的点、展开后的表里都是同色）。**每行按该分类自己的分数区间放大**，两端标出该行的最低/最高分 —— 位置不是 0–100 的绝对值。冠军 = 跑得最全的一批里分数最高，所以不一定是分数最高的那个，悬停里会点名分数更高但没跑全的模型")}">${t("分数分布")}</th><th style="width:190px">${t("综合得分")}</th><th style="width:172px">${t("覆盖")}</th></tr></thead>
       <tbody>${bds.map(c => {
         const champ = c.combined[0];
         const open = !!expandedCats[c.id];
@@ -2103,7 +2153,7 @@ async function refresh() {
           <td><div class="score-cell"><div class="bar"><i style="width:${Math.min(champ.avg_accuracy, 100)}%"></i></div><span class="acc">${score(champ.avg_accuracy)}%</span></div></td>
           <td class="muted ov-cov">${champ.covered}/${champ.total}${famCover(champ)}</td>
         </tr>`;
-      }).join("")}</tbody></table>
+      }).join("")}</tbody></table></div>
     </div>`;
   // 家族折叠块：官方加权总分 + 每组得分 + 权重覆盖率；子集明细默认收起
   const famBlock = (cat, f) => {
