@@ -16,10 +16,12 @@
          -webkit-font-smoothing:antialiased; }
   .wrap { max-width:1120px; margin:0 auto; padding:0 20px 80px; }
 
-  /* ===== 顶栏（全宽、吸顶、带段导航）===== */
+  /* ===== 顶栏（全宽、吸顶）=====
+     深色：和首屏 hero 用同一支深蓝，二者连成一块 masthead（原来顶栏是浅色的，
+     hero 像一张"贴上去的深色卡"；改成同色系之后页面有了明确的头部）。 */
   .topbar { position:sticky; top:0; z-index:200;
-            background:rgba(243,245,249,.86); backdrop-filter:blur(12px);
-            border-bottom:1px solid var(--border); }
+            background:linear-gradient(180deg,#0d1526,#111c31);
+            border-bottom:1px solid rgba(255,255,255,.09); }
   .topbar-in { max-width:1120px; margin:0 auto; padding:10px 20px;
                display:flex; align-items:center; gap:13px; flex-wrap:nowrap; }
   .logo { width:30px; height:30px; border-radius:9px; flex:0 0 auto;
@@ -28,33 +30,46 @@
                  border:2.4px solid rgba(255,255,255,.92); border-top-color:transparent;
                  border-left-color:transparent; transform:rotate(45deg) translate(-1px,-1px); }
   .brandname { font-size:15px; font-weight:650; letter-spacing:.2px; flex:0 0 auto;
-               display:flex; align-items:baseline; gap:9px; min-width:0; }
+               display:flex; align-items:baseline; gap:9px; min-width:0; color:#eef3ff; }
   /* 副标题是"这工具是干嘛的"：宽屏才显示 —— 窄屏上挤掉段导航更不划算 */
-  .tagline { display:none; color:var(--faint); font-size:11.5px; font-weight:400; letter-spacing:0;
+  .tagline { display:none; color:#8fa3c9; font-size:11.5px; font-weight:400; letter-spacing:0;
              white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:44ch; }
   @media (min-width:1240px) { .tagline { display:inline; } }
   /* 顶部三个页签：结论（排行榜/成绩总览/AI 总结）/ 评测（选基准/任务）/ 配置（模型管理）。
      用页签而不是"一屏六段"：首屏只留结论，评测与配置按需切换 —— 原来那段滚动导航职责重复，已移除。 */
-  .tabs { display:flex; gap:2px; margin-left:auto; background:var(--bg2);
-          border:1px solid var(--border); border-radius:11px; padding:3px; }
+  .tabs { display:flex; gap:2px; margin-left:auto; background:rgba(255,255,255,.07);
+          border:1px solid rgba(255,255,255,.13); border-radius:11px; padding:3px; }
   .tabs .tab { border:none; background:transparent; border-radius:8px; padding:6px 16px;
-               font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; white-space:nowrap;
+               font-size:13px; font-weight:600; color:#9db0d2; cursor:pointer; white-space:nowrap;
                transition:background .12s, color .12s; }
-  .tabs .tab:hover { color:var(--text); background:var(--card); filter:none; }
-  .tabs .tab.on { background:var(--card); color:var(--text); box-shadow:0 1px 3px rgba(29,36,51,.12); }
+  .tabs .tab:hover { color:#fff; background:rgba(255,255,255,.10); filter:none; }
+  .tabs .tab.on { background:#eef3ff; color:#0d1526; box-shadow:0 1px 3px rgba(0,0,0,.28); }
   .tabpane[hidden] { display:none; }
+  /* 深色页脚：和头部 masthead 呼应，页面形成「深—浅—深」的框。
+     只放一句"这是本地工具"的说明，不做导航（导航在顶栏）。 */
+  /* 注意类名：.foot 早被卡片/弹窗底部占用（.bm .foot / .modal .foot），页面级页脚叫 .page-foot */
+  .page-foot { margin-top:64px; background:linear-gradient(180deg,#0d1526,#0a1020); color:#7d90b3; }
+  .page-foot-in { max-width:1120px; margin:0 auto; padding:20px; display:flex; flex-wrap:wrap;
+                  align-items:center; gap:10px 18px; font-size:12px; }
+  .page-foot .dot { width:4px; height:4px; border-radius:50%; background:rgba(255,255,255,.25); }
+  /* 主按钮（开始评测 / 生成总结）用 hero 那支蓝→靛渐变，把首屏的语言带到交互上。
+     其它按钮保持中性，只有"这一步要你动手"的按钮带渐变。 */
+  button.btn-grad { background:linear-gradient(96deg,#4a7de0,#6f5ce0); color:#fff; border:none;
+                    box-shadow:0 6px 16px -10px rgba(74,125,224,.9); }
+  button.btn-grad:hover { filter:brightness(1.07); }
+  button.btn-grad:disabled { filter:grayscale(.55) brightness(.95); box-shadow:none; }
   .langsw { display:flex; gap:0; border:1px solid var(--border2);
             border-radius:9px; overflow:hidden; flex:0 0 auto; }
-  .langsw button { background:transparent; border:none; border-radius:0; color:var(--muted);
+  .langsw button { background:transparent; border:none; border-radius:0; color:#9db0d2;
                    padding:5px 11px; font-size:12px; font-weight:500; cursor:pointer; }
-  .langsw button:hover { color:var(--text); background:var(--card2); filter:none; }
-  .langsw button.on { background:var(--accent); color:#fff; }
+  .langsw button:hover { color:#fff; background:rgba(255,255,255,.10); filter:none; }
+  .langsw button.on { background:#eef3ff; color:#0d1526; }
 
   /* ===== 首屏记分牌 =====
      一屏回答"谁第一 / 差多少"。数字**全部来自现有口径**：
      分类第一 = 后端榜单里该分类 combined[0] 的模型；不在这里算"综合分"（跨分类平均
      要新口径就得到后端定义权重，前端不发明算法）。 */
-  .hero { position:relative; overflow:hidden; margin-top:18px; border-radius:22px; color:#e9efff;
+  .hero { position:relative; overflow:hidden; margin-top:12px; border-radius:20px; color:#e9efff;
           background:radial-gradient(1100px 420px at 16% -14%,#2b4f9e 0%,rgba(43,79,158,0) 62%),
                      radial-gradient(720px 380px at 102% -6%,#3b2f7a 0%,rgba(59,47,122,0) 60%),#0d1526;
           box-shadow:0 26px 60px -30px rgba(13,21,38,.62); }
@@ -492,7 +507,7 @@
     <div class="card">
       <div class="row">
         <select id="s-model"></select>
-        <button id="s-gen" style="flex:0 0 auto" onclick="genSummary()" data-i18n="生成总结">生成总结</button>
+        <button id="s-gen" class="btn-grad" style="flex:0 0 auto" onclick="genSummary()" data-i18n="生成总结">生成总结</button>
       </div>
       <div class="muted" style="margin-top:8px" data-i18n-html="总结只依据下方「本次依据的数据」，由所选模型写成。<b>所有统计量（排名、覆盖率、差距是否显著）都是程序算好的</b>，模型只负责解释，因此换个模型来写，数字也不会变。">
         总结只依据下方「本次依据的数据」，由所选模型写成。
@@ -514,7 +529,7 @@
         <select id="e-model" onchange="updateEvalHint()"></select>
         <input id="e-limit" type="number" min="0" placeholder="题目数（0 或留空 = 全部）" data-i18n-ph="题目数（0 或留空 = 全部）">
         <select id="e-judge" onchange="updateEvalHint()" style="display:none"></select>
-        <button id="start-btn" style="flex:0 0 auto" onclick="startEval()" data-i18n="开始评测">开始评测</button>
+        <button id="start-btn" class="btn-grad" style="flex:0 0 auto" onclick="startEval()" data-i18n="开始评测">开始评测</button>
         <div class="muted" id="e-hint" style="flex-basis:100%;margin-top:2px" data-i18n="请先选择一个基准（点击上方卡片）和模型。">请先选择一个基准（点击上方卡片）和模型。</div>
       </div>
       <details style="margin-top:12px">
@@ -596,6 +611,16 @@
   </div>
 </div>
 
+<footer class="page-foot">
+  <div class="page-foot-in">
+    <span><b style="color:#eef3ff;font-weight:650">LLM Bench</b></span>
+    <span class="dot"></span>
+    <span data-i18n="本地评测工具">本地评测工具</span>
+    <span class="dot"></span>
+    <span data-i18n="所有数据都在本机 data/ 目录，不会上传到任何服务器">所有数据都在本机 data/ 目录，不会上传到任何服务器</span>
+  </div>
+</footer>
+
 <!-- 任务行的「更多操作」菜单：全页唯一一个，**挂在 body 下**（既不在表格里、也不在 .table-scroll 里），
      所以不会被滚动容器裁剪，也不会被 sticky 操作列的层叠上下文压住。内容由 renderTaskMenu() 按行生成。 -->
 <div class="menu" id="task-menu"></div>
@@ -621,6 +646,8 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
+  "本地评测工具": "a local benchmarking tool",
+  "所有数据都在本机 data/ 目录，不会上传到任何服务器": "All data stays in the local data/ directory and is never uploaded anywhere",
   "结论": "Results",
   "评测": "Runs",
   "配置": "Setup",

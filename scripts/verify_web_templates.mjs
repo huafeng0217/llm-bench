@@ -1198,6 +1198,21 @@ const wrapCloseIdx = src.lastIndexOf("</div>", wrapMenuIdx);
 check("六个段都在 .wrap 容器内（重排不能把闭合标签搬走）",
   wrapMenuIdx > 0 && wrapCloseIdx > 0
   && [1, 2, 3, 4, 5, 6].every(n => src.indexOf(`<h2 id="sec${n}">`) < wrapCloseIdx));
+// 版面框架：深色 masthead（顶栏与 hero 同一支深蓝）+ 深色页脚 → 页面“深—浅—深”。
+// 主按钮（开始评测/生成总结）用 hero 那支蓝→靛渐变，把首屏的语言带到交互上。
+check("深色 masthead：顶栏与 hero 同色系，hero 上沿收紧（读成一块）",
+  /\.topbar \{[^}]*background:linear-gradient\(180deg,#0d1526,#111c31\)/.test(src)
+  && /\.brandname \{[^}]*color:#eef3ff/.test(src)
+  && /\.tabs \.tab\.on \{ background:#eef3ff; color:#0d1526/.test(src)
+  && /\.hero \{ position:relative; overflow:hidden; margin-top:12px; border-radius:20px/.test(src));
+check("主按钮用渐变、其余按钮保持中性；页脚深色收尾",
+  /button\.btn-grad \{ background:linear-gradient\(96deg,#4a7de0,#6f5ce0\)/.test(src)
+  && /id="start-btn" class="btn-grad"/.test(src)
+  && /id="s-gen" class="btn-grad"/.test(src)
+  && /<footer class="page-foot">/.test(src) && /\.page-foot \{[^}]*background:linear-gradient\(180deg,#0d1526,#0a1020\)/.test(src)
+  // 类名别撞车：.foot 是卡片/弹窗底部的（.bm .foot / .modal .foot），页面页脚必须用 .page-foot
+  && !/^\.foot \{[^}]*background:linear-gradient\(180deg,#0d1526/m.test(src)
+  && /data-i18n="所有数据都在本机 data\/ 目录，不会上传到任何服务器"/.test(src));
 // ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
 // 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
 // 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。
