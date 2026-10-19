@@ -1172,6 +1172,27 @@ check("分数列统一两位小数（93.5 → 93.50，82.86 原样，空值 → 
   // 排行榜 / 矩阵 / 任务表 / 首屏 四处都必须用它（不能再出现裸的 ${x.accuracy}%）
   && (src.match(/\$\{score\(/g) || []).length >= 6
   && !/\$\{(champ\.avg_accuracy|r\.accuracy|m\.avg_accuracy|s\.accuracy|e\.accuracy)\}%/.test(src));
+// ---------------- 基准区：按分类折叠 ----------------
+// 36 张卡一次铺开有 5000px+，而多数时候只是来挑一个基准 → 默认按分类收起，
+// 分类行本身是开关；点分类 chip（单分类视图）时自动展开，另有「展开全部 / 收起全部」。
+check("基准区默认按分类折叠（收起时不渲染卡片）",
+  /let benchOpenCats = new Set\(\);/.test(src)
+  && /function toggleBenchCat\(id\)/.test(src)
+  && /const open = catFilter \? true : benchOpenCats\.has\(c\.id\);/.test(src)
+  && /\(open \? cards\.join\(""\) : ""\)/.test(src)
+  && /onclick="toggleBenchCat\('\$\{c\.id\}'\)"/.test(src));
+check("折叠行自带信息：分类里的小胶囊 + 就绪彩签，不再靠「展开」文字",
+  /class="cat-head fold\$\{open \? " open" : ""\}"/.test(src)
+  && /class="cat-items"/.test(src) && /class="mini"/.test(src)
+  && /class="\$\{okCls\} ready-tag"/.test(src)
+  && /class="cnt">\$\{tf\("\{0\} 个", \[ready\.length\]\)\}/.test(src)
+  // 右侧「展开/收起」文字已移除：三角会旋转，行本身可点
+  && !/fold-hint/.test(src) && !/class="fold-hint"/.test(src)
+  && /\.cat-head\.fold\.open \.chev \{ transform:rotate\(90deg\)/.test(src));
+check("分类 chip 选单分类时自动展开；另有「展开全部 / 收起全部」",
+  /benchOpenCats\.clear\(\);/.test(src)
+  && /function toggleBenchAll\(\)/.test(src)
+  && /toggleBenchAll\(\)/.test(src) && /catchip allbtn/.test(src));
 // ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
 // 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
 // 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。

@@ -181,6 +181,24 @@
               font-size:13px; font-weight:600; }
   .cat-head .dot { width:9px; height:9px; border-radius:3px; }
   .cat-head .cnt { color:var(--faint); font-weight:500; font-size:12px; }
+  /* 分类行 = 折叠开关。整行可点，但不再写「展开/收起」——三角会转，就够表意了；
+     行里塞了「里面都有谁」的小胶囊，所以不会是一条空心的白条（用户说之前"有点难看"）。 */
+  .cat-head.fold { cursor:pointer; border-radius:11px; padding:8px 12px; margin:2px 0;
+                   background:var(--card); border:1px solid var(--border);
+                   transition:background .12s, border-color .12s, box-shadow .12s; }
+  .cat-head.fold:hover { background:var(--card2); border-color:var(--border2);
+                         box-shadow:0 6px 16px -12px rgba(29,36,51,.55); }
+  .cat-head.fold.open { background:var(--card2); border-color:var(--border2); }
+  .cat-head .chev { width:13px; font-size:15px; line-height:1; color:var(--faint);
+                    display:inline-block; transition:transform .15s, color .15s; }
+  .cat-head.fold.open .chev { transform:rotate(90deg); color:var(--accent2); }
+  .cat-head .cat-name { font-size:13.5px; font-weight:650; }
+  .cat-head .cat-items { display:flex; gap:6px; flex-wrap:wrap; min-width:0; overflow:hidden; }
+  .cat-head .mini { font-size:11px; color:var(--muted); background:var(--bg2);
+                    border-radius:6px; padding:2px 7px; white-space:nowrap; }
+  .cat-head .mini.more { color:var(--faint); background:transparent; }
+  .cat-head .ready-tag { margin-left:auto; flex:0 0 auto; }
+  .catchip.allbtn { border-style:dashed; color:var(--muted); }
   .bm { cursor:pointer; position:relative; transition:border-color .15s, background .15s;
         /* 竖排布局 + 页脚 margin-top:auto：把「下载/来源」那一行压到卡片底部，
            这样同行卡片即使简介行数不同，按钮也在同一条水平线上。 */
@@ -603,6 +621,13 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
+  "+{0}": "+{0}",
+  "一次展开或收起所有分类": "Expand or collapse every category at once",
+  "收起全部": "Collapse all",
+  "展开全部": "Expand all",
+  "点击收起这些基准": "Click to collapse these benchmarks",
+  "点击展开这些基准": "Click to expand these benchmarks",
+  "展开": "Expand",
   "蓝色 = 该基准上参与评测的模型中的最高分": "Blue = the best score on this benchmark among the models that ran it",
   "（仅在完整评测之间评），并列最高会同时标出；其余格子统一底色。": " (judged among complete runs only); ties are all highlighted and every other cell keeps the same neutral fill.",
   "最近一次评测 {0} · 分类共 {1} 个": "Last run {0} · {1} categories",
@@ -1179,6 +1204,7 @@ function bmCard(b) {
 
 function setCat(id) {
   catFilter = id;
+  benchOpenCats.clear();          // 单分类视图下总是展开，不记忆折叠状态
   // 只重渲染：切分类只是换筛选条件，数据一模一样，没必要再问一次服务器。
   // （后端那次请求曾经很贵 —— 它要把 data/ 里所有题库数一遍行数，
   //   134MB 的 livecodebench 也在其中，见 datasets.count_lines 的说明。）
@@ -1276,6 +1302,24 @@ async function downloadFamily(fid) {
   pollDownloadUntilDone();
 }
 
+// 基准卡**默认按分类折叠**：36 张卡一次铺开有 5000px+，而多数时候只是来挑一个基准。
+// 分类行本身就是开关（点标题展开/收起）；点分类 chip 时只显示该分类并自动展开。
+let benchOpenCats = new Set();
+
+function toggleBenchCat(id) {
+  if (benchOpenCats.has(id)) benchOpenCats.delete(id); else benchOpenCats.add(id);
+  renderBenchmarks();
+}
+
+// 全部展开 / 全部收起：一眼看清"页面上还有哪些分类"和"我只要挑一个"两种用法都照顾到
+function toggleBenchAll() {
+  const cats = [...new Set((benchList || []).map(b => b.category_id || "custom"))];
+  const allOpen = cats.length > 0 && cats.every(id => benchOpenCats.has(id));
+  benchOpenCats = allOpen ? new Set() : new Set(cats);
+  catFilter = "";
+  renderBenchmarks();
+}
+
 function renderBenchmarks() {
   const bs = benchList || [];
   benchMeta = Object.fromEntries(bs.map(b => [b.id, b]));
@@ -1292,9 +1336,12 @@ function renderBenchmarks() {
   const chip = c => `<span class="catchip ${catFilter === c.id ? "on" : ""}"
     style="${catFilter === c.id ? `background:${c.color}` : ""}"
     onclick="setCat('${c.id}')">${esc(c.name)}</span>`;
+  const allOpen = cats.length > 0 && cats.every(c => benchOpenCats.has(c.id));
   document.getElementById("cat-filter").innerHTML =
     `<span class="catchip ${catFilter === "" ? "on" : ""}" style="${catFilter === "" ? "background:var(--accent)" : ""}" onclick="setCat('')">${tf("全部 · {0}", [bs.length])}</span>` +
-    cats.map(chip).join("");
+    cats.map(chip).join("") +
+    `<span class="catchip allbtn" style="margin-left:6px" onclick="toggleBenchAll()"
+       title="${t("一次展开或收起所有分类")}">${allOpen ? t("收起全部") : t("展开全部")}</span>`;
 
   // 按分类分组渲染。家族（同名 family 的多个子集）在其中折叠成一张卡，
   // 位置取它第一个子集的位置，这样卡片顺序仍由服务端的 order 决定。
@@ -1304,19 +1351,42 @@ function renderBenchmarks() {
     const list = shown.filter(b => (b.category_id || "custom") === c.id);
     if (!list.length) return;
     const cards = [];
+    const ready = [];                  // 每个"卡片条目"是否已就绪（家族算一项）
+    const names = [];                  // 每个条目的名字（折叠行里当小胶囊显示，别让行里空一大片）
     const doneFam = new Set();
     list.forEach(b => {
       if (b.family) {
         if (doneFam.has(b.family)) return;
         doneFam.add(b.family);
-        cards.push(familyCard(b.family, list.filter(x => x.family === b.family)));
+        const fam = list.filter(x => x.family === b.family);
+        cards.push(familyCard(b.family, fam));
+        ready.push(fam.some(x => x.count > 0));
+        names.push(b.family);
       } else {
         cards.push(bmCard(b));
+        ready.push(b.count > 0);
+        names.push(b.name);
       }
     });
+    const open = catFilter ? true : benchOpenCats.has(c.id);   // 单分类视图里始终展开
+    const nOk = ready.filter(Boolean).length;
+    // 折叠行的版面：三角 + 色点 + 分类名 + 数量 + **里面都有谁**（最多 3 个 + +N）+ 就绪彩签。
+    // 以前只有「名字 + 数量 + 右侧『展开』」，中间一大片空白、八行一样，看着像没做完。
+    const shownNames = names.slice(0, 3)
+      .map(n => `<span class="mini">${esc(n)}</span>`).join("")
+      + (names.length > 3 ? `<span class="mini more">${tf("+{0}", [names.length - 3])}</span>` : "");
+    const okCls = nOk === ready.length ? "tag ok" : nOk ? "tag warn" : "tag";
     groups.push(
-      `<div class="cat-head"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}<span class="cnt">${tf("{0} 个", [list.length])}</span></div>` +
-      cards.join(""));
+      `<div class="cat-head fold${open ? " open" : ""}"
+            title="${open ? t("点击收起这些基准") : t("点击展开这些基准")}"
+            onclick="toggleBenchCat('${c.id}')">
+         <span class="chev">▸</span>
+         <span class="dot" style="background:${c.color}"></span>
+         <span class="cat-name">${esc(c.name)}</span>
+         <span class="cnt">${tf("{0} 个", [ready.length])}</span>
+         <span class="cat-items">${shownNames}</span>
+         <span class="${okCls} ready-tag">${tf("已就绪 {0}/{1}", [nOk, ready.length])}</span>
+       </div>` + (open ? cards.join("") : ""));
   });
   document.getElementById("benchmarks").innerHTML =
     groups.join("") || `<div class="empty" style="grid-column:1/-1">${t("该分类下暂无基准")}</div>`;
