@@ -1555,9 +1555,15 @@ async function pollDownloadUntilDone() {
 
 // 内容没变就不动 DOM。每 2.5s 的 refresh 会重画好几块；无条件写 innerHTML 会把
 // "用户正在操作的东西"一起清掉 —— 打开的下拉框、焦点、展开的 details。
-// 趋势视图的基准下拉 2.5 秒就被关掉，就是踩的这个坑（任务表早就这么防了）。
+// **必须记住上次写进去的字符串来比**，不能拿 el.innerHTML 比：innerHTML 是浏览器
+// 序列化后的结果，SVG 的自闭合标签（<circle/>）会变成 <circle></circle>，
+// 于是"永远不相等"，短逻辑等于没有 —— 趋势图的下拉框照样每轮被关掉（踩过一次）。
+const __lastHtml = new WeakMap();
 function setHtmlIfChanged(el, html) {
-  if (el && el.innerHTML !== html) el.innerHTML = html;
+  if (!el) return;
+  if (__lastHtml.get(el) === html) return;
+  __lastHtml.set(el, html);
+  el.innerHTML = html;
 }
 
 async function api(path, opts) {

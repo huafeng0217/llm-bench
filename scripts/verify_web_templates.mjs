@@ -60,13 +60,15 @@ const escLine = script.split("\n").find(l => l.startsWith("const esc = "));
 if (!escLine) throw new Error("找不到 esc 的定义");
 // 分数格式化（两位小数）：矩阵/排行榜的分数列都走它
 const scoreLine = script.split("\n").find(l => l.startsWith("const score = "));
+// setHtmlIfChanged 依赖这个 WeakMap（记住上次写入的字符串），沙箱里要一起注入
+const lastHtmlLine = script.split("\n").find(l => l.startsWith("const __lastHtml = "));
 if (!scoreLine) throw new Error("找不到 score（分数统一两位小数）的定义");
 
 // ---------------- 成绩总览 ----------------
 // 总览这一整块：矩阵 + 两张图（能力雷达 / 准确率×延迟）。三张视图共用同一份
 // /api/leaderboard 数据，所以把图表那一组函数一起注入 —— 测的就是页面上真正跑的代码。
 const ovCode = [
-  escLine, scoreLine, grab("setHtmlIfChanged"),
+  escLine, scoreLine, lastHtmlLine, grab("setHtmlIfChanged"),
   grab("lbColors"), grab("svgNum"), grab("median"), grab("niceCeil"),
   grab("radarModel"), grab("radarSvg"), grab("radarTable"), grab("radarView"),
   grab("scatterPoints"), grab("scatterSvg"), grab("scatterView"),
@@ -665,7 +667,7 @@ const bds = [{
 }];
 
 const boardHtml = new Function("bds", "expandedCats", "esc", "score",
-  pctLine + "\n" + grab("setHtmlIfChanged") + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
+  pctLine + "\n" + lastHtmlLine + "\n" + grab("setHtmlIfChanged") + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
 )(bds, { code: true, agent: true }, s => String(s ?? ""), v => (v == null ? "-" : Number(v).toFixed(2)));
 
 check("排行榜：部分评测带「部分 6/164」标签", boardHtml.includes("部分 6/164"));
@@ -1275,7 +1277,9 @@ check("成绩总览有「趋势」视图：只画跑完的评测，且说明不�
 // 只在内容真的变化时才写 DOM（否则打开的下拉框会被新 DOM 关掉 —— 用户实测报过）。
 check("轮询重画：内容没变就不动 DOM（下拉框/焦点不会被 2.5s 轮询清掉）",
   // 盯住条件判断本身：改成无条件赋值就一定红
-  /function setHtmlIfChanged\(el, html\) \{\s*if \(el && el\.innerHTML !== html\) el\.innerHTML = html;/.test(src)
+  // 必须用 WeakMap 记住上次写入的字符串：innerHTML 是序列化结果，SVG 自闭合标签会变形，
+  // 拿它比模板字符串等于永不相等（踩过一次，下拉框照样每 2.5s 被关）
+  /const __lastHtml = new WeakMap\(\);[\s\S]{0,160}?if \(__lastHtml\.get\(el\) === html\) return;/.test(src)
   && /const ovHtml = `/.test(src)
   && /setHtmlIfChanged\(box, ovHtml\);/.test(src)
   && /setHtmlIfChanged\(document\.getElementById\("board"\)/.test(src)
@@ -1437,7 +1441,7 @@ await enSmoke("AI 总结条目", () => {
 });
 // 排行榜（总览 + 展开后的两张表）
 await enSmoke("排行榜", () => new Function("bds", "expandedCats", "esc", "score",
-  pctLine + "\n" + grab("setHtmlIfChanged") + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
+  pctLine + "\n" + lastHtmlLine + "\n" + grab("setHtmlIfChanged") + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
 )(asciify(bds), { code: true, agent: true }, s2 => String(s2 ?? ""), v => (v == null ? "-" : Number(v).toFixed(2))));
 // 「新增模型 / 复用 API」是**两个控件**：左边选模式，右边那个列表随模式**变成**对应选项
 // （新增模型 → 服务商预设；复用 API → API 分组），两种选项不混在一个列表里。
@@ -1482,7 +1486,7 @@ check("添加模型：只有复用模式才回传 copy_api_from（新增模式�
 // 测不出这个差别，所以要单独用半角括号的组名渲染一遍。
 {
   const renderBoard = bd => new Function("bds", "expandedCats", "esc", "score",
-    pctLine + "\n" + grab("setHtmlIfChanged") + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
+    pctLine + "\n" + lastHtmlLine + "\n" + grab("setHtmlIfChanged") + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
   )(bd, { agent: true }, s2 => String(s2 ?? ""), v => (v == null ? "-" : Number(v).toFixed(2)));
   const withParen = (p1, p2) => {
     const bd = JSON.parse(JSON.stringify(asciify(bds)));
