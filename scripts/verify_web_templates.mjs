@@ -1275,7 +1275,16 @@ check("成绩总览有「模型对比」视图：只比两边都跑完的、并�
   && /差值小于波动就别当真/.test(src)
   && /\/api\/evaluations\?limit=500/.test(src)
   && !/trendView/.test(src),
-  "对比不能把部分评测/单边成绩混进来，波动列是历史数据的唯一正当用途");// ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
+  "对比不能把部分评测/单边成绩混进来，波动列是历史数据的唯一正当用途");// 排行榜大数字的排版规则（用户看过 mock 选的 C 版）：21px 但字重 600、字距 0、墨蓝，
+// % 用 .pct 缩小变淡 —— 750 不是 Segoe UI 的真实字重（会被取整到 700），
+// 再叠负字距会让数字笔画黏在一起、整块显得墨太重。
+check("排行榜大数字：600 字重 / 字距 0 / 墨蓝，% 缩小变淡",
+  /#board \.score-cell \.acc \{ font-size:21px; font-weight:600; letter-spacing:0; color:#2b3550;/.test(src)
+  && /#board \.score-cell \.acc \.pct \{ font-size:\.58em;/.test(src)
+  // 4 处大数字模板都要包 .pct（冠军行 1 + 综合排行 2 + 分项 1）；>=3 会因为少一处仍通过（负测发现）
+  && (src.match(/<span class="pct">%<\/span>/g) || []).length >= 4
+  && !/font-weight:750/.test(src),
+  "别用不存在的字重（750）配负字距；% 要退成配角");// ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
 // 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
 // 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。
 const i18nSlugs = [...src.matchAll(/data-i18n(?:-html|-ph|-title)?="([^"]+)"/g)]

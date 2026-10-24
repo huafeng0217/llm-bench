@@ -399,8 +399,12 @@
   .acc { font-weight:650; }
   /* 排行榜的数字是全站的"成绩单"：13px 挤在表格里太委屈了。
      只放大 #board 里的百分比（矩阵里的要留紧凑），并给得分条同一档高度 —— 数字和条要配。 */
-  #board .score-cell .acc { font-size:21px; font-weight:750; letter-spacing:-.5px;
+  /* 大数字（记分牌）：21px 但**字重 600、字距 0** ——
+     750 不是 Segoe UI 的真实字重（浏览器会取整到 700），再叠 -0.5px 字距会让 8/6/0
+     的笔画黏在一起、整块显得"墨太重"；% 缩小变淡，退成配角，不和数字抢大小。 */
+  #board .score-cell .acc { font-size:21px; font-weight:600; letter-spacing:0; color:#2b3550;
                             font-variant-numeric:tabular-nums; min-width:78px; line-height:1; }
+  #board .score-cell .acc .pct { font-size:.58em; font-weight:600; opacity:.5; margin-left:2px; }
   #board .score-cell .bar { height:9px; }
   #board .score-cell { gap:12px; }
   /* 基准卡片：悬停轻微抬起 + 阴影，让 36 张卡"能点"这件事有手感（原来只有边框变色） */
@@ -2284,7 +2288,7 @@ async function refresh() {
           <td class="tl"><span style="display:inline-block;width:12px;color:var(--faint)">${open ? "▾" : "▸"}</span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:3px;background:${c.color};margin-right:6px"></span>${esc(c.name)}</td>
           <td class="tl" style="font-weight:550"><span class="mdot" style="background:${mcolor(champ.model_name)}"></span>${esc(champ.model_name)}</td>
           <td>${distBar(c)}</td>
-          <td><div class="score-cell"><div class="bar"><i style="width:${Math.min(champ.avg_accuracy, 100)}%"></i></div><span class="acc">${score(champ.avg_accuracy)}%</span></div></td>
+          <td><div class="score-cell"><div class="bar"><i style="width:${Math.min(champ.avg_accuracy, 100)}%"></i></div><span class="acc">${score(champ.avg_accuracy)}<span class="pct">%</span></span></div></td>
           <td class="muted ov-cov">${champ.covered}/${champ.total}${famCover(champ)}</td>
         </tr>`;
       }).join("")}</tbody></table></div>
@@ -2333,7 +2337,7 @@ ${t("缺组时按已跑组的权重归一化，所以「加权总分」不是完
           ${i === 0 ? `<td class="tl muted" rowspan="${b.rows.length}" style="vertical-align:top;font-size:12px">${esc(b.group_name)}<br><span style="font-size:10.5px">${tf("权重 {0}", [pct(b.group_weight)])}</span></td>` : ""}
           ${i === 0 ? `<td class="tl" rowspan="${b.rows.length}" style="font-weight:600;vertical-align:top">${esc(b.benchmark_name.replace(f.name + " · ", ""))}</td>` : ""}
           <td class="tl">${r.partial ? `<span class="muted" title="${t("只跑了部分题库，不排名次")}">—</span>` : `<span class="rank r${i+1}">${i+1}</span>`} ${esc(r.model_name)}${r.partial ? ` <span class="tag warn">${tf("部分 {0}/{1}", [r.total, r.full_count])}</span>` : ""}</td>
-          <td><div class="score-cell"><span class="acc">${score(r.accuracy)}%</span><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div></div></td>
+          <td><div class="score-cell"><span class="acc">${score(r.accuracy)}<span class="pct">%</span></span><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div></div></td>
           <td class="muted">${r.total}</td>
         </tr>`).join("")).join("")}</tbody></table>
       </details>
@@ -2348,7 +2352,7 @@ ${t("缺组时按已跑组的权重归一化，所以「加权总分」不是完
       <tbody>${cat.combined.map((m, i) => `<tr>
         <td><span class="rank r${i+1}">${i+1}</span></td>
         <td class="tl" style="font-weight:550"><span class="mdot" style="background:${mcolor(m.model_name)}"></span>${esc(m.model_name)}</td>
-        <td><div class="score-cell"><span class="acc">${score(m.avg_accuracy)}%</span><div class="bar"><i style="width:${Math.min(m.avg_accuracy, 100)}%"></i></div></div></td>
+        <td><div class="score-cell"><span class="acc">${score(m.avg_accuracy)}<span class="pct">%</span></span><div class="bar"><i style="width:${Math.min(m.avg_accuracy, 100)}%"></i></div></div></td>
         <td class="muted">${m.covered}/${m.total}${m.covered < m.total ? ` <span class="tag warn">${t("未跑全")}</span>` : ''}${m.partial ? ` <span class="tag warn" title="${t("这些项只有部分评测，分数不计入综合得分")}">${tf("{0} 项为部分", [m.partial])}</span>` : ''}${famCover(m)}</td>
       </tr>`).join("")}</tbody></table>
       <div style="font-weight:600;font-size:13px;margin:16px 0 6px">${t("分项")}${(cat.families || []).length ? ` <span class="muted" style="font-weight:400">${tf("（家族子集已折叠，见下方「{0}」块）", [cat.families.map(f => f.name).join("、")])}</span>` : ""}</div>
@@ -2356,7 +2360,7 @@ ${t("缺组时按已跑组的权重归一化，所以「加权总分」不是完
       <tbody>${cat.boards.map(b => b.rows.map((r, i) => `<tr>
         ${i === 0 ? `<td class="tl" rowspan="${b.rows.length}" style="font-weight:600;vertical-align:top">${esc(b.benchmark_name)}</td>` : ""}
         <td class="tl">${r.partial ? `<span class="muted" title="${t("只跑了部分题库，不排名次")}">—</span>` : `<span class="rank r${i+1}">${i+1}</span>`} <span class="mdot" style="background:${mcolor(r.model_name)}"></span>${esc(r.model_name)}${r.partial ? ` <span class="tag warn" title="${tf("只跑了 {0}/{1} 题，分数仅供参考", [r.total, r.full_count])}">${tf("部分 {0}/{1}", [r.total, r.full_count])}</span>` : ''}</td>
-        <td><div class="score-cell"><span class="acc">${score(r.accuracy)}%</span><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div></div></td><td>${r.total}</td>
+        <td><div class="score-cell"><span class="acc">${score(r.accuracy)}<span class="pct">%</span></span><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div></div></td><td>${r.total}</td>
         <td class="muted">${r.avg_latency_ms} ms</td>
         <td class="muted">${r.prompt_tokens + r.completion_tokens}</td>
       </tr>`).join("")).join("")}</tbody></table>
