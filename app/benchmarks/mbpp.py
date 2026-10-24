@@ -70,11 +70,11 @@ def download_mbpp():
         if setup:
             body = "\n".join("    " + ln for ln in setup.splitlines()) + "\n" + body
         test = (imports + "\n\n" if imports else "") + f"def {harness}(candidate):\n" + body + "\n"
-        question = (
-            prompt
-            + "\n\n函数名与参数必须完全一致（官方测试按名字调用）：\n"
-            + sig + "\n    # 在这里实现\n"
-        )
+        # 题面做成和 HumanEval 一样的形态：签名 + docstring（需求原文）+ 空函数体。
+        # 这样通用提示「补全下面的 Python 函数，使其满足 docstring 中的要求」对 MBPP 也
+        # 名副其实；函数名/参数写在签名里 —— 官方测试按名字调用，题面不说清就不公平。
+        req = " ".join(prompt.split()).replace('"""', "'''")   # 压成一行，防三引号撞车
+        question = sig + '\n    """' + req + '"""\n    # 在这里实现\n'
         items.append({
             "question": question,
             "test": test,
