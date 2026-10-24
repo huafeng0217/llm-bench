@@ -1284,7 +1284,11 @@ check("排行榜大数字：600 字重 / 字距 0 / 墨蓝，% 缩小变淡",
   // 4 处大数字模板都要包 .pct（冠军行 1 + 综合排行 2 + 分项 1）；>=3 会因为少一处仍通过（负测发现）
   && (src.match(/<span class="pct">%<\/span>/g) || []).length >= 4
   && !/font-weight:750/.test(src),
-  "别用不存在的字重（750）配负字距；% 要退成配角");// ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
+  "别用不存在的字重（750）配负字距；% 要退成配角");// 图工具条只负责排布：里面的按钮/分段控件自带边框，外面再包一圈就是双重边框（用户实拍反馈）。
+check("图工具条不套外框（按钮本身就有边框）",
+  /\.chart-bar \{ display:inline-flex;/.test(src)
+  && !/\.chart-bar \{[^}]*border:1px solid/.test(src)
+  && !/\.chart-bar \{[^}]*background:var\(--card2\)/.test(src));// ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
 // 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
 // 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。
 const i18nSlugs = [...src.matchAll(/data-i18n(?:-html|-ph|-title)?="([^"]+)"/g)]
