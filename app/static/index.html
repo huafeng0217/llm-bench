@@ -78,6 +78,18 @@
   .tabs .tab:hover { color:#fff; background:rgba(255,255,255,.10); filter:none; }
   .tabs .tab.on { background:#eef3ff; color:#0d1526; box-shadow:0 1px 3px rgba(0,0,0,.28); }
   .tabpane[hidden] { display:none; }
+  /* 模型对比：左边两个下拉，右边一句摘要 */
+  .cmp-bar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .cmp-sel { display:inline-flex; align-items:center; gap:8px; }
+  .cmp-sel select { max-width:200px; }
+  .cmp-vs { color:var(--faint); font-size:12px; font-weight:600; }
+  .cmp-table td.num { text-align:center; font-variant-numeric:tabular-nums; }
+  .cmp-cat { color:var(--faint); font-size:11px; margin-top:2px; font-weight:400; }
+  .cmp-delta { display:flex; align-items:center; gap:8px; }
+  .cmp-track { flex:1; min-width:70px; height:7px; border-radius:4px; background:var(--bg2);
+               overflow:hidden; display:block; }
+  .cmp-track i { display:block; height:100%; border-radius:4px; }
+  .cmp-num { min-width:62px; text-align:right; font-variant-numeric:tabular-nums; font-size:12.5px; }
   /* 深色页脚：和头部 masthead 呼应，页面形成「深—浅—深」的框。
      只放一句"这是本地工具"的说明，不做导航（导航在顶栏）。 */
   /* 注意类名：.foot 早被卡片/弹窗底部占用（.bm .foot / .modal .foot），页面级页脚叫 .page-foot */
@@ -721,6 +733,21 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
+  "模型对比": "Model comparison",
+  "模型对比看两个模型逐基准的差距：谁在哪项更强、差多少，以及这点差距是否超过重复测评的波动。": "Model comparison shows the per-benchmark gap between two models — who is stronger where, by how much, and whether that gap exceeds run-to-run noise.",
+  "至少要有两个模型的成绩才能对比": "You need scores from at least two models to compare",
+  "{0} 没跑过这项": "{0} has not run this benchmark",
+  "有一方只跑了部分题库": "one side only ran part of the benchmark",
+  "还没有任何成绩，先跑一场评测": "No scores yet — run an evaluation first",
+  "换一个模型对比": "Switch model to compare",
+  "可比 {0} 项：{1} 赢 {2} 项 · 平 {3} 项 · 差值中位数 {4}": "{0} comparable benchmarks: {1} wins {2}, ties {3}, median delta {4}",
+  "没有可比的基准（两者都跑完的）": "No comparable benchmarks (both must have completed it)",
+  "差值（正 = 前者更强）": "Delta (positive = first one stronger)",
+  "波动": "Spread",
+  "只比较**两边都跑完**的基准；部分评测、只有一方跑过的，列在表尾标为不可比。": "Only benchmarks completed by **both** sides are compared; partial runs and one-sided benchmarks are listed at the end as not comparable.",
+  "「波动」= 该模型在该基准上多次完整评测的极差的一半。**差值小于波动就别当真** —— 那是噪声。": "Spread = half the range across repeated complete runs of that model on that benchmark. **If the delta is smaller than the spread, do not read it as a real difference** — it is noise.",
+  "历史不足 500 场时按最近的 500 场算；没有任何重复测评的项波动显示 —。": "History is capped at the latest 500 runs; benchmarks with no repeated runs show — for spread.",
+  "不可比：": "Not comparable: ",
   "趋势": "Trend",
   "正在读取评测历史…": "Loading run history…",
   "还没有跑完的评测，趋势需要至少一场完整评测": "No completed runs yet — a trend needs at least one",
@@ -2364,7 +2391,7 @@ let lbData = null;       // /api/leaderboard 原始数据（雷达/散点与排�
 // 成绩总览的视图：matrix | radar | scatter | trend。支持 ?ov=trend 直接打开某个视图（分享/排查）。
 let ovView = (() => {
   const q = new URLSearchParams(location.search).get("ov");
-  return ["matrix", "radar", "scatter", "trend"].includes(q) ? q : "matrix";
+  return ["matrix", "radar", "scatter", "compare"].includes(q) ? q : "matrix";
 })();
 let ovRadarOff = new Set();  // 雷达图图例里被点掉的模型（只影响画，不改归一区间）
 let ovScatterUnit = "cat";   // 散点粒度：cat = 模型×分类（默认，点少且不混基准）| bench = 模型×基准（下钻用）
@@ -2452,7 +2479,7 @@ function viewControls() {
 }
 
 function viewHint() {
-  if (ovView === "trend") return t("趋势图看同一个基准上各模型的成绩随时间怎么走（只画跑完的评测）。");
+  if (ovView === "compare") return t("模型对比看两个模型逐基准的差距：谁在哪项更强、差多少，以及这点差距是否超过重复测评的波动。");
   if (ovView === "radar") return t("雷达图看能力结构：哪个分类强、哪个分类是短板。");
   if (ovView === "scatter") return t("散点图看性价比：谁又快又准（默认一个点 = 一个模型的一个分类，可切到基准下钻）。");
   return `${t("行 = 基准，列 = 模型。")}<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle">
@@ -2521,7 +2548,7 @@ function drawOverview() {
   const pick = models.find(m => m.id === ovPickModel);
 
   const tabs = [["matrix", t("矩阵")], ["radar", t("能力雷达")],
-                ["scatter", t("准确率 × 延迟")], ["trend", t("趋势")]];
+                ["scatter", t("准确率 × 延迟")], ["compare", t("模型对比")]];
   // 卡片头部只放"看哪个视图"（卡片级）
   const switcher = `<span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span class="seg">${tabs.map(([v, label]) =>
@@ -2538,7 +2565,7 @@ function drawOverview() {
   let inner;
   if (ovView === "radar") inner = radarView();
   else if (ovView === "scatter") inner = scatterView();
-  else if (ovView === "trend") inner = trendView();
+  else if (ovView === "compare") inner = compareView();
   else if (!groups.length) inner = `<div class="empty">${t("还没有任何成绩")}</div>`;
   else inner = `<div style="overflow-x:auto">
         <table class="ov-table"><thead>${head}</thead><tbody>${body}</tbody></table>
@@ -2753,127 +2780,129 @@ function radarTable(mm) {
 }
 
 
-// ---------- 成绩总览 · 趋势（同一基准，各模型随时间） ----------
-// 数据就是任务表：/api/evaluations 返回的每一行是"某模型跑某基准的一次成绩"，自带 finished_at。
-// 只画**跑完的**（done >= total）：部分评测的分数天然偏低，混进曲线会让人误判"退步了"。
-// 另外换过裁判/评分口径的两次评测本来就不可比 —— 这个前端无法自动识别，所以写在说明里，不假装连续。
-let trendRows = null;      // 全部评测（懒加载一次；最多取 500 条）
-let trendBm = null;        // 当前选中的基准 id
-let trendBusy = false;
+// ---------- 成绩总览 · 模型对比（A2） ----------
+// 回答的是"新版本 vs 旧版本 / A 比 B 差在哪"：**逐基准**的差值，而不是单模型的时间序列
+// （同一模型重复跑同一基准的差别基本是采样噪音，画成折线会让人误以为"变了"）。
+// 口径与排行榜一致：只比**两者都跑完**的基准；部分评测不可比，单独列在最后并写明原因。
+// 另外给一列「波动」= 该模型在该基准上多次完整评测的极差/2 —— 用来判断
+// "这点差距到底是不是噪音"（历史数据真正有价值的用法）。
+let histRows = null;            // 全部评测历史（懒加载一次；最多 500 条）
+let histBusy = false;
+let cmpA = null, cmpB = null;   // 选中的两个模型名
 
-async function loadTrend() {
-  if (trendRows || trendBusy) return;
-  trendBusy = true;
+async function loadHistory() {
+  if (histRows || histBusy) return;
+  histBusy = true;
   try {
     const r = await api("/api/evaluations?limit=500");
-    trendRows = Array.isArray(r.items) ? r.items : [];
+    histRows = Array.isArray(r.items) ? r.items : [];
   } catch (e) {
-    trendRows = [];
+    histRows = [];
   }
-  trendBusy = false;
-  if (ovView === "trend") drawOverview();
+  histBusy = false;
+  if (ovView === "compare") drawOverview();
 }
 
-// 可画趋势的基准：按"完整评测次数"从多到少（评测最多的基准最值得看）
-function trendBmList() {
-  const cnt = new Map();
-  for (const e of trendRows || []) {
+function setCmp(which, name) {
+  if (which === "a") cmpA = name; else cmpB = name;
+  drawOverview();
+}
+
+// 每个 (模型, 基准) 的重复测评波动：多次**完整**评测的正确率极差/2（只有 1 次就算不出波动）
+function histSpread() {
+  const acc = new Map();
+  for (const e of histRows || []) {
     if (e.status !== "done" || !(e.total > 0) || e.done < e.total || e.accuracy == null) continue;
-    cnt.set(e.benchmark, (cnt.get(e.benchmark) || 0) + 1);
+    const k = e.model_name + "\u0000" + e.benchmark;
+    if (!acc.has(k)) acc.set(k, []);
+    acc.get(k).push(e.accuracy);
   }
-  return [...cnt.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
+  const out = new Map();
+  for (const [k, arr] of acc) {
+    if (arr.length < 2) continue;
+    out.set(k, (Math.max(...arr) - Math.min(...arr)) / 2);
+  }
+  return out;
 }
 
-function setTrendBm(id) { trendBm = id; drawOverview(); }
+function compareView() {
+  if (!histRows) loadHistory();      // 波动列要历史；历史没到时先渲染主体，波动列显示 "…"
+  const seen = new Map();
+  (lbData || []).forEach(c => (c.combined || []).forEach(m => {
+    if (!seen.has(m.model_name)) seen.set(m.model_name, m.color || "var(--faint)");
+  }));
+  const models = [...seen.entries()].map(([name, color]) => ({ name, color }));
+  if (models.length < 2) return `<div class="empty">${t("至少要有两个模型的成绩才能对比")}</div>`;
+  const ovModels = (ovData && ovData.models) || [];
+  const idOf = nm => (ovModels.find(m => m.name === nm) || {}).id;
+  const a = cmpA && models.some(m => m.name === cmpA) ? cmpA : models[0].name;
+  const b = (cmpB && cmpB !== a && models.some(m => m.name === cmpB)) ? cmpB : (models.find(m => m.name !== a) || {}).name;
+  cmpA = a; cmpB = b;
+  const colorOf = nm => (models.find(m => m.name === nm) || {}).color || "var(--faint)";
+  const idA = idOf(a), idB = idOf(b);
 
-function trendView() {
-  if (!trendRows) {
-    if (!trendBusy) loadTrend();
-    return `<div class="loading">${t("正在读取评测历史…")}</div>`;
-  }
-  const list = trendBmList();
-  if (!list.length) return `<div class="empty">${t("还没有跑完的评测，趋势需要至少一场完整评测")}</div>`;
-  const cur = trendBm && list.some(([id]) => id === trendBm) ? trendBm : list[0][0];
-  trendBm = cur;
-  const bmName = (lbData ? (lbData.groups || []).flatMap(g => g.benchmarks || []).find(b => b.id === cur) || {} : {}).name
-    || (trendRows.find(e => e.benchmark === cur) || {}).benchmark_name || cur;
-  // "2026-10-19 22:24:28" 是本地时间；换成 ISO 让 Date.parse 按本地时区解释
-  const ts = e => Date.parse(String(e.finished_at || e.created_at || "").replace(" ", "T")) || 0;
-  const rows = (trendRows || [])
-    .filter(e => e.benchmark === cur && e.status === "done" && e.total > 0 && e.done >= e.total && e.accuracy != null)
-    .sort((a, b) => ts(a) - ts(b));
-  if (!rows.length) return `<div class="empty">${t("这个基准还没有完整评测")}</div>`;
-
-  const colors = lbColors(lbData);
-  const byModel = new Map();
-  for (const e of rows) {
-    if (!byModel.has(e.model_name)) byModel.set(e.model_name, []);
-    byModel.get(e.model_name).push(e);
-  }
-  const names = [...byModel.keys()];
-
-  const W = 680, H = 380, mL = 54, mR = 26, mT = 18, mB = 46;
-  const iw = W - mL - mR, ih = H - mT - mB;
-  const t0 = Math.min(...rows.map(ts));
-  const t1 = Math.max(...rows.map(ts));
-  const span = Math.max(1, t1 - t0);
-  const X = v => (t0 === t1 ? mL + iw / 2 : mL + (v - t0) / span * iw);
-  const Y = v => mT + (100 - Math.max(0, Math.min(100, v))) / 100 * ih;
-  const d2 = v => { const d = new Date(v); return `${d.getMonth() + 1}/${d.getDate()}`; };
-  const dTime = v => { const d = new Date(v); const p = n => String(n).padStart(2, "0");
-    return `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
-
-  let g = "";
-  // 横向网格 + y 轴刻度（0/25/50/75/100）
-  [0, 25, 50, 75, 100].forEach(v => {
-    const y = Y(v);
-    g += `<line x1="${mL}" y1="${svgNum(y)}" x2="${mL + iw}" y2="${svgNum(y)}" stroke="var(--border)" stroke-width="1"/>`;
-    g += `<text x="${mL - 8}" y="${svgNum(y + 4)}" text-anchor="end" font-size="10" fill="var(--faint)">${v}%</text>`;
-  });
-  // x 轴：最多 4 个日期刻度（点太少时按实际时间点标）
-  const xTicks = t0 === t1 ? [t0] : [0, 1, 2, 3].map(k => t0 + span * k / 3);
-  xTicks.forEach(v => {
-    const x = X(v);
-    g += `<line x1="${svgNum(x)}" y1="${mT + ih}" x2="${svgNum(x)}" y2="${mT + ih + 4}" stroke="var(--border2)" stroke-width="1"/>`;
-    g += `<text x="${svgNum(x)}" y="${mT + ih + 18}" text-anchor="middle" font-size="10" fill="var(--muted)">${d2(v)}</text>`;
-  });
-
-  // 一条线一个模型：按时间连线，点带原生 title（悬停看"哪次评测、多少分"）
-  names.forEach(nm => {
-    const col = colors[nm] || "#8a94a6";
-    const pts = byModel.get(nm);
-    const xy = pts.map(e => [X(ts(e)), Y(e.accuracy)]);
-    if (xy.length > 1) {
-      g += `<polyline fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-             opacity=".85" points="${xy.map(([x, y]) => `${svgNum(x)},${svgNum(y)}`).join(" ")}"/>`;
+  const spread = histSpread();
+  const rows = [], skipped = [];
+  for (const g of ((ovData && ovData.groups) || [])) {
+    for (const bm of g.benchmarks || []) {
+      const sa = bm.scores[idA], sb = bm.scores[idB];
+      if (!sa || !sb) {
+        skipped.push({ bm, g, why: !sa ? tf("{0} 没跑过这项", [a]) : tf("{0} 没跑过这项", [b]) });
+      } else if (sa.partial || sb.partial) {
+        skipped.push({ bm, g, why: t("有一方只跑了部分题库") });
+      } else {
+        rows.push({ bm, g, sa, sb, d: sa.accuracy - sb.accuracy });
+      }
     }
-    pts.forEach((e, i) => {
-      const [x, y] = xy[i];
-      g += `<circle cx="${svgNum(x)}" cy="${svgNum(y)}" r="3.4" fill="${col}" stroke="#fff" stroke-width="1">
-        <title>${esc(nm)} · ${esc(bmName)} · ${score(e.accuracy)}%（${e.done}/${e.total} 题 · ${dTime(ts(e))}）</title></circle>`;
-    });
-  });
+  }
+  if (!rows.length && !skipped.length) return `<div class="empty">${t("还没有任何成绩，先跑一场评测")}</div>`;
+  rows.sort((x, y) => y.d - x.d);
+  const winA = rows.filter(r => r.d > 0.05).length;
+  const winB = rows.filter(r => r.d < -0.05).length;
+  const tie = rows.length - winA - winB;
+  const med = rows.length ? rows[Math.floor(rows.length / 2)].d : 0;
+  const maxAbs = Math.max(1, ...rows.map(r => Math.abs(r.d)));
 
-  g += `<line x1="${mL}" y1="${mT + ih}" x2="${mL + iw}" y2="${mT + ih}" stroke="var(--border2)" stroke-width="1"/>`;
-  g += `<line x1="${mL}" y1="${mT}" x2="${mL}" y2="${mT + ih}" stroke="var(--border2)" stroke-width="1"/>`;
-
-  const sel = `<select class="trend-sel" onchange="setTrendBm(this.value)" title="${t("选一个基准看它的历史")}">
-      ${list.map(([id]) => {
-        const nm2 = (lbData ? (lbData.groups || []).flatMap(gg => gg.benchmarks || []).find(b => b.id === id) || {} : {}).name || id;
-        return `<option value="${esc(id)}"${id === cur ? " selected" : ""}>${esc(nm2)}</option>`;
-      }).join("")}
+  const sel = (which, cur) => `<select onchange="setCmp('${which}', this.value)" title="${t("换一个模型对比")}">
+      ${models.map(m => `<option value="${esc(m.name)}"${m.name === cur ? " selected" : ""}>${esc(m.name)}</option>`).join("")}
     </select>`;
-  const legend = names.map(nm =>
-    `<span style="white-space:nowrap;font-size:11px"><span class="mdot" style="background:${colors[nm] || "#8a94a6"}"></span>${esc(nm)}</span>`).join("");
+  const rowHtml = r => `<tr>
+      <td class="tl"><span style="font-weight:550">${esc(r.bm.name)}</span><div class="cmp-cat">${esc(r.g.name)}</div></td>
+      <td class="num">${score(r.sa.accuracy)}%</td>
+      <td class="num">${score(r.sb.accuracy)}%</td>
+      <td><div class="cmp-delta">
+        <span class="cmp-track"><i class="${r.d >= 0 ? "pos" : "neg"}"
+          style="width:${Math.max(2, Math.abs(r.d) / maxAbs * 100)}%;background:${r.d >= 0 ? colorOf(a) : colorOf(b)}"></i></span>
+        <b class="cmp-num" style="color:${r.d >= 0 ? colorOf(a) : colorOf(b)}">${r.d > 0 ? "+" : ""}${r.d.toFixed(2)}</b>
+      </div></td>
+      <td class="muted">${(function () {
+        const s = spread.get(a + "\u0000" + r.bm.id);
+        return s == null ? "—" : "±" + s.toFixed(1);
+      })()}</td>
+    </tr>`;
+  const skipHtml = skipped.map(s => `<tr>
+      <td class="tl"><span class="muted">${esc(s.bm.name)}</span><div class="cmp-cat">${esc(s.g.name)}</div></td>
+      <td colspan="4" class="muted">${t("不可比：")}${esc(s.why)}</td></tr>`).join("");
 
   return `
-    <div class="chart-bar">${sel}<span class="muted" style="font-size:11.5px">${tf("共 {0} 场完整评测、{1} 个模型", [rows.length, names.length])}</span></div>
-    <div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" class="chart-svg" role="img"
-        aria-label="${esc(tf("{0} 上各模型的成绩趋势", [bmName]))}">${g}</svg></div>
-    <div class="muted" style="font-size:11.5px;line-height:1.7;margin:6px 0 2px;display:flex;gap:4px 14px;flex-wrap:wrap">${legend}</div>
-    <div class="muted" style="font-size:11.5px;line-height:1.7">
-      ${t("每个点 = 一场跑完的评测（部分评测不画：分数天然偏低，会把曲线带偏）。")}
-      <br>${t("<b>换过裁判或评分口径</b>的两次评测本来就不可比，图上不区分 —— 看趋势前先确认这段时间没换过裁判。")}
+    <div class="chart-bar cmp-bar">
+      <span class="cmp-sel">${sel("a", a)}<b class="cmp-vs">vs</b>${sel("b", b)}</span>
+      <span class="muted" style="font-size:11.5px">${rows.length
+        ? tf("可比 {0} 项：{1} 赢 {2} 项 · 平 {3} 项 · 差值中位数 {4}",
+             [rows.length, a, winA, tie, (med > 0 ? "+" : "") + med.toFixed(2) + " 个百分点"])
+        : t("没有可比的基准（两者都跑完的）")
+      }</span>
+    </div>
+    ${rows.length ? `<div class="table-scroll"><table class="cmp-table">
+      <thead><tr><th class="tl">${t("基准")}</th>
+        <th><span class="mdot" style="background:${colorOf(a)}"></span>${esc(a)}</th>
+        <th><span class="mdot" style="background:${colorOf(b)}"></span>${esc(b)}</th>
+        <th>${t("差值（正 = 前者更强）")}</th><th>${t("波动")}（${esc(a)}）</th></tr></thead>
+      <tbody>${rows.map(rowHtml).join("")}${skipHtml}</tbody></table></div>` : ""}
+    <div class="muted" style="font-size:11.5px;line-height:1.7;margin-top:8px">
+      ${t("只比较**两边都跑完**的基准；部分评测、只有一方跑过的，列在表尾标为不可比。")}
+      <br>${t("「波动」= 该模型在该基准上多次完整评测的极差的一半。**差值小于波动就别当真** —— 那是噪声。")}
+      <br>${t("历史不足 500 场时按最近的 500 场算；没有任何重复测评的项波动显示 —。")}
     </div>`;
 }
 

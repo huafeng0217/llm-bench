@@ -1264,28 +1264,18 @@ check("矩阵可按最高分排序（默认仍是后端顺序）",
   && /const rowMax = b =>/.test(src)
   && /if \(ovMatrixSort\) bms\.sort\(/.test(src)
   && /onclick="toggleOvMatrixSort\(\)"/.test(src));
-// 趋势（A1）：第 4 个视图，数据来自 /api/evaluations；只画跑完的，并写明"换裁判不可比"。
-check("成绩总览有「趋势」视图：只画跑完的评测，且说明不可比",
-  /\["trend", t\("趋势"\)\]/.test(src)
-  && /function trendView\(\)/.test(src)
-  && /e\.status === "done" && e\.total > 0 && e\.done >= e\.total/.test(src)
+// 模型对比（A2）：第 4 个视图。回答"新版本 vs 旧版本 / A 比 B 差在哪"，
+// 只比两边都跑完的基准；另给"重复测评波动"一列，用来判断差值是不是噪音。
+check("成绩总览有「模型对比」视图：只比两边都跑完的、并给波动列",
+  /\["compare", t\("模型对比"\)\]/.test(src)
+  && /function compareView\(\)/.test(src)
+  && /sa\.partial \|\| sb\.partial/.test(src)
+  && /只比较\*\*两边都跑完\*\*的基准/.test(src)
+  && /function histSpread\(\)/.test(src)
+  && /差值小于波动就别当真/.test(src)
   && /\/api\/evaluations\?limit=500/.test(src)
-  // 盯调用点，不是词条表（EN 表里也含这串）
-  && /\$\{t\("<b>换过裁判或评分口径<\/b>/.test(src)
-  && /\?ov=/.test(src),
-  "趋势不能把部分评测混进来，也不能假装换过裁判的成绩连续");// 轮询重画不能把"用户正在操作的东西"换掉：2.5s 一轮的 refresh 里，总览/排行榜/基准区
-// 只在内容真的变化时才写 DOM（否则打开的下拉框会被新 DOM 关掉 —— 用户实测报过）。
-check("轮询重画：内容没变就不动 DOM（下拉框/焦点不会被 2.5s 轮询清掉）",
-  // 盯住条件判断本身：改成无条件赋值就一定红
-  // 必须用 WeakMap 记住上次写入的字符串：innerHTML 是序列化结果，SVG 自闭合标签会变形，
-  // 拿它比模板字符串等于永不相等（踩过一次，下拉框照样每 2.5s 被关）
-  /const __lastHtml = new WeakMap\(\);[\s\S]{0,160}?if \(__lastHtml\.get\(el\) === html\) return;/.test(src)
-  && /const ovHtml = `/.test(src)
-  && /setHtmlIfChanged\(box, ovHtml\);/.test(src)
-  && /setHtmlIfChanged\(document\.getElementById\("board"\)/.test(src)
-  && /setHtmlIfChanged\(document\.getElementById\("benchmarks"\)/.test(src),
-  "无条件写 innerHTML 会把用户打开的下拉框清掉");
-// ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
+  && !/trendView/.test(src),
+  "对比不能把部分评测/单边成绩混进来，波动列是历史数据的唯一正当用途");// ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
 // 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
 // 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。
 const i18nSlugs = [...src.matchAll(/data-i18n(?:-html|-ph|-title)?="([^"]+)"/g)]
