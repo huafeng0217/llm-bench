@@ -38,6 +38,8 @@ SCRIPTS = [
     ("verify_dispatch.py", True, "判分分派：10 条用例覆盖 6 种题型（含 2 选 1 / 5 选 1）"),
     ("verify_sandbox.py", True, "沙箱隔离：8 项攻击载荷 + 判分链路"),
     ("verify_humaneval.py", True, "HumanEval：代码抽取 + 164 道官方参考解法"),
+
+    ("verify_mbpp.py", True, "MBPP：题面/包装/抽样对照官方参考解法"),
     ("verify_livecodebench.py", True, "LiveCodeBench：测试用例解码 + 判分器"),
 ]
 

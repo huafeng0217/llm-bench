@@ -402,6 +402,8 @@ STORED_EN: dict[str, str] = {
     "JBB 有害行为下载结果为空": "JBB harmful behaviors returned no data when downloading",
     "JBB 良性请求下载结果为空": "JBB benign requests returned no data when downloading",
     "LiveCodeBench 下载结果为空": "LiveCodeBench returned no data when downloading",
+
+    "MBPP 下载结果为空": "MBPP returned no data when downloading",
     # 判分链路的兜底（正常路径已被 /api/evaluations 拦住，这里防的是绕过接口的调用）
     "这个基准需要裁判模型，但这次评测没有配置裁判（judge_model_id 为空）":
         "this benchmark needs a judge model, but this run has no judge configured"

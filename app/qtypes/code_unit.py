@@ -41,7 +41,9 @@ async def run_code_item(model_cfg: dict, item: dict, params: dict) -> dict:
 
     # 用独立信号量限流：容器比 HTTP 请求重得多，不能按 concurrency 放
     async with SANDBOX_SEM:
-        sr = await asyncio.to_thread(sandbox.run_python_tests, code, item["test"], item["entry_point"])
+        sr = await asyncio.to_thread(
+            sandbox.run_python_tests, code, item["test"], item["entry_point"],
+            harness=item.get("harness") or "check")
     if sr["passed"]:
         predicted, err = "通过", None
     elif sr["timed_out"]:

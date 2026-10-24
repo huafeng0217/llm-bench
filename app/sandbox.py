@@ -188,11 +188,15 @@ def run_code(code: str, timeout: int = DEFAULT_TIMEOUT) -> dict:
 
 
 def run_python_tests(solution: str, test_code: str, entry_point: str,
-                     timeout: int = DEFAULT_TIMEOUT) -> dict:
+                     timeout: int = DEFAULT_TIMEOUT, harness: str = "check") -> dict:
     """把「模型写的解法」和「官方单元测试」拼成一个程序，在沙箱里跑。
 
-    HumanEval / MBPP 的官方测试都是 ``def check(candidate): ...`` 的形式，
-    末尾再调一次 ``check(entry_point)`` 即可。判分就是 ``exit_code == 0``。
+    HumanEval 的官方测试是 ``def check(candidate): ...`` 的形式，末尾调一次
+    ``check(entry_point)``，判分就是 ``exit_code == 0``。
+
+    ``harness`` 是**测试包装函数名**，默认 ``check``。个别题目的官方函数名本身就叫
+    ``check``（MBPP #56 的断言是 ``assert check(70) == False``），再包一层 ``check``
+    会撞名并无限递归 —— 所以允许调用方换一个包装函数名。
 
     返回值和 :func:`run_code` 相同，另外多一个 ``program`` 字段（完整程序源码），
     方便把失败的用例原样存进 eval_items 排查。
@@ -202,7 +206,7 @@ def run_python_tests(solution: str, test_code: str, entry_point: str,
         "",
         test_code.rstrip(),
         "",
-        f"check({entry_point})",
+        f"{harness}({entry_point})",
         "",
     ])
     r = run_code(program, timeout=timeout)

@@ -114,11 +114,12 @@ You can walk the whole pipeline without a key: set the model name to `demo` and 
 | Safety / alignment | HarmBench (direct requests) | 200 | judge-scored (was the behaviour carried out) |
 | Safety / alignment | JailbreakBench harmful | 100 | judge-scored (was the jailbreak successful) |
 | Safety / alignment | JailbreakBench benign | 100 | judge-scored (was it over-refused) |
-| Code | HumanEval | 164 | sandbox runs the official unit tests |
+| Code | HumanEval | 164 | sandbox runs the official unit tests (complete the body) |
+| Code | MBPP | 427 | sandbox runs the official asserts (write the function from a requirement) |
 | Code | LiveCodeBench v6 | 175 | sandbox runs the contest test cases |
 | Sample | MMLU / C-Eval samples | 12 each | 4-way |
 
-> **36 benchmarks** in total (including the 2 samples; the Agent category holds 16 BFCL v4 subsets folded into one “BFCL v4” card).
+> **37 benchmarks** in total (including the 2 samples; the Agent category holds 16 BFCL v4 subsets folded into one “BFCL v4” card).
 > BFCL v4 has 22 subsets officially and this project ships 16 of them (60% of the official weight) — the missing Web Search / Memory
 > groups need a paid SerpAPI service and a memory preprocessing plus embedding-model step respectively, both at odds with “local and reproducible”.
 

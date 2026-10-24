@@ -46,7 +46,7 @@
   - 函数调用：BFCL v4（AST 匹配评分，含 Live 真实提问子集）
   - 安全 / 对齐：HarmBench / JailbreakBench（**裁判模型判分**，见上）
   - 多轮对话：BFCL v4 multi_turn（模拟环境 + 一轮内多步工具调用）
-  - **代码执行**：HumanEval / LiveCodeBench —— 真的把模型代码跑进一次性 Docker 容器判分
+  - **代码执行**：HumanEval / MBPP / LiveCodeBench —— 真的把模型代码跑进一次性 Docker 容器判分
 
 ## 快速开始
 
@@ -108,11 +108,12 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 | 安全 / 对齐 | HarmBench（直接请求） | 200 | 裁判判分（有害行为是否被照做） |
 | 安全 / 对齐 | JailbreakBench 有害行为 | 100 | 裁判判分（越狱是否成功） |
 | 安全 / 对齐 | JailbreakBench 良性请求 | 100 | 裁判判分（是否过度拒绝） |
-| 代码工程 | HumanEval | 164 | 沙箱执行官方单元测试 |
+| 代码工程 | HumanEval | 164 | 沙箱执行官方单元测试（补全函数体） |
+| 代码工程 | MBPP | 427 | 沙箱执行官方断言（按一句需求自己写函数） |
 | 代码工程 | LiveCodeBench v6 | 175 | 沙箱执行竞赛测试用例 |
 | 演示样例 | MMLU / C-Eval 样例 | 各 12 | 4 选 1 |
 
-> 合计 **36 个基准**（含 2 个演示样例；Agent 分类下 16 个 BFCL v4 子集，界面上折叠成一个「BFCL v4」）。
+> 合计 **37 个基准**（含 2 个演示样例；Agent 分类下 16 个 BFCL v4 子集，界面上折叠成一个「BFCL v4」）。
 > BFCL v4 官方共 22 个子集，本站提供其中 16 个（官方权重 60%）——缺 Web Search / Memory 那 5 个：
 > 前者要 SerpAPI 付费服务、后者要先跑记忆预处理并拉 embedding 模型，都跟「纯本地、可复现」冲突。
 
@@ -123,7 +124,7 @@ python scripts/download.py                    # 下载全部 34 个可下载题�
 python scripts/download.py cmmlu gpqa         # 下载指定题库
 python scripts/download.py BFCL_v4_multi_turn_base   # 下载单个 BFCL 子集
 python scripts/download.py BFCL_v4_live_simple BFCL_v4_live_irrelevance   # BFCL Live 子集
-python scripts/download.py humaneval livecodebench   # 代码类题库
+python scripts/download.py humaneval mbpp livecodebench   # 代码类题库
 ```
 
 也可以在网页的基准卡片上点「下载」按钮，由后端自动调用脚本下载（可看到下载状态）。
@@ -149,7 +150,7 @@ app/
     types.py          # Outcome / RunCtx / QuestionType
     choice.py         # 选择题
     numeric.py        # 数值 / 表达式题
-    code_unit.py      # HumanEval 式（沙箱跑官方单元测试）
+    code_unit.py      # HumanEval / MBPP 式（沙箱跑官方单元测试）
     code_stdio.py     # LiveCodeBench 式（沙箱跑竞赛用例）
     _code.py          # 代码题公共层（抽代码 + 额度阶梯）
     bfcl.py           # BFCL 单轮函数调用
@@ -159,7 +160,7 @@ app/
     types.py          # Benchmark 条目类型
     _util.py          # 下载公共工具（HTTP / gzip / parquet / 写 jsonl）
     mmlu.py ceval.py cmmlu.py gpqa.py mmlu_pro.py gsm8k.py math500.py
-    aime.py truthfulqa.py humaneval.py livecodebench.py bfcl.py
+    aime.py truthfulqa.py humaneval.py mbpp.py livecodebench.py bfcl.py
   sandbox.py        # 代码执行沙箱（Docker）+ 容器内判分器
   lcb.py            # LiveCodeBench 测试用例的安全解码
   scoring.py        # 取数口径：题库派生事实 + 「一次成绩算不算数」（排行榜/总览/AI 总结共用）
@@ -182,6 +183,7 @@ scripts/
   verify_code_assembly.py # 代码题拼接：题目自带辅助函数 / 竞赛题不拼题面（不需要 Docker）
   verify_sandbox.py     # 沙箱隔离安全验证（跑攻击载荷）
   verify_humaneval.py   # HumanEval 抽取 + 参考解法自检
+verify_mbpp.py        # MBPP 题面/测试包装 + 抽样对照官方参考解法
   verify_livecodebench.py  # LiveCodeBench 判分器自检
   verify_web_templates.mjs # 前端模板渲染自检（需要 Node，不需要浏览器）
   verify_summary.py     # 统计层自检（含与数据库对账）
