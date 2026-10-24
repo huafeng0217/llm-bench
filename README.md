@@ -18,7 +18,7 @@
   翻译在响应时做，所以**历史任务切到英文也能看**
 - **评测引擎**：并发调用 API、自动判分、3 次重试、逐题明细导出（JSONL）
 - **任务管理**：运行中的任务可随时**停止**（保留已跑进度）；**删除会自动先停止**；支持**批量删除**；被中断的任务可**续跑**（只补剩下的题）
-- **排行榜**：按分类分区（通用知识 / 中文能力 / 科学推理 / 常识推理 / 数学推理 / Agent·工具调用 / 代码工程 / 安全·对齐），先看「总览（各分类冠军）」，点分类展开「综合榜（分类内平均分）+ 各基准分项榜」
+- **排行榜**：按分类分区（通用知识 / 中文能力 / 科学推理 / 综合推理 / 常识推理 / 数学推理 / Agent·工具调用 / 代码工程 / 安全·对齐），先看「总览（各分类冠军）」，点分类展开「综合榜（分类内平均分）+ 各基准分项榜」
   - 同一模型同一基准的多次测试**只在完整评测里取最高分**；没跑完题库的会标出「部分 x/y」、排在完整成绩之后，
     不参与最高分评选、也不计入综合平均分（`app/scoring.py` 一处定义，排行榜/总览/AI 总结共用）
   - 按「**覆盖度优先**」排序，避免只跑简单基准刷分
@@ -92,6 +92,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 | 中文能力 | CMMLU | 约 1.1 万 | 4 选 1 |
 | 科学推理 | GPQA Diamond | 198 | 4 选 1 |
 | 科学推理 | ARC-Challenge | 1172 | 4~5 选 1 |
+| 综合推理 | BBH（BIG-Bench Hard） | 6007 | 选择题（2~18 选 1）+ 数值题 |
 | 常识推理 | HellaSwag | 10042 | 4 选 1 |
 | 常识推理 | WinoGrande | 1267 | **2 选 1** |
 | 数学推理 | GSM8K | 7473 | 数值答案 |
@@ -113,18 +114,19 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 | 代码工程 | LiveCodeBench v6 | 175 | 沙箱执行竞赛测试用例 |
 | 演示样例 | MMLU / C-Eval 样例 | 各 12 | 4 选 1 |
 
-> 合计 **37 个基准**（含 2 个演示样例；Agent 分类下 16 个 BFCL v4 子集，界面上折叠成一个「BFCL v4」）。
+> 合计 **38 个基准**（含 2 个演示样例；Agent 分类下 16 个 BFCL v4 子集，界面上折叠成一个「BFCL v4」）。
 > BFCL v4 官方共 22 个子集，本站提供其中 16 个（官方权重 60%）——缺 Web Search / Memory 那 5 个：
 > 前者要 SerpAPI 付费服务、后者要先跑记忆预处理并拉 embedding 模型，都跟「纯本地、可复现」冲突。
 
 ## 数据集下载
 
 ```bash
-python scripts/download.py                    # 下载全部 34 个可下载题库
+python scripts/download.py                    # 下载全部 35 个可下载题库
 python scripts/download.py cmmlu gpqa         # 下载指定题库
 python scripts/download.py BFCL_v4_multi_turn_base   # 下载单个 BFCL 子集
 python scripts/download.py BFCL_v4_live_simple BFCL_v4_live_irrelevance   # BFCL Live 子集
 python scripts/download.py humaneval mbpp livecodebench   # 代码类题库
+python scripts/download.py bbh                # 综合推理（25 个子集，要连打 25 次接口）
 ```
 
 也可以在网页的基准卡片上点「下载」按钮，由后端自动调用脚本下载（可看到下载状态）。
@@ -160,7 +162,7 @@ app/
     types.py          # Benchmark 条目类型
     _util.py          # 下载公共工具（HTTP / gzip / parquet / 写 jsonl）
     mmlu.py ceval.py cmmlu.py gpqa.py mmlu_pro.py gsm8k.py math500.py
-    aime.py truthfulqa.py humaneval.py mbpp.py livecodebench.py bfcl.py
+    aime.py truthfulqa.py humaneval.py mbpp.py livecodebench.py bbh.py bfcl.py
   sandbox.py        # 代码执行沙箱（Docker）+ 容器内判分器
   lcb.py            # LiveCodeBench 测试用例的安全解码
   scoring.py        # 取数口径：题库派生事实 + 「一次成绩算不算数」（排行榜/总览/AI 总结共用）
@@ -184,6 +186,7 @@ scripts/
   verify_sandbox.py     # 沙箱隔离安全验证（跑攻击载荷）
   verify_humaneval.py   # HumanEval 抽取 + 参考解法自检
 verify_mbpp.py        # MBPP 题面/测试包装 + 抽样对照官方参考解法
+verify_bbh.py         # BBH 题面/选项/答案一致 + 18 选 1 的答案抽取边界
   verify_livecodebench.py  # LiveCodeBench 判分器自检
   verify_web_templates.mjs # 前端模板渲染自检（需要 Node，不需要浏览器）
   verify_summary.py     # 统计层自检（含与数据库对账）

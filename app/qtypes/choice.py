@@ -24,13 +24,23 @@ def build_prompt(item: dict) -> str:
     return "\n".join(lines)
 
 
-def extract_answer(text: str | None) -> str | None:
-    """从模型回复中抽取选项字母（A-J）。先看显式'答案'，再找首个独立字母。"""
+def extract_answer(text: str | None, allowed: str | None = None) -> str | None:
+    """从模型回复中抽取选项字母。
+
+    ``allowed`` 是这道题**真实存在**的选项字母（由调用方按题面给出）。
+    必须传入的原因：选项数最多到 18（A~R），放宽字母范围后，模型回复里
+    "I think ..." 的 I 会被当成选项 I —— 那是误判，不是模型答错。
+    不传时按旧行为只认 A~J（直接调用/单测用）。
+    """
     if not text:
         return None
+    pool = "".join(dict.fromkeys((allowed or "ABCDEFGHIJ").upper()))
+    if not pool:
+        return None
     head = text.strip()[:120]
-    m = re.search(r"(?:答案是|答案[:：为]|选项是?|answer is|answer[:：])\s*\(?([A-J])\b", head, re.IGNORECASE)
+    cls = f"[{re.escape(pool)}]"
+    m = re.search(r"(?:答案是|答案[:：为]|选项是?|answer is|answer[:：])\s*\(?" + cls + r"\b", head, re.IGNORECASE)
     if m:
-        return m.group(1).upper()
-    m = re.search(r"(?<![A-Za-z])([A-J])(?![A-Za-z])", head)
-    return m.group(1) if m else None
+        return m.group(0)[-1].upper()
+    m = re.search(r"(?<![A-Za-z])(" + cls + r")(?![A-Za-z])", head)
+    return m.group(1).upper() if m else None

@@ -33,6 +33,7 @@ CATEGORIES = [
     {"id": "knowledge", "name": "通用知识", "name_en": "Knowledge", "color": "#4a7de0"},
     {"id": "chinese", "name": "中文能力", "name_en": "Chinese", "color": "#e05a4a"},
     {"id": "science", "name": "科学推理", "name_en": "Science", "color": "#7a5ae0"},
+    {"id": "reasoning", "name": "综合推理", "name_en": "Reasoning", "color": "#6d8f1f"},
     {"id": "commonsense", "name": "常识推理", "name_en": "Commonsense", "color": "#0f9b9b"},
     {"id": "math", "name": "数学推理", "name_en": "Math", "color": "#2fa36b"},
     {"id": "agent", "name": "Agent / 工具调用", "name_en": "Agent / tool use", "color": "#e0952f"},

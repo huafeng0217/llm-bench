@@ -38,6 +38,7 @@
 本文件只做「注册 + 把各模块的判分接成统一签名」，不含判分逻辑。
 """
 from . import bfcl, bfcl_multi_turn, choice, code_stdio, code_unit, numeric, safety
+from ..config import CHOICES
 from .types import Outcome, QuestionType, RunCtx
 
 __all__ = ["Outcome", "QuestionType", "RunCtx", "TYPES", "BY_ID", "detect"]
@@ -51,7 +52,9 @@ async def _run_choice(model_cfg, item, params, ctx) -> Outcome:
     expected = str(item.get("answer", "")).strip().upper()
     resp = await chat_with_retry(model_cfg, choice.build_prompt(item), expected, params)
     raw = resp["content"]
-    predicted = choice.extract_answer(raw)
+    # 只认这道题真实存在的选项字母：18 选 1 的题里，回复中的 "I think" 不是选项 I
+    allowed = "".join(c for c in CHOICES if item.get(c))
+    predicted = choice.extract_answer(raw, allowed or None)
     return Outcome(ok=1 if predicted == expected else 0, predicted=predicted, expected=expected,
                    raw=raw, prompt_tokens=resp["prompt_tokens"],
                    completion_tokens=resp["completion_tokens"], latency_ms=resp["latency_ms"])

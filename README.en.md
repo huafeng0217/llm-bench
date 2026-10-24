@@ -17,7 +17,7 @@ Everything runs locally — **API keys never leave your machine** and are never 
 - **Evaluation engine**: concurrent API calls, automatic scoring, 3 retries, per-item JSONL export
 - **Run management**: **stop** a running job at any time (progress is kept); **deleting stops it first**; **batch delete**; resume an interrupted run (only the missing items)
 - **UI in Chinese or English**: the language switch sits in the top bar, the choice is remembered, and a first visit follows the browser language (the backend returns every string in the selected language)
-- **Leaderboard**: split by category (Knowledge / Chinese / Science / Commonsense / Math / Agent·tool use / Code / Safety·alignment). Start with the
+- **Leaderboard**: split by category (Knowledge / Chinese / Science / Reasoning / Commonsense / Math / Agent·tool use / Code / Safety·alignment). Start with the
   **overview (top model per category)**, click a category to expand the **combined ranking (average within the category) + per-benchmark boards**
   - Several runs of the same model on the same benchmark: **the best complete run wins**; runs that did not finish the dataset are marked
     “partial x/y”, sorted after complete results, excluded from best-score marking and from the category average
@@ -98,6 +98,7 @@ You can walk the whole pipeline without a key: set the model name to `demo` and 
 | Chinese | CMMLU | ~11k | 4-way |
 | Science | GPQA Diamond | 198 | 4-way |
 | Science | ARC-Challenge | 1172 | 4–5 way |
+| Reasoning | BBH (BIG-Bench Hard) | 6007 | multiple choice (2–18 way) + numeric |
 | Commonsense | HellaSwag | 10042 | 4-way |
 | Commonsense | WinoGrande | 1267 | **2-way** |
 | Math | GSM8K | 7473 | numeric |
@@ -119,7 +120,7 @@ You can walk the whole pipeline without a key: set the model name to `demo` and 
 | Code | LiveCodeBench v6 | 175 | sandbox runs the contest test cases |
 | Sample | MMLU / C-Eval samples | 12 each | 4-way |
 
-> **37 benchmarks** in total (including the 2 samples; the Agent category holds 16 BFCL v4 subsets folded into one “BFCL v4” card).
+> **38 benchmarks** in total (including the 2 samples; the Agent category holds 16 BFCL v4 subsets folded into one “BFCL v4” card).
 > BFCL v4 has 22 subsets officially and this project ships 16 of them (60% of the official weight) — the missing Web Search / Memory
 > groups need a paid SerpAPI service and a memory preprocessing plus embedding-model step respectively, both at odds with “local and reproducible”.
 

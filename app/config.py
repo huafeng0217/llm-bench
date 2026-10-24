@@ -15,7 +15,8 @@ RESULTS_DIR = DATA_DIR / "results"
 BFCL_DIR = DATA_DIR / "bfcl_v4"
 
 
-CHOICES = [chr(65 + i) for i in range(10)]  # A-J，兼容 4 选 1（MMLU/C-Eval）到 10 选 1（MMLU-Pro）
+# A-R：兼容 4 选 1（MMLU/C-Eval）、10 选 1（MMLU-Pro），以及 18 选 1（BBH 的 18 色题）
+CHOICES = [chr(65 + i) for i in range(18)]
 
 
 DEFAULTS = {"max_tokens": 2048, "timeout_s": 90, "concurrency": 8}

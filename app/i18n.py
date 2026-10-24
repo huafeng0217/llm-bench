@@ -404,6 +404,12 @@ STORED_EN: dict[str, str] = {
     "LiveCodeBench 下载结果为空": "LiveCodeBench returned no data when downloading",
 
     "MBPP 下载结果为空": "MBPP returned no data when downloading",
+
+
+    "BBH 子集下载失败": "failed to download a BBH subset",
+
+
+    "BBH 下载结果为空": "BBH returned no data when downloading",
     # 判分链路的兜底（正常路径已被 /api/evaluations 拦住，这里防的是绕过接口的调用）
     "这个基准需要裁判模型，但这次评测没有配置裁判（judge_model_id 为空）":
         "this benchmark needs a judge model, but this run has no judge configured"

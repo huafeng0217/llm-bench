@@ -29,6 +29,8 @@ SCRIPTS = [
     ("verify_imports.py", False, "静态检查：用到但未定义/未 import 的名字"),
     ("verify_i18n.py", False, "中英切换：语言识别 / 文案回落 / 漏译检查"),
     ("verify_datasets.py", False, "题库与元数据：行数缓存 / 原子写 / 卡片文案 / 题量对账"),
+
+    ("verify_bbh.py", False, "BBH：题面/选项/答案一致 + 18 选 1 抽取边界"),
     ("verify_code_assembly.py", False, "代码题拼接：题目自带辅助函数 / 竞赛题不拼题面"),
     ("verify_models.py", False, "模型用途：判别器不能被评测 / 改类型二次确认 / 身份色（临时库）"),
     ("verify_scoring.py", False, "取数口径：完整/部分评测 + 家族官方加权总分（临时库）"),
