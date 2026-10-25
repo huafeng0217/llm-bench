@@ -94,7 +94,7 @@ underlying version over time. Storing only the name would merge two runs of diff
    alias while requests still use the API name;
 3. When the underlying version changes, simply add another record with the same API name and a new
    alias: the two records are evaluated and ranked separately;
-4. The “Alias” button on each row lets you rename the display name later (empty = use the API name).
+4. **The alias locks once the model has any run** (history must stay with the alias it was produced under); before the first run you can still fix it. To test a new version, add a **new record** — the old record and its results stay as they are.
 
 Constraint: **display names must be unique** (leaderboard, legends and the compare view tell models
 apart by display name); duplicates are rejected by the backend.

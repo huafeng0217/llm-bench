@@ -245,6 +245,17 @@ def main_() -> int:
         check("清空别名 = 回到 API 调用名", r6["label"], "__唯一API名__")
         raises("不存在的模型改别名 -> 404",
                lambda: main.update_model_alias(99999, main.AliasIn(alias="x")), 404)
+        # 跑过评测后别名锁定：历史成绩必须一直归属当时那个别名，
+        # 否则改个名就把"以前那个版本跑的成绩"重新算到新名字下了。
+        f = add_model("__跑过评测__")
+        insert_eval(f)
+        raises("有评测的模型改别名 -> 409（别名锁定）",
+               lambda: main.update_model_alias(f, main.AliasIn(alias="__跑过评测__·改名")), 409)
+        labels2 = {r["id"]: r["label"] for r in main.list_models()}
+        check("被拒之后别名保持原样", labels2[f], "__跑过评测__")
+        g = add_model("__没跑过__")
+        r7 = main.update_model_alias(g, main.AliasIn(alias="__没跑过__·改错字"))
+        check("没有评测的模型仍然可以改别名（改错字）", r7["label"], "__没跑过__·改错字")
 
         # ---- 4) models.json：写出带 kind / 老文件按被测导入 ------------------
         main.sync_models_file()

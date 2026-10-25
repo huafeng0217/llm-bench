@@ -373,11 +373,20 @@ def update_model_kind(mid: int, body: KindIn):
 def update_model_alias(mid: int, body: AliasIn):
     """改显示名（别名）。空串 = 回到用 API 调用名。
 
-    只影响显示：调用照旧用 models.name。已有评测也跟着新显示名走（历史是同一个模型记录的）。
+    **跑过评测之后就不许改了**：别名代表"这个 API 名在某个时期对应的版本"，历史成绩
+    必须一直归属当时那个别名。想测新版本 → 新建一条模型记录（同 API 名、新别名），
+    旧记录和它的成绩原样保留。这样排行榜上"哪一个版本跑出了哪些成绩"不会被事后改写。
     """
     row = db.query_one("SELECT id, name, alias FROM models WHERE id=?", (mid,))
     if not row:
         raise HTTPException(404, i18n.t("模型不存在"))
+    n = db.query_one("SELECT COUNT(*) AS n FROM evaluations WHERE model_id=?", (mid,))["n"]
+    if n:
+        raise HTTPException(409, i18n.t(
+            "{label} 已经跑过 {n} 条评测，别名不能再改 —— 否则这些成绩会被重新归到新名字下。"
+            "要测新版本，请新建一条模型记录（API 调用名可以相同，起一个新别名），"
+            "旧记录和它的成绩会原样保留。",
+            label=model_label(row["alias"], row["name"]), n=n))
     alias = (body.alias or "").strip()
     label = model_label(alias, row["name"])
     clash = _label_conflict(label, exclude_id=mid)

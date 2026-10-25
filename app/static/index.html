@@ -739,6 +739,8 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
+  "已经跑过评测，别名锁定：这些成绩要一直归属这个别名。要测新版本请新建一条模型记录（同 API 名、新别名）。": "Runs exist, so the alias is locked: those results must stay with this alias. To test a new version, add a new model record (same API name, new alias).",
+  "这个模型已经跑过评测，别名锁定。要测新版本请新建一条模型记录（同 API 名、新别名），旧成绩保持原样。": "This model already has runs, so its alias is locked. To test a new version, add a new model record (same API name, new alias); existing results stay as they are.",
   "别名（显示用；留空 = 用调用名）": "Alias (shown in results; empty = use the API model name)",
   "调用名": "API name",
   "别名": "Alias",
@@ -1655,7 +1657,11 @@ async function loadModels() {
      <td style="white-space:nowrap">
        <span style="display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center">
          <button class="ghost" onclick="toggleKind(${m.id}, '${judge ? "test" : "judge"}')">${btn}</button>
-         <button class="ghost" onclick="editAlias(${m.id})" title="${t("给这个模型起一个显示名（同一个 API 名可以建多条记录分别测不同版本）")}">${t("别名")}</button>
+         <button class="ghost" onclick="editAlias(${m.id})"
+           ${m.evaluations ? `disabled style="opacity:.5;cursor:not-allowed"` : ""}
+           title="${m.evaluations
+             ? t("已经跑过评测，别名锁定：这些成绩要一直归属这个别名。要测新版本请新建一条模型记录（同 API 名、新别名）。")
+             : t("给这个模型起一个显示名（同一个 API 名可以建多条记录分别测不同版本）")}">${t("别名")}</button>
          <button class="ghost" onclick="delModel(${m.id})">${t("删除")}</button>
        </span></td></tr>`;
   }).join("")
@@ -1702,6 +1708,10 @@ async function toggleKind(id, kind) {
 // 历史评测会跟着新显示名走（还是同一条模型记录）。留空 = 回到用调用名。
 async function editAlias(id) {
   const m = (modelList || []).find(x => x.id === id) || {};
+  // 跑过评测的模型不许改别名：历史成绩必须归属当时那个别名（要测新版本请新建记录）
+  if (m.evaluations) {
+    return alert(t("这个模型已经跑过评测，别名锁定。要测新版本请新建一条模型记录（同 API 名、新别名），旧成绩保持原样。"));
+  }
   const cur = m.alias || "";
   const v = prompt(t("显示名（别名，留空 = 用 API 调用名）：") + " " + (m.name || ""), cur);
   if (v === null) return;                 // 取消

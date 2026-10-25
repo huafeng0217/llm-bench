@@ -886,6 +886,12 @@ await new Function("api", "document", "esc", "updateEvalHint",
 
 const modelHtml = els["models"].innerHTML;
 check("模型表：判别器标出「判别器」", modelHtml.includes(">判别器</span>"));
+// 别名跑过评测后锁定（否则改名会把旧成绩重新归到新名字下）：按钮要置灰 + 说明原因。
+check("模型表：有评测时「别名」按钮置灰并说明原因",
+  /m\.evaluations \? `disabled style="opacity:\.5;cursor:not-allowed"` : ""/.test(src)
+  && /别名锁定：这些成绩要一直归属这个别名/.test(src)
+  && /if \(m\.evaluations\) \{/.test(src));
+
 check("模型表：显示名优先用别名，后面标出 API 调用名",
   modelHtml.includes("deepseek-flash·v2") && modelHtml.includes("调用名")
   && modelHtml.includes("deepseek-flash<"));

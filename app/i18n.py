@@ -426,7 +426,10 @@ STORED_EN: dict[str, str] = {
 
 
 
-    "显示名「{label}」已经被另一个模型用了（对外的名字必须唯一，排行榜和图例按它区分模型）。换一个别名，或者先改掉那个模型的别名。":
+    
+    "{label} 已经跑过 {n} 条评测，别名不能再改 —— 否则这些成绩会被重新归到新名字下。要测新版本，请新建一条模型记录（API 调用名可以相同，起一个新别名），旧记录和它的成绩会原样保留。":
+        "{label} already has {n} run(s), so its alias is locked — otherwise those results would be re-attributed to the new name. To test a new version, add a new model record (same API name, new alias); the old record and its results stay as they are.",
+"显示名「{label}」已经被另一个模型用了（对外的名字必须唯一，排行榜和图例按它区分模型）。换一个别名，或者先改掉那个模型的别名。":
 
 
 
