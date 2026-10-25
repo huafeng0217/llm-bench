@@ -63,7 +63,8 @@ def import_models_file():
 
 def sync_models_file():
     """把模型配置同步到本地文档，方便用户查看/备份/手动编辑。"""
-    rows = db.query("SELECT name, base_url, api_key, kind, extra_body FROM models ORDER BY id")
+    rows = db.query("SELECT name, alias, base_url, api_key, kind, extra_body"
+                    " FROM models ORDER BY id")
     MODELS_FILE.parent.mkdir(parents=True, exist_ok=True)
     MODELS_FILE.write_text(
         json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -133,7 +134,11 @@ MODEL_KINDS = {"test": "被测模型", "judge": "判别器"}
 
 
 class ModelIn(BaseModel):
+    # name = **API 调用名**（请求里发出去的 model 字段）；alias = 显示名（可选，留空 = 用 name）。
+    # 分开的原因：像 deepseek-flash 这种 API 名，不同时间可能指向不同的底层版本，
+    # 同一个 name 建多条记录、各起一个别名，成绩才不会被合并成同一条。
     name: str
+    alias: str = ""
     base_url: str
     api_key: str = ""
     kind: str = "test"
@@ -169,6 +174,11 @@ def _apply_copy_api(m: ModelIn) -> tuple[str, str, str]:
 class KindIn(BaseModel):
     kind: str
     confirm: bool = False   # 该模型已有历史评测时，必须显式确认才允许改类型
+
+
+class AliasIn(BaseModel):
+    """改显示名（别名）。空串 = 回到用 API 调用名。"""
+    alias: str = ""
 
 
 class EvalIn(BaseModel):
@@ -228,6 +238,7 @@ def list_models():
     rows = db.query("SELECT * FROM models ORDER BY id DESC")
     for r in rows:
         r["api_key"] = mask_key(r["api_key"])
+        r["label"] = model_label(r.get("alias"), r["name"])   # 前端显示用（别名优先）
         # 顺带给出该模型有多少条历史评测：前端在「改成判别器」时要拿它做二次确认，
         # 而改类型不会删掉历史成绩（数据是真的，出现在过就留着），所以要先让人知道。
         r["evaluations"] = db.query_one(
@@ -282,6 +293,24 @@ def valid_extra_body(raw: str) -> str:
     return json.dumps(obj, ensure_ascii=False)
 
 
+def model_label(alias, name: str) -> str:
+    """显示名：别名优先，空则用 API 调用名。"""
+    return (alias or "").strip() or (name or "").strip()
+
+
+def _label_conflict(label: str, exclude_id: int | None = None):
+    """显示名是否已被别的模型占用。
+
+    必须唯一：排行榜/图表/图例都是按显示名做键的（同名会串成一条）。
+    """
+    for r in db.query("SELECT id, name, alias FROM models"):
+        if exclude_id is not None and r["id"] == exclude_id:
+            continue
+        if model_label(r["alias"], r["name"]) == label:
+            return r
+    return None
+
+
 @app.post("/api/models", status_code=201)
 def create_model(m: ModelIn):
     # 先按 copy_api_from 补全（留空的才补），再校验 —— 顺序很重要：只填了模型名的
@@ -291,11 +320,20 @@ def create_model(m: ModelIn):
         raise HTTPException(400, i18n.t("name 和 base_url 不能为空"))
     if m.kind not in MODEL_KINDS:
         raise HTTPException(400, i18n.t("kind 只能是 {kinds}", kinds=sorted(MODEL_KINDS)))
+    alias = (m.alias or "").strip()
+    label = model_label(alias, m.name)
+    clash = _label_conflict(label)
+    if clash:
+        raise HTTPException(400, i18n.t(
+            "显示名「{label}」已经被另一个模型用了（对外的名字必须唯一，"
+            "排行榜和图例按它区分模型）。换一个别名，或者先改掉那个模型的别名。",
+            label=label))
     # 身份色在这里定下来（见 app/model_colors.py）：前端拿它画排行榜上的点。
     # 分配规则是"挑用得最少的"，所以删掉模型后它空出来的颜色会被下一个新模型捡回。
     mid = db.execute(
-        "INSERT INTO models(name, base_url, api_key, kind, extra_body, color) VALUES(?,?,?,?,?,?)",
-        (m.name.strip(), base_url.rstrip("/"), api_key, m.kind,
+        "INSERT INTO models(name, alias, base_url, api_key, kind, extra_body, color)"
+        " VALUES(?,?,?,?,?,?,?)",
+        (m.name.strip(), alias, base_url.rstrip("/"), api_key, m.kind,
          valid_extra_body(extra_body), _next_model_color()),
     )
     sync_models_file()
@@ -312,7 +350,7 @@ def update_model_kind(mid: int, body: KindIn):
     """
     if body.kind not in MODEL_KINDS:
         raise HTTPException(400, i18n.t("kind 只能是 {kinds}", kinds=sorted(MODEL_KINDS)))
-    row = db.query_one("SELECT id, name, kind FROM models WHERE id=?", (mid,))
+    row = db.query_one("SELECT id, name, alias, kind FROM models WHERE id=?", (mid,))
     if not row:
         raise HTTPException(404, i18n.t("模型不存在"))
     n = db.query_one("SELECT COUNT(*) AS n FROM evaluations WHERE model_id=?", (mid,))["n"]
@@ -325,10 +363,31 @@ def update_model_kind(mid: int, body: KindIn):
             409,
             i18n.t("{name} 已有 {n} 条历史评测。改成「判别器」后不能再发起新评测，"
                    "但已有的成绩仍然保留在排行榜上（数据是真的，不该因为角色变了就消失）。"
-                   "确认要改吗？", name=row["name"], n=n),
+                   "确认要改吗？", name=model_label(row["alias"], row["name"]), n=n),
         )
     db.execute("UPDATE models SET kind=? WHERE id=?", (body.kind, mid))
     return {"ok": True, "kind": body.kind, "evaluations": n, "changed": True}
+
+
+@app.patch("/api/models/{mid}/alias")
+def update_model_alias(mid: int, body: AliasIn):
+    """改显示名（别名）。空串 = 回到用 API 调用名。
+
+    只影响显示：调用照旧用 models.name。已有评测也跟着新显示名走（历史是同一个模型记录的）。
+    """
+    row = db.query_one("SELECT id, name, alias FROM models WHERE id=?", (mid,))
+    if not row:
+        raise HTTPException(404, i18n.t("模型不存在"))
+    alias = (body.alias or "").strip()
+    label = model_label(alias, row["name"])
+    clash = _label_conflict(label, exclude_id=mid)
+    if clash:
+        raise HTTPException(400, i18n.t(
+            "显示名「{label}」已经被另一个模型用了（对外的名字必须唯一，"
+            "排行榜和图例按它区分模型）。", label=label))
+    db.execute("UPDATE models SET alias=? WHERE id=?", (alias, mid))
+    sync_models_file()
+    return {"ok": True, "alias": alias, "label": label}
 
 
 @app.delete("/api/models/{mid}")
@@ -345,7 +404,7 @@ async def delete_model(mid: int, confirm: bool = False):
     删除走 ``_delete_one_evaluation``：会先取消还在跑的任务（否则它会继续烧 token，
     并往一个已经删掉的任务里写数据），再删逐题明细、主记录和 data/results 里的导出文件。
     """
-    row = db.query_one("SELECT id, name FROM models WHERE id=?", (mid,))
+    row = db.query_one("SELECT id, name, alias FROM models WHERE id=?", (mid,))
     if not row:
         raise HTTPException(404, i18n.t("模型不存在"))
     runs = db.query("SELECT id FROM evaluations WHERE model_id=? ORDER BY id", (mid,))
@@ -356,7 +415,7 @@ async def delete_model(mid: int, confirm: bool = False):
         raise HTTPException(409, i18n.t(
             "{name} 有 {n} 条评测任务（共 {m} 题逐题明细，含模型原始输出）。"
             "删除模型会一并删掉这些成绩与明细文件（无法恢复）。确认要删除吗？",
-            name=row["name"], n=len(runs), m=n_items))
+            name=model_label(row["alias"], row["name"]), n=len(runs), m=n_items))
     for r in runs:
         await _delete_one_evaluation(r["id"])
     db.execute("DELETE FROM models WHERE id=?", (mid,))
@@ -482,7 +541,7 @@ def list_downloads():
 
 @app.post("/api/evaluations", status_code=201)
 async def create_evaluation(e: EvalIn):
-    m = db.query_one("SELECT id, name, kind FROM models WHERE id=?", (e.model_id,))
+    m = db.query_one("SELECT id, name, alias, kind FROM models WHERE id=?", (e.model_id,))
     if not m:
         raise HTTPException(404, i18n.t("模型不存在"))
     # 判别器不能被评测：前端不会把它列进下拉，但直接调 API 也得拦住
@@ -491,7 +550,7 @@ async def create_evaluation(e: EvalIn):
         raise HTTPException(
             400,
             i18n.t("{name} 是「判别器」，不能作为被测模型。判别器只用于给安全类基准判分；"
-                   "如果确实要测它，请先在模型管理里把它改回「被测模型」。", name=m["name"]),
+                   "如果确实要测它，请先在模型管理里把它改回「被测模型」。", name=model_label(m["alias"], m["name"])),
         )
     try:
         items = engine.load_dataset(e.benchmark, e.limit or None)
@@ -504,13 +563,13 @@ async def create_evaluation(e: EvalIn):
     if get_meta(e.benchmark).get("requires_judge"):
         if not e.judge_model_id:
             raise HTTPException(400, i18n.t("这个基准由裁判模型判分，请先选择一个「判别器」再开始"))
-        j = db.query_one("SELECT id, name, kind FROM models WHERE id=?", (e.judge_model_id,))
+        j = db.query_one("SELECT id, name, alias, kind FROM models WHERE id=?", (e.judge_model_id,))
         if not j:
             raise HTTPException(404, i18n.t("裁判模型不存在"))
         if j["kind"] != "judge":
             raise HTTPException(
                 400, i18n.t("{name} 的用途是「被测模型」，不能当裁判。"
-                            "请先在模型管理里把要当裁判的模型设为「判别器」。", name=j["name"]))
+                            "请先在模型管理里把要当裁判的模型设为「判别器」。", name=model_label(j["alias"], j["name"])))
         if e.judge_model_id == e.model_id:
             raise HTTPException(400, i18n.t("裁判不能是被测模型自己 —— 自己判自己会让分数失去意义"))
         judge_id = e.judge_model_id
@@ -537,7 +596,7 @@ def list_evaluations(limit: int = 0, offset: int = 0):
     total = db.query_one("SELECT COUNT(*) AS c FROM evaluations")["c"]
     # LEFT JOIN 裁判模型：安全类基准的任务列表要显示「谁判的」（换了裁判分数不可比，
     # 所以裁判名必须和分数一起出现在列表里，而不是藏进详情）。
-    sql = ("SELECT e.*, m.name AS model_name, j.name AS judge_name FROM evaluations e"
+    sql = ("SELECT e.*, COALESCE(NULLIF(m.alias,''), m.name) AS model_name, COALESCE(NULLIF(j.alias,''), j.name) AS judge_name FROM evaluations e"
            " JOIN models m ON m.id=e.model_id"
            " LEFT JOIN models j ON j.id=e.judge_model_id ORDER BY e.id DESC")
     params: tuple = ()
@@ -568,7 +627,7 @@ def compare_evaluations(ids: str):
         raise HTTPException(400, i18n.t("对比需要恰好 2 个任务 id"))
     a_id, b_id = pair
     rows = db.query(
-        "SELECT e.*, m.name AS model_name FROM evaluations e"
+        "SELECT e.*, COALESCE(NULLIF(m.alias,''), m.name) AS model_name FROM evaluations e"
         " JOIN models m ON m.id=e.model_id WHERE e.id IN (?,?)", (a_id, b_id),
     )
     found = {r["id"]: r for r in rows}
@@ -623,7 +682,7 @@ def compare_evaluations(ids: str):
 @app.get("/api/evaluations/{eid}")
 def get_evaluation(eid: int):
     row = db.query_one(
-        "SELECT e.*, m.name AS model_name FROM evaluations e"
+        "SELECT e.*, COALESCE(NULLIF(m.alias,''), m.name) AS model_name FROM evaluations e"
         " JOIN models m ON m.id=e.model_id WHERE e.id=?", (eid,),
     )
     if not row:
@@ -741,7 +800,7 @@ def leaderboard():
     供前端折叠展示（见 app/benchmarks/bfcl.py 的 FAMILY_DEFS）。
     """
     rows = db.query(
-        "SELECT e.*, m.name AS model_name, m.color AS model_color,"
+        "SELECT e.*, COALESCE(NULLIF(m.alias,''), m.name) AS model_name, m.color AS model_color,"
         " m.base_url AS model_base_url FROM evaluations e"
         " JOIN models m ON m.id=e.model_id WHERE e.status='done' AND e.done>0"
     )
@@ -971,7 +1030,7 @@ def overview():
     （含暂无数据的，scores 为空 dict），是否隐藏空行交给前端过滤。
     """
     rows = db.query(
-        "SELECT e.*, m.name AS model_name, m.base_url AS model_base_url FROM evaluations e"
+        "SELECT e.*, COALESCE(NULLIF(m.alias,''), m.name) AS model_name, m.base_url AS model_base_url FROM evaluations e"
         " JOIN models m ON m.id=e.model_id WHERE e.status='done' AND e.done>0"
     )
     # 同排行榜：演示/mock 模型不进成绩总览（口径在 app/scoring）

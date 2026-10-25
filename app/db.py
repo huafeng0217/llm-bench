@@ -60,6 +60,10 @@ def init_db():
             -- 排行榜上的身份色（见 app/model_colors.py）。落库而不是前端临时算：
             -- 前端按名字排序取色时，加一个名字靠前的模型会让榜上其他模型集体变色。
             -- 空串 = 老库还没补（迁移里会按名字顺序补上）。
+            -- 显示名（别名）：可以留空（= 用 name）。name 是 API 调用名，alias 只用于显示。
+            -- 为什么分开：像 deepseek-flash 这种 API 名，不同时间可能指向不同底层版本；
+            -- 同一条 API 名建多条记录（各起别名），成绩才不会被合并成同一条。
+            alias TEXT NOT NULL DEFAULT '',
             color TEXT NOT NULL DEFAULT '',
             created_at TEXT DEFAULT (datetime('now','localtime'))
         );
@@ -136,6 +140,9 @@ def init_db():
     # 老库补列：模型级额外请求参数（老模型留空 = 行为和以前一样）
     if "extra_body" not in mcols:
         conn.execute("ALTER TABLE models ADD COLUMN extra_body TEXT NOT NULL DEFAULT ''")
+    # 老库补列：显示别名（老库留空 = 显示名仍是 name，行为不变）
+    if "alias" not in mcols:
+        conn.execute("ALTER TABLE models ADD COLUMN alias TEXT NOT NULL DEFAULT ''")
     # 老库补列：模型身份色。补列之后立刻补色，否则老模型的点在排行榜上是灰的
     # （前端拿不到颜色就只能画兜底色）。补色规则和新建模型共用 model_colors.pick。
     if "color" not in mcols:

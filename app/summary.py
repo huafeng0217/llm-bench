@@ -68,7 +68,7 @@ def _interval(pct: float, n: int) -> float:
 def collect() -> dict:
     """汇总所有评测，返回结构化统计。"""
     rows = db.query(
-        "SELECT e.*, m.name AS model_name, m.base_url AS model_base_url FROM evaluations e"
+        "SELECT e.*, COALESCE(NULLIF(m.alias,''), m.name) AS model_name, m.base_url AS model_base_url FROM evaluations e"
         " JOIN models m ON m.id=e.model_id WHERE e.status='done' AND e.done>0"
         " ORDER BY e.id"
     )

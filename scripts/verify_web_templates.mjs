@@ -62,6 +62,8 @@ if (!escLine) throw new Error("找不到 esc 的定义");
 const scoreLine = script.split("\n").find(l => l.startsWith("const score = "));
 // setHtmlIfChanged 依赖这个 WeakMap（记住上次写入的字符串），沙箱里要一起注入
 const lastHtmlLine = script.split("\n").find(l => l.startsWith("const __lastHtml = "));
+// 显示名（别名优先）：loadModels 的沙箱也要注入
+const mlabelLine = script.split("\n").find(l => l.startsWith("const mlabel = "));
 if (!scoreLine) throw new Error("找不到 score（分数统一两位小数）的定义");
 
 // ---------------- 成绩总览 ----------------
@@ -871,16 +873,22 @@ const modelList = [
   { id: 1, name: "被测甲", color: "#123456", base_url: "u1", api_key: "***", kind: "test", evaluations: 3 },
   { id: 2, name: "裁判乙", color: "#654321", base_url: "u2", api_key: "***", kind: "judge", evaluations: 2 },
   { id: 3, name: "被测丙", color: "#abcdef", base_url: "u3", api_key: "***", kind: "test", evaluations: 0 },
+  // 同一个 API 名、不同别名：显示名应优先用别名，并在后面标出调用名
+  { id: 4, name: "deepseek-flash", alias: "deepseek-flash·v2", label: "deepseek-flash·v2",
+    color: "#0f9b9b", base_url: "u4", api_key: "***", kind: "test", evaluations: 1 },
 ];
 const els = {};
 await new Function("api", "document", "esc", "updateEvalHint",
-  modelsSrc + "\nreturn loadModels();"
+  mlabelLine + "\n" + modelsSrc + "\nreturn loadModels();"
 )(async () => modelList,
   { getElementById: id => els[id] || (els[id] = { innerHTML: "", value: "", style: {} }) },
   s => String(s ?? ""), () => {});
 
 const modelHtml = els["models"].innerHTML;
 check("模型表：判别器标出「判别器」", modelHtml.includes(">判别器</span>"));
+check("模型表：显示名优先用别名，后面标出 API 调用名",
+  modelHtml.includes("deepseek-flash·v2") && modelHtml.includes("调用名")
+  && modelHtml.includes("deepseek-flash<"));
 check("模型表：被测模型标出「被测模型」", modelHtml.includes(">被测模型</span>"));
 // Role 列**只放角色标签**：不再显示「N 条历史评测」（用户要求去掉，觉得没必要）。
 // 它原来是那行"有的行有一行没有"的来源（Judge/新模型没有），去干净之后所有行都是单行、
@@ -943,19 +951,21 @@ check("评测任务的「模型/基准」列标了 tl（文本列左对齐）",
 // 两张表的行是在别的函数里拼的（不在 <table> 块内），所以单独精确断言正文单元格 ——
 // 全局数量检查太松，少标一格它发现不了（反向验证过）。
 check("模型管理：正文的模型 / base_url / Key 单元格都标了 tl",
-  // 模型名那一格前面还有个身份色点（<span class="mdot">），所以中间用 [\s\S]*? 兜住
-  /<td class="[^"]*\btl\b[^"]*" style="font-weight:550">[\s\S]{0,120}?\$\{esc\(m\.name\)\}/.test(src)
+  // 模型名那格前面还有身份色点（<span class="mdot">），且显示名走 mlabel（别名优先）：
+  // 设过别名时后面会跟「调用名 xxx」，所以中间用 [\s\S]{0,160}? 兜住
+  /<td class="[^"]*\btl\b[^"]*" style="font-weight:550">[\s\S]{0,160}?\$\{esc\(mlabel\(m\)\)\}/.test(src)
   && /<td class="[^"]*\btl\b[^"]*muted">\$\{esc\(m\.base_url\)\}/.test(src)
   && /<td class="[^"]*\btl\b[^"]*muted">\$\{esc\(m\.api_key\)\}/.test(src));
 check("模型管理：模型名前面画身份色点（和排行榜上的点是同一个颜色）",
   /class="mdot" style="background:\$\{esc\(m\.color/.test(script));
-// 两个操作按钮必须排成**固定两列**（grid 的 1fr + auto）：
+// 操作按钮必须排成**固定列**（grid 的 1fr + auto...）：
 // 「To Test」（窄）和「To Judge」（宽）宽度差 24px，若按老写法 inline 并排 + 居中，
 // 整组会随 toggle 宽度左右各挪 12px —— 于是 Delete 在各行之间横移 6 CSS px，
 // 看着就不在一条竖线上（用户报的「Delete 按键没有对齐」正是这个）。
 // 同一列的单元格宽度相同，所以 1fr 那一列在每一行都一样宽，天然对齐。
-check("模型管理：两个操作按钮用 grid 排成固定两列（Delete 才不会左右错位）",
-  /<td style="white-space:nowrap">\s*<span style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center">\s*<button class="ghost" onclick="toggleKind\(/.test(script),
+// 现在有三列：改用途 / 改别名 / 删除。
+check("模型管理：操作按钮用 grid 排成固定三列（Delete 才不会左右错位）",
+  /<td style="white-space:nowrap">\s*<span style="display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center">\s*<button class="ghost" onclick="toggleKind\(/.test(script),
   "按钮又变回 inline 并排了：toggle 宽度一变 Delete 就会横移");
 // Role 列那行历史评测已经整行删掉（用户要求）——源码里不该再有它。
 // 以前它只对"跑过的模型"渲染，导致行高参差、右侧按钮节奏乱；用占位修过一次，
@@ -1288,7 +1298,17 @@ check("排行榜大数字：600 字重 / 字距 0 / 墨蓝，% 缩小变淡",
 check("图工具条不套外框（按钮本身就有边框）",
   /\.chart-bar \{ display:inline-flex;/.test(src)
   && !/\.chart-bar \{[^}]*border:1px solid/.test(src)
-  && !/\.chart-bar \{[^}]*background:var\(--card2\)/.test(src));// ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
+  && !/\.chart-bar \{[^}]*background:var\(--card2\)/.test(src));// 模型别名：name 是 API 调用名、alias 是显示名；同一个 API 名可以建多条记录（各起别名）。
+// 前端要：表单能填别名、模型表显示别名（并标出调用名）、各下拉用显示名、能改别名。
+check("模型别名：表单可填 / 表格显示别名 / 下拉用别名 / 可改",
+  /id="m-alias"/.test(src)
+  && /const mlabel = m => \(m && \(m\.label \|\| m\.alias \|\| m\.name\)\)/.test(src)
+  && /esc\(mlabel\(m\)\)/.test(src)
+  && /function editAlias\(id\)/.test(src)
+  && /\/api\/models\/\$\{id\}\/alias/.test(src)
+  && /调用名/.test(src),
+  "别把别名做成只显示不落库的皮");
+// ---------------- 版面：坏 key / 折叠色 / 溢出 / 吸底 / 层级 ----------------
 // 静态骨架的 data-i18n* 值必须是**中文原文**（applyI18n 拿它当 t() 的 key）。
 // 写成英文 slug 时，中文界面会把 slug 原样显示出来 —— 页面上真的露过 demo-hint / summary-hint。
 const i18nSlugs = [...src.matchAll(/data-i18n(?:-html|-ph|-title)?="([^"]+)"/g)]
@@ -1537,7 +1557,7 @@ await enSmoke("评测提示", () => {
 let enModelHtml = "";
 await enSmoke("模型管理表", async () => {
   const els2 = {};
-  await new Function("api", "document", "esc", "updateEvalHint", modelsSrc + "\nreturn loadModels();")(
+  await new Function("api", "document", "esc", "updateEvalHint", mlabelLine + "\n" + modelsSrc + "\nreturn loadModels();")(
     async () => asciify(modelList),
     { getElementById: id => els2[id] || (els2[id] = { innerHTML: "", value: "", style: {} }) },
     s2 => String(s2 ?? ""), () => {});

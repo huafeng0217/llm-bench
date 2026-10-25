@@ -422,6 +422,26 @@ STORED_EN: dict[str, str] = {
 
 
     "IFEval 下载结果为空": "IFEval returned no data when downloading",
+
+
+
+
+    "显示名「{label}」已经被另一个模型用了（对外的名字必须唯一，排行榜和图例按它区分模型）。换一个别名，或者先改掉那个模型的别名。":
+
+
+
+
+        "The display name “{label}” is already used by another model (names must be unique — the leaderboard and legends use them to tell models apart). Pick another alias, or rename that model first.",
+
+
+
+
+    "显示名「{label}」已经被另一个模型用了（对外的名字必须唯一，排行榜和图例按它区分模型）。":
+
+
+
+
+        "The display name “{label}” is already used by another model (names must be unique — the leaderboard and legends use them to tell models apart).",
     # 判分链路的兜底（正常路径已被 /api/evaluations 拦住，这里防的是绕过接口的调用）
     "这个基准需要裁判模型，但这次评测没有配置裁判（judge_model_id 为空）":
         "this benchmark needs a judge model, but this run has no judge configured"

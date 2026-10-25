@@ -212,6 +212,40 @@ def main_() -> int:
         raises("改用途时非法 kind -> 400",
                lambda: main.update_model_kind(a, main.KindIn(kind="judge2")), 400)
 
+        # ---- 3b) 别名：同一个 API 名可以建多条记录，显示名必须唯一 ----------
+        # 为什么需要：像 deepseek-flash 这种 API 名，不同时间可能指向不同底层版本；
+        # 只有 name 时两次评测会被合并成同一条。alias 是显示名，调用仍是 name。
+        d = add_model("__同名API__")
+        d2 = main.create_model(main.ModelIn(
+            name="__同名API__", alias="__同名API__·v2", base_url="mock://local", api_key="k"))["id"]
+        labels = {r["id"]: r["label"] for r in main.list_models()}
+        check("同 API 名的两条记录可以共存（别名区分）", labels[d2], "__同名API__·v2")
+        check("没别名时显示名回到 API 调用名", labels[d], "__同名API__")
+        check("列表里同时给出 alias 与 label",
+              (main.list_models()[0].get("alias") is not None), True)
+        raises("显示名重名 -> 400（排行榜/图例按显示名区分模型）",
+               lambda: main.create_model(main.ModelIn(
+                   name="__别的名__", alias="__同名API__·v2", base_url="mock://local", api_key="k")), 400)
+        raises("别名与别人的 API 调用名撞车 -> 400",
+               lambda: main.create_model(main.ModelIn(
+                   name="__再一个__", alias="__同名API__", base_url="mock://local", api_key="k")), 400)
+        r3 = main.update_model_alias(d2, main.AliasIn(alias="__同名API__·v3"))
+        check("可以改别名", r3["label"], "__同名API__·v3")
+        raises("改成别人的显示名 -> 400",
+               lambda: main.update_model_alias(d2, main.AliasIn(alias="__同名API__")), 400)
+        # 清空别名时如果"裸 API 名"已被同名的另一条记录占着，应当被拦住（这正是唯一性的价值）
+        raises("清空别名后与另一条同名记录撞名 -> 400",
+               lambda: main.update_model_alias(d2, main.AliasIn(alias="")), 400)
+        r5 = main.update_model_alias(d2, main.AliasIn(alias="__同名API__·还原"))
+        check("改回可区分的别名", r5["label"], "__同名API__·还原")
+        # 名字本来就唯一的模型：清空别名应干净地回到 API 调用名
+        e = main.create_model(main.ModelIn(
+            name="__唯一API名__", alias="__唯一API名__·临时", base_url="mock://local", api_key="k"))["id"]
+        r6 = main.update_model_alias(e, main.AliasIn(alias=""))
+        check("清空别名 = 回到 API 调用名", r6["label"], "__唯一API名__")
+        raises("不存在的模型改别名 -> 404",
+               lambda: main.update_model_alias(99999, main.AliasIn(alias="x")), 404)
+
         # ---- 4) models.json：写出带 kind / 老文件按被测导入 ------------------
         main.sync_models_file()
         written = json.loads(main.MODELS_FILE.read_text(encoding="utf-8"))

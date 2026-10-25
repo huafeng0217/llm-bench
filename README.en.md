@@ -84,7 +84,22 @@ You can walk the whole pipeline without a key: set the model name to `demo` and 
 1. **Add a model**: `base_url` + API key + model name (a provider preset can fill base_url), then “Test connection”
 2. **Download a dataset** (optional): click “Download” on a benchmark card, or use the command line (below)
 3. **Start a run**: pick a benchmark and a model, click “Start run”
-4. **Read the results**: the run list shows progress and accuracy (latest 5 by default, expandable and paged), “Details” shows every item,
+### Same API name, different versions (model aliases)
+
+API model names such as `deepseek-flash` **drift**: the same name may point to a different
+underlying version over time. Storing only the name would merge two runs of different versions.
+
+1. Keep `Model name` as the **API model name** (the value sent in the request);
+2. Set `Alias` to the **display name** you want (e.g. `deepseek-flash·2026-10`) — results show the
+   alias while requests still use the API name;
+3. When the underlying version changes, simply add another record with the same API name and a new
+   alias: the two records are evaluated and ranked separately;
+4. The “Alias” button on each row lets you rename the display name later (empty = use the API name).
+
+Constraint: **display names must be unique** (leaderboard, legends and the compare view tell models
+apart by display name); duplicates are rejected by the backend.
+
+4. **Read the results**: the run list shows progress and accuracy (latest 5 by default, expandable and paginated), click “Details” for per-item results, and the leaderboard for comparisons (latest 5 by default, expandable and paged), “Details” shows every item,
    and the leaderboard compares models
 
 ## Supported datasets

@@ -685,6 +685,7 @@
         </div>
         <div class="row">
           <input id="m-name" placeholder="模型名（API 调用的名字，如 deepseek-v4-flash）" data-i18n-ph="模型名（API 调用的名字，如 deepseek-v4-flash）">
+          <input id="m-alias" placeholder="别名（显示用；留空 = 用调用名）" data-i18n-ph="别名（显示用；留空 = 用调用名）">
           <input id="m-url" placeholder="base_url（必填），如 https://api.deepseek.com" data-i18n-ph="base_url（必填），如 https://api.deepseek.com">
           <input id="m-key" placeholder="API Key" type="password">
           <select id="m-kind" style="flex:0 0 150px" title="判别器只用于给安全类基准判分，不会出现在被测模型里" data-i18n-title="判别器只用于给安全类基准判分，不会出现在被测模型里">
@@ -738,6 +739,12 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
+  "别名（显示用；留空 = 用调用名）": "Alias (shown in results; empty = use the API model name)",
+  "调用名": "API name",
+  "别名": "Alias",
+  "给这个模型起一个显示名（同一个 API 名可以建多条记录分别测不同版本）": "Give this model a display name (the same API name can have several records, one per version)",
+  "显示名（别名，留空 = 用 API 调用名）：": "Display name (alias; empty = use the API model name): ",
+  "修改别名失败：": "Could not update the alias: ",
   "模型对比": "Model comparison",
   "模型对比看两个模型逐基准的差距：谁在哪项更强、差多少，以及这点差距是否超过重复测评的波动。": "Model comparison shows the per-benchmark gap between two models — who is stronger where, by how much, and whether that gap exceeds run-to-run noise.",
   "至少要有两个模型的成绩才能对比": "You need scores from at least two models to compare",
@@ -1606,6 +1613,9 @@ async function api(path, opts) {
 }
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
+// 显示名：别名优先，空则用 API 调用名（后端已经算好 label，这里兜底一次）
+const mlabel = m => (m && (m.label || m.alias || m.name)) || "";
+
 async function loadModels() {
   const ms = await api("/api/models");
   document.getElementById("stat-models").textContent = ms.length;
@@ -1614,7 +1624,7 @@ async function loadModels() {
   const ssel = document.getElementById("s-model");
   if (ssel) {
     const keep = ssel.value;
-    ssel.innerHTML = ms.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("");
+    ssel.innerHTML = ms.map(m => `<option value="${m.id}">${esc(mlabel(m))}</option>`).join("");
     if (keep && ms.some(m => String(m.id) === keep)) ssel.value = keep;
   }
   const tb = document.getElementById("models");
@@ -1637,12 +1647,15 @@ async function loadModels() {
     // 「To Test」（窄）和「To Judge」（宽）宽度差 24px 也不会把 Delete 推得左右错位。
     // 以前并排居中的结果是：整组随 toggle 宽度左右各挪 12px（实测两种行之间
     // Delete 左边缘差 12 图像像素 = 6 CSS px），一组按钮就排不成竖线了。
-    return `<tr><td class="tl nowrap" style="font-weight:550">${dot}${esc(m.name)}</td>
+    // 模型列：显示名加粗；设过别名时把 API 调用名用小字跟在后面（同一行，不撑高行）
+    const apiHint = m.alias ? `<span class="muted" style="font-weight:400;font-size:11.5px"> · ${t("调用名")} ${esc(m.name)}</span>` : "";
+    return `<tr><td class="tl nowrap" style="font-weight:550">${dot}${esc(mlabel(m))}${apiHint}</td>
      <td class="nowrap">${kindCell}</td>
      <td class="tl nowrap muted">${esc(m.base_url)}</td><td class="tl nowrap muted">${esc(m.api_key)}</td>
      <td style="white-space:nowrap">
-       <span style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center">
+       <span style="display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center">
          <button class="ghost" onclick="toggleKind(${m.id}, '${judge ? "test" : "judge"}')">${btn}</button>
+         <button class="ghost" onclick="editAlias(${m.id})" title="${t("给这个模型起一个显示名（同一个 API 名可以建多条记录分别测不同版本）")}">${t("别名")}</button>
          <button class="ghost" onclick="delModel(${m.id})">${t("删除")}</button>
        </span></td></tr>`;
   }).join("")
@@ -1651,7 +1664,7 @@ async function loadModels() {
   const testable = ms.filter(m => m.kind !== "judge");
   const esel = document.getElementById("e-model");
   const keepEval = esel.value;
-  esel.innerHTML = testable.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("")
+  esel.innerHTML = testable.map(m => `<option value="${m.id}">${esc(mlabel(m))}</option>`).join("")
     || `<option value="">${t("（先添加被测模型）")}</option>`;
   if (keepEval && testable.some(m => String(m.id) === keepEval)) esel.value = keepEval;
   // 裁判下拉只列 kind=judge 的模型；整页共用一份 modelList 供 updateEvalHint 查名字
@@ -1660,7 +1673,7 @@ async function loadModels() {
   const jsel = document.getElementById("e-judge");
   if (jsel) {
     const keepJudge = jsel.value;
-    jsel.innerHTML = judges.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("")
+    jsel.innerHTML = judges.map(m => `<option value="${m.id}">${esc(mlabel(m))}</option>`).join("")
       || `<option value="">${t("（先在模型管理里添加一个判别器）")}</option>`;
     if (keepJudge && judges.some(m => String(m.id) === keepJudge)) jsel.value = keepJudge;
   }
@@ -1683,6 +1696,21 @@ async function toggleKind(id, kind) {
     try { await post(true); } catch (e2) { return alert(t("修改失败：") + e2.message); }
   }
   loadModels();
+}
+
+// 改显示名（别名）。调用照旧用 API 调用名，所以这里只改"对外的名字"；
+// 历史评测会跟着新显示名走（还是同一条模型记录）。留空 = 回到用调用名。
+async function editAlias(id) {
+  const m = (modelList || []).find(x => x.id === id) || {};
+  const cur = m.alias || "";
+  const v = prompt(t("显示名（别名，留空 = 用 API 调用名）：") + " " + (m.name || ""), cur);
+  if (v === null) return;                 // 取消
+  try {
+    await api(`/api/models/${id}/alias`, { method: "PATCH",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ alias: v.trim() }) });
+  } catch (e) { return alert(t("修改别名失败：") + e.message); }
+  await loadModels();
+  refresh();                              // 排行榜/任务表里的名字也一起更新
 }
 
 function applyPreset() {
@@ -1745,6 +1773,7 @@ function applyGroup() {
 function modelForm() {
   return {
     name: document.getElementById("m-name").value.trim(),
+    alias: (document.getElementById("m-alias")?.value || "").trim(),
     base_url: document.getElementById("m-url").value.trim(),
     api_key: document.getElementById("m-key").value.trim(),
     kind: document.getElementById("m-kind").value,
@@ -1775,6 +1804,7 @@ async function addModel() {
   } catch (e) { return alert(t("添加失败：") + e.message); }
   document.getElementById("m-name").value = document.getElementById("m-url").value = document.getElementById("m-key").value = "";
   document.getElementById("m-kind").value = "test";
+  document.getElementById("m-alias").value = "";
   document.getElementById("m-mode").value = "new";   // 回到「新增模型」模式
   applyMode();
   document.getElementById("m-test-result").textContent = "";
