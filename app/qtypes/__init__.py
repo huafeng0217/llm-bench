@@ -37,7 +37,8 @@
 
 本文件只做「注册 + 把各模块的判分接成统一签名」，不含判分逻辑。
 """
-from . import bfcl, bfcl_multi_turn, choice, code_stdio, code_unit, numeric, safety
+from . import (bfcl, bfcl_multi_turn, choice, code_stdio, code_unit, instruction, numeric,
+               safety)
 from ..config import CHOICES
 from .types import Outcome, QuestionType, RunCtx
 
@@ -107,6 +108,10 @@ async def _run_bfcl_multi_turn(model_cfg, item, params, ctx) -> Outcome:
                    latency_ms=mr["latency_ms"])
 
 
+async def _run_instruction(model_cfg, item, params, ctx) -> Outcome:
+    return await instruction.run_instruction_item(model_cfg, item, params)
+
+
 async def _run_safety(model_cfg, item, params, ctx) -> Outcome:
     return Outcome(**await safety.run_safety_item(model_cfg, item, params, ctx))
 
@@ -116,6 +121,10 @@ async def _run_safety(model_cfg, item, params, ctx) -> Outcome:
 # 安全题必须排在数值题之前（它也只有 question 字段，否则会被兜底吃掉）。
 
 TYPES: list[QuestionType] = [
+    # 指令遵循最优先：带 instructions 字段是 IFEval 独有的，不会误伤别的题型
+    QuestionType(id="instruction", label="指令遵循（逐条核对）",
+                 detect=lambda ctx, it: instruction.is_instruction_item(it),
+                 runner=_run_instruction),
     QuestionType(id="bfcl_multi_turn", label="多轮工具调用",
                  detect=lambda ctx, it: ctx.is_bfcl and ctx.is_multi_turn,
                  runner=_run_bfcl_multi_turn),

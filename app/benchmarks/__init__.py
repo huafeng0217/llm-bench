@@ -38,6 +38,7 @@ CATEGORIES = [
     {"id": "math", "name": "数学推理", "name_en": "Math", "color": "#2fa36b"},
     {"id": "agent", "name": "Agent / 工具调用", "name_en": "Agent / tool use", "color": "#e0952f"},
     {"id": "code", "name": "代码工程", "name_en": "Code", "color": "#2f9be0"},
+    {"id": "instruction", "name": "指令遵循", "name_en": "Instruction following", "color": "#8a5a2b"},
     {"id": "safety", "name": "安全 / 对齐", "name_en": "Safety / alignment", "color": "#c44b8a"},
     {"id": "custom", "name": "自定义", "name_en": "Custom", "color": "#8a94a6"},
 ]

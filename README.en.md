@@ -17,7 +17,7 @@ Everything runs locally — **API keys never leave your machine** and are never 
 - **Evaluation engine**: concurrent API calls, automatic scoring, 3 retries, per-item JSONL export
 - **Run management**: **stop** a running job at any time (progress is kept); **deleting stops it first**; **batch delete**; resume an interrupted run (only the missing items)
 - **UI in Chinese or English**: the language switch sits in the top bar, the choice is remembered, and a first visit follows the browser language (the backend returns every string in the selected language)
-- **Leaderboard**: split by category (Knowledge / Chinese / Science / Reasoning / Commonsense / Math / Agent·tool use / Code / Safety·alignment). Start with the
+- **Leaderboard**: split by category (Knowledge / Chinese / Science / Reasoning / Commonsense / Math / Agent·tool use / Code / Instruction following / Safety·alignment). Start with the
   **overview (top model per category)**, click a category to expand the **combined ranking (average within the category) + per-benchmark boards**
   - Several runs of the same model on the same benchmark: **the best complete run wins**; runs that did not finish the dataset are marked
     “partial x/y”, sorted after complete results, excluded from best-score marking and from the category average
@@ -118,9 +118,10 @@ You can walk the whole pipeline without a key: set the model name to `demo` and 
 | Code | HumanEval | 164 | sandbox runs the official unit tests (complete the body) |
 | Code | MBPP | 427 | sandbox runs the official asserts (write the function from a requirement) |
 | Code | LiveCodeBench v6 | 175 | sandbox runs the contest test cases |
+| Instruction following | IFEval | 510 | verifiable constraints checked one by one (length, format, keywords, JSON, …) |
 | Sample | MMLU / C-Eval samples | 12 each | 4-way |
 
-> **38 benchmarks** in total (including the 2 samples; the Agent category holds 16 BFCL v4 subsets folded into one “BFCL v4” card).
+> **39 benchmarks** in total (including the 2 samples; the Agent category holds 16 BFCL v4 subsets folded into one “BFCL v4” card).
 > BFCL v4 has 22 subsets officially and this project ships 16 of them (60% of the official weight) — the missing Web Search / Memory
 > groups need a paid SerpAPI service and a memory preprocessing plus embedding-model step respectively, both at odds with “local and reproducible”.
 

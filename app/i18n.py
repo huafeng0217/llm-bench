@@ -366,10 +366,18 @@ STORED_EN: dict[str, str] = {
     "通过": "passed",
     "无调用": "no call",
     "未通过": "failed",
+
+    "满足全部指令": "satisfy every instruction",
+
+    "全部满足": "all satisfied",
+
+    "未满足部分指令": "some instructions not satisfied",
     "超时未通过": "timed out",
     "未抽到可运行的代码": "no runnable code found",
     "输出被截断": "output truncated",
     "[输出被 max_tokens 截断]": "[output truncated at max_tokens]",
+    "判分失败": "not scored",
+
     "判分失败（被测模型没有返回正文）": "not scored (the model returned no content)",
     "判分失败（裁判回复无法解析）": "not scored (the judge reply could not be parsed)",
     # ---- expected ----
@@ -410,6 +418,10 @@ STORED_EN: dict[str, str] = {
 
 
     "BBH 下载结果为空": "BBH returned no data when downloading",
+
+
+
+    "IFEval 下载结果为空": "IFEval returned no data when downloading",
     # 判分链路的兜底（正常路径已被 /api/evaluations 拦住，这里防的是绕过接口的调用）
     "这个基准需要裁判模型，但这次评测没有配置裁判（judge_model_id 为空）":
         "this benchmark needs a judge model, but this run has no judge configured"
