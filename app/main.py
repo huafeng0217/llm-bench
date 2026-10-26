@@ -795,6 +795,117 @@ async def delete_evaluation(eid: int):
 
 # ---------- 排行榜 ----------
 
+# 覆盖率分母：**排除「自定义」分类**（那里只有演示样例，跑不跑都不说明能力）。
+TREND_CATEGORIES = [c["id"] for c in CATEGORIES if c["id"] != "custom"]
+
+
+def _trend_cat_scores(latest: dict) -> dict:
+    """把"截至当前时刻每基准的最新完整成绩"折叠成 {分类: 分类综合分}。
+
+    分类内的口径和排行榜一致：独立基准各算 1 项；家族（如 BFCL v4）用官方加权总分算 1 项，
+    然后对分类里的项目**等权平均**。家族缺组时按已跑组归一化（scoring.family_composite）。
+    """
+    by_cat: dict[str, dict] = {}      # cat -> {"独立基准": {bid: acc}, "家族": {fid: {bid: acc}}}
+    for bid, cell in latest.items():
+        meta = get_meta(bid)
+        cat = meta.get("category_id") or "custom"
+        holder = by_cat.setdefault(cat, {"solo": {}, "fam": {}})
+        fam = meta.get("family")
+        if fam:
+            holder["fam"].setdefault(fam, {})[bid] = cell["accuracy"]
+        else:
+            holder["solo"][bid] = cell["accuracy"]
+    out = {}
+    for cat, holder in by_cat.items():
+        items = list(holder["solo"].values())
+        for fid, scores in holder["fam"].items():
+            comp = scoring.family_composite(scores, FAMILY_GROUPS.get(fid, []))
+            if comp:
+                items.append(comp["score"])
+        if items:
+            out[cat] = sum(items) / len(items)
+    return out
+
+
+def _trend_series(rows: list) -> dict:
+    """rows → 折线数据（纯函数，自检直接喂合成数据）。
+
+    每行字段：api（API 调用名）、label（别名或调用名）、color、benchmark、t（完成时间）、
+    accuracy、model_id、eid。调用方负责过滤掉 mock / 非完整 / 未完成的评测。
+    """
+    groups: dict[str, list] = {}
+    for r in rows:
+        groups.setdefault(r["api"], []).append(r)
+
+    series = []
+    for api, rs in groups.items():
+        rs.sort(key=lambda r: (r["t"], r["eid"]))
+        latest: dict[str, dict] = {}
+        points = []
+        for r in rs:
+            latest[r["benchmark"]] = r                 # 同基准后来的覆盖先前的（最新完整成绩）
+            cats = _trend_cat_scores(latest)
+            if not cats:
+                continue
+            points.append({
+                "t": r["t"],
+                "label": r["label"],                       # 这个点是谁跑出来的（版本别名）
+                "color": r["color"] or "",
+                "overall": round(sum(cats.values()) / len(cats), 2),
+                "cats_covered": len(cats),
+                "cats_total": len(TREND_CATEGORIES),
+                "benches": len(latest),
+                "cats": sorted(cats),                      # 悬停里能说清"这几个分类有分"
+                "changed": get_meta(r["benchmark"])["name"],  # 这个点为什么出现（哪项重跑了）
+                "eid": r["eid"],
+            })
+        if points:
+            series.append({
+                "api": api,
+                "label": api,
+                "color": points[-1]["color"],              # 取最新记录的颜色（和榜上最新版本一致）
+                "points": points,
+            })
+    series.sort(key=lambda x: x["api"])
+    return {"categories_total": len(TREND_CATEGORIES), "series": series}
+
+
+@app.get("/api/trends")
+def trends():
+    """综合评分趋势：一个 API 名一条折线，横轴时间，纵轴跨分类等权平均。
+
+    只统计**完整**评测（部分评测不进综合分，但覆盖率会显示到几项）；
+    演示模型（mock://local）不参与（和排行榜一致）。
+    """
+    rows = db.query(
+        "SELECT e.id AS eid, e.model_id, e.benchmark, e.correct, e.done, e.total,"
+        "       COALESCE(e.finished_at, e.created_at) AS t,"
+        "       m.name AS api, m.alias, m.color, m.base_url"
+        "  FROM evaluations e JOIN models m ON m.id = e.model_id"
+        " WHERE e.status = 'done' AND e.done > 0"
+        " ORDER BY t, e.id"
+    )
+    out, skipped_mock, skipped_partial = [], 0, 0
+    for r in rows:
+        if scoring.is_mock_model(r["base_url"]):
+            skipped_mock += 1
+            continue
+        full = scoring.full_count(r["benchmark"])
+        if scoring.is_partial(r, full):
+            skipped_partial += 1
+            continue
+        out.append({
+            "eid": r["eid"], "model_id": r["model_id"], "api": r["api"],
+            "label": (r["alias"] or "").strip() or r["api"],
+            "color": r["color"] or "", "benchmark": r["benchmark"], "t": r["t"],
+            "accuracy": scoring.accuracy_of(r),
+        })
+    data = _trend_series(out)
+    data["skipped_mock"] = skipped_mock
+    data["skipped_partial"] = skipped_partial
+    return data
+
+
 @app.get("/api/leaderboard")
 def leaderboard():
     """排行榜：按分类分区，每区含「综合榜 + 各基准分项榜」。

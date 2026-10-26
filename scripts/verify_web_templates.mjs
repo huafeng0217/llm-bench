@@ -899,6 +899,18 @@ check("排行榜：只有部分评测时不显示 0 分，而是「—」+ 说�
   && /const scored = ms\.filter\(m => m\.items > 0\)/.test(src)
   && /if \(!scored\.length\)/.test(src));
 
+// 任务表要有「时间」列（每条评测的时间点）—— 用户要求："每条测评任务要有测评的时间点"。
+check("任务表：有「时间」列，且用完成时间/开始时间区分跑完与进行中",
+  /<th style="width:104px" data-i18n="时间">时间<\/th>/.test(src)
+  && /const timeCell = e => \{/.test(src)
+  && /e\.finished_at \|\| e\.created_at/.test(src));
+// 趋势图：一条线 = 一个 API 名，横轴时间，纵轴跨分类等权平均（口径在后端 /api/trends）。
+check("成绩总览：有「综合评分趋势」视图（一条 API 一条折线）",
+  /\["trend", t\("综合评分趋势"\)\]/.test(src)
+  && /function trendView\(\)/.test(src)
+  && /api\/trends/.test(src)
+  && /<polyline points=/.test(src));
+
 check("模型表：有评测时「别名」按钮置灰并说明原因",
   /m\.evaluations \? `disabled style="opacity:\.5;cursor:not-allowed"` : ""/.test(src)
   && /别名锁定：这些成绩要一直归属这个别名/.test(src)
@@ -1031,8 +1043,9 @@ check("任务列表：正确率的说明里写明分母含失败题、会因此�
 // 所以失败数独立成一列：每行都有值（0 灰 / N 红），状态列只放状态。
 check("任务列表：失败数独立成列（表头 + 空表 colspan 跟着加一）",
   /<th[^>]*>进度<\/th><th[^>]*>正确率<\/th><th style="width:56px"[^>]*>失败<\/th><th[^>]*>状态<\/th>/.test(src)
-  && /<tbody id="evals"><tr><td colspan="8" class="empty"[^>]*>/.test(src)
-  && /colspan="\$\{batchMode \? 9 : 8\}"/.test(src));
+  // 现在还有一列「时间」（用户要求：每条任务要有测评时间点），所以 8→9、9→10
+  && /<tbody id="evals"><tr><td colspan="9" class="empty"[^>]*>/.test(src)
+  && /colspan="\$\{batchMode \? 10 : 9\}"/.test(src));
 check("任务列表：失败列每行都有值（0 灰 / N 红），不再有的标有的没标",
   /failed \? `<span class="st-failed"[^>]*>\$\{failed\}<\/span>`\s*:\s*`<span class="muted">0<\/span>`/.test(src));
 check("任务列表：状态列只放状态（失败数不再挤进来）",
@@ -1302,7 +1315,9 @@ check("成绩总览有「模型对比」视图：只比两边都跑完的、并�
   && /function histSpread\(\)/.test(src)
   && /差值小于波动就别当真/.test(src)
   && /\/api\/evaluations\?limit=500/.test(src)
-  && !/trendView/.test(src),
+  // 早先「模型对比」取代过趋势视图，所以这里曾钉住「不许有 trendView」；
+  // 用户后来明确要「综合评分折线图」，两个视图现在共存（趋势的断言见上面那条）。
+  && /function trendView\(\)/.test(src),
   "对比不能把部分评测/单边成绩混进来，波动列是历史数据的唯一正当用途");// 排行榜大数字的排版规则（用户看过 mock 选的 C 版）：21px 但字重 600、字距 0、墨蓝，
 // % 用 .pct 缩小变淡 —— 750 不是 Segoe UI 的真实字重（会被取整到 700），
 // 再叠负字距会让数字笔画黏在一起、整块显得墨太重。

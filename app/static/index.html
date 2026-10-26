@@ -638,8 +638,8 @@
     <h2 id="sec3"><span class="no">5</span><span data-i18n="评测任务">评测任务</span><span id="batch-toggle" style="margin-left:auto"></span></h2>
     <div class="card" style="padding:6px 18px"><div class="table-scroll"><table><thead><tr>
       <th id="th-check" style="width:32px; display:none"><input type="checkbox" id="task-check-all" onclick="toggleAllTasks(this)" title="全选本页" data-i18n-title="全选本页"></th>
-      <th style="width:40px">#</th><th class="tl" data-i18n="模型">模型</th><th class="tl" data-i18n="基准">基准</th><th data-i18n="进度">进度</th><th data-i18n="正确率">正确率</th><th style="width:56px" data-i18n="失败">失败</th><th data-i18n="状态">状态</th><th style="width:130px"></th>
-    </tr></thead><tbody id="evals"><tr><td colspan="8" class="empty" data-i18n="暂无任务">暂无任务</td></tr></tbody></table></div>
+      <th style="width:40px">#</th><th class="tl" data-i18n="模型">模型</th><th class="tl" data-i18n="基准">基准</th><th style="width:104px" data-i18n="时间">时间</th><th data-i18n="进度">进度</th><th data-i18n="正确率">正确率</th><th style="width:56px" data-i18n="失败">失败</th><th data-i18n="状态">状态</th><th style="width:130px"></th>
+    </tr></thead><tbody id="evals"><tr><td colspan="9" class="empty" data-i18n="暂无任务">暂无任务</td></tr></tbody></table></div>
       <div id="batch-bar" style="padding:4px 0"></div>
       <div id="task-controls" style="padding:8px 0"></div></div>
     <div id="items-box"></div>
@@ -739,6 +739,19 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
+  "时间": "When",
+  "开始 {0}": "Started {0}",
+  " · 完成 {0}": " · finished {0}",
+  " · 进行中": " · running",
+  " · 用时 {0}": " · took {0}",
+  "综合评分趋势": "Score trend",
+  "综合评分趋势图": "Composite-score trend chart",
+  "折线图看版本演进：一条线 = 一个 API 名（同名不同版本按时间串起来），纵轴是跨分类等权平均的综合分（部分评测不计入，覆盖度看悬停）。": "Line chart of version evolution: one line per API name (versions sharing the name are connected in time); the y-axis is the equal-weight average across categories (partial runs excluded — see coverage on hover).",
+  "还没有足够的历史数据（至少要有一条完整评测）": "Not enough history yet (at least one complete run is needed)",
+  "{0}% · 覆盖 {1}/{2} 分类 · 那一刻重跑的是 {3}（任务 #{4}）": "{0}% · covers {1}/{2} categories · re-ran {3} at that moment (run #{4})",
+  "每条线 = 一个 API 名：同名的新旧版本按时间串成一条，点的悬停里写明是哪一版跑出来的。": "One line per API name: older and newer versions under the same name are connected in time; hover a point to see which version produced it.",
+  "纵轴是跨分类等权平均（分类内家族按官方加权算一项）；空心点 = 当时还没覆盖全部分类。": "The y-axis is an equal-weight average across categories (a family counts as one item via its official weighting); hollow dots mean not all categories were covered yet.",
+  "部分评测（没跑完题库）不计入综合分；横轴 = 评测完成时间。": "Partial runs (dataset not finished) are excluded from the composite score; the x-axis is the run's completion time.",
   "这个分类下目前只有部分评测，不参与综合分": "Only partial runs in this category so far — they are not part of the composite score",
   "；另有 {0} 个模型只跑了部分评测（不计综合分）：{1}": "; {0} more model(s) only have partial runs (not counted): {1}",
   "{0}（{1}/{2}）": "{0} ({1}/{2})",
@@ -2145,6 +2158,31 @@ async function refresh() {
   // 「⋯」菜单是**页面上唯一的一个浮层**（挂在 body 下，不在表格里），
   // 所以重渲染表格不会把它换掉，也不需要像以前那样"记 id 再恢复"。
   // 只需要：行可能消失（任务被删）→ 关掉；行位置可能变 → 重新摆一次。
+  // 时间列：跑完的显示**完成时间**，没跑完的显示开始时间并加「~」（避免假装知道完成时刻）。
+  // 悬停里给完整信息：开始 → 完成 · 用时。
+  const fmtTime = (v, withDate) => {
+    if (!v) return "—";
+    const str = String(v).replace("T", " ");
+    return withDate ? str.slice(5, 16) : str.slice(11, 16);   // MM-DD HH:mm
+  };
+  const durText = e => {
+    if (!e.created_at || !e.finished_at) return null;
+    const ms = (new Date(String(e.finished_at).replace(" ", "T")) - new Date(String(e.created_at).replace(" ", "T")));
+    if (!(ms > 0)) return null;
+    const m = Math.floor(ms / 60000), sec = Math.round(ms % 60000 / 1000);
+    return m ? `${m}m ${sec}s` : `${sec}s`;
+  };
+  const timeCell = e => {
+    const running = e.status === "running" || e.status === "pending";
+    const v = e.finished_at || e.created_at;
+    return (running ? "~" : "") + fmtTime(v, true);
+  };
+  const timeTitle = e => {
+    const d = durText(e);
+    return tf("开始 {0}", [e.created_at || "—"]) +
+      (e.finished_at ? tf(" · 完成 {0}", [e.finished_at]) : t(" · 进行中")) +
+      (d ? tf(" · 用时 {0}", [d]) : "");
+  };
   const rowsHtml = es.length ? es.map(e => {
     const pct = e.total ? Math.round(e.done / e.total * 100) : 0;
     const stCls = e.status === "done" ? "st-done" : e.status === "failed" ? "st-failed" : e.status === "stopped" ? "st-stopped" : "st-running";
@@ -2197,6 +2235,7 @@ async function refresh() {
       ${batchMode ? `<td><input type="checkbox" ${selectedTasks.has(e.id) ? "checked" : ""} onclick="toggleTaskSel(${e.id}, this)"></td>` : ""}
       <td class="muted">${e.id}</td><td class="tl" style="font-weight:550">${esc(e.model_name)}</td>
       <td class="tl" title="${tf("输出上限 {0} tokens · 单题超时 {1}s · 并发 {2}", [e.max_tokens ?? 2048, e.timeout_s ?? 90, e.concurrency ?? 8])}"><span style="font-weight:550">${esc(e.benchmark)}</span></td>
+      <td class="muted nowrap" title="${timeTitle(e)}">${timeCell(e)}</td>
       <td><div class="score-cell"><div class="bar"><i style="width:${pct}%"></i></div><span class="muted" style="min-width:64px;text-align:right">${e.done}/${e.total}</span></div>${liveHtml}</td>
       <td class="acc" title="${accTitle}">${score(e.accuracy)}%</td>
       <td>${failed ? `<span class="st-failed" style="font-weight:550" title="${t("判分 / 执行失败：这几题没得到有效结果（被测模型没产出正文、裁判给不出可解析判定、服务商拦截、请求超时、题目本身报错等）。既不算对也不算答错，但按保守口径计入了正确率分母 —— 别把它读成「能力差这么多」。")}">${failed}</span>` : `<span class="muted">0</span>`}</td>
@@ -2208,7 +2247,7 @@ async function refresh() {
           <circle cx="13.6" cy="10" r="1.7" fill="currentColor"/>
         </svg>
       </button></td></tr>`;
-  }).join("") : `<tr><td colspan="${batchMode ? 9 : 8}" class="empty">${t("暂无任务")}</td></tr>`;
+  }).join("") : `<tr><td colspan="${batchMode ? 10 : 9}" class="empty">${t("暂无任务")}</td></tr>`;
   // 内容没变就不动 DOM：否则每次 refresh 都会重置 hover / 展开态。
   // 没有任务在跑时这个字符串是稳定的，于是绝大多数轮询都变成零副作用。
   if (tb.innerHTML !== rowsHtml) {
@@ -2229,6 +2268,8 @@ async function refresh() {
   // 前端另算一遍必然和榜上对不上 —— 这个项目为"口径漂移"付出过代价。
   const bds = await api("/api/leaderboard");
   lbData = bds;
+  // 趋势图数据：和排行榜共用"只算完整评测"的口径（后端 /api/trends 里定），前端不再自己算
+  try { trendData = await api("/api/trends"); } catch (_) { trendData = null; }
 
   await renderOverviewBlock();
   // 顶部统计：最佳正确率取所有分项里的最高值。
@@ -2460,9 +2501,10 @@ let lbData = null;       // /api/leaderboard 原始数据（雷达/散点与排�
 // 成绩总览的视图：matrix | radar | scatter | trend。支持 ?ov=trend 直接打开某个视图（分享/排查）。
 let ovView = (() => {
   const q = new URLSearchParams(location.search).get("ov");
-  return ["matrix", "radar", "scatter", "compare"].includes(q) ? q : "matrix";
+  return ["matrix", "radar", "scatter", "trend", "compare"].includes(q) ? q : "matrix";
 })();
 let ovRadarOff = new Set();  // 雷达图图例里被点掉的模型（只影响画，不改归一区间）
+let trendData = null;        // /api/trends：综合评分趋势（一个 API 名一条线）
 let ovScatterUnit = "cat";   // 散点粒度：cat = 模型×分类（默认，点少且不混基准）| bench = 模型×基准（下钻用）
 let ovScatterOff = new Set();// 散点图例里被点掉的模型（参考线不动，只有点和菱形消失）
 // 点住的点（最多 3 个，FIFO）。存 {view, model, cat}：重画时按当前数据重新找那个点，
@@ -2551,6 +2593,7 @@ function viewHint() {
   if (ovView === "compare") return t("模型对比看两个模型逐基准的差距：谁在哪项更强、差多少，以及这点差距是否超过重复测评的波动。");
   if (ovView === "radar") return t("雷达图看能力结构：哪个分类强、哪个分类是短板。");
   if (ovView === "scatter") return t("散点图看性价比：谁又快又准（默认一个点 = 一个模型的一个分类，可切到基准下钻）。");
+  if (ovView === "trend") return t("折线图看版本演进：一条线 = 一个 API 名（同名不同版本按时间串起来），纵轴是跨分类等权平均的综合分（部分评测不计入，覆盖度看悬停）。");
   return `${t("行 = 基准，列 = 模型。")}<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle">
           <i style="display:inline-block;width:26px;height:11px;border-radius:3px;background:var(--accent)"></i></span>
           <b>${t("蓝色 = 该基准上参与评测的模型中的最高分")}</b>${t("（仅在完整评测之间评），并列最高会同时标出；其余格子统一底色。")}
@@ -2617,7 +2660,8 @@ function drawOverview() {
   const pick = models.find(m => m.id === ovPickModel);
 
   const tabs = [["matrix", t("矩阵")], ["radar", t("能力雷达")],
-                ["scatter", t("准确率 × 延迟")], ["compare", t("模型对比")]];
+                ["scatter", t("准确率 × 延迟")], ["trend", t("综合评分趋势")],
+                ["compare", t("模型对比")]];
   // 卡片头部只放"看哪个视图"（卡片级）
   const switcher = `<span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span class="seg">${tabs.map(([v, label]) =>
@@ -2634,6 +2678,7 @@ function drawOverview() {
   let inner;
   if (ovView === "radar") inner = radarView();
   else if (ovView === "scatter") inner = scatterView();
+  else if (ovView === "trend") inner = trendView();
   else if (ovView === "compare") inner = compareView();
   else if (!groups.length) inner = `<div class="empty">${t("还没有任何成绩")}</div>`;
   else inner = `<div style="overflow-x:auto">
@@ -2848,6 +2893,56 @@ function radarTable(mm) {
   return `<table class="ov-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
 }
 
+
+// ---------- 成绩总览 · 综合评分趋势（时间轴 × 一个 API 名一条线） ----------
+// 口径全部来自后端 /api/trends：每个点是"截至该时刻，该 API 名下各基准最新完整成绩"的
+// 跨分类等权平均（部分评测不进分子分母）。前端只负责画，不重算分 —— 这个项目为"口径漂移"付过代价。
+function trendView() {
+  const d = trendData;
+  if (!d || !d.series || !d.series.length) {
+    return `<div class="empty">${t("还没有足够的历史数据（至少要有一条完整评测）")}</div>`;
+  }
+  const W = 960, H = 360, L = 46, R = 16, T = 18, B = 30;
+  const iw = W - L - R, ih = H - T - B;
+  const pts = d.series.flatMap(s => s.points);
+  const ts = pts.map(p => +new Date(String(p.t).replace(" ", "T")));
+  const t0 = Math.min(...ts), t1 = Math.max(...ts);
+  const spanT = Math.max(t1 - t0, 1);
+  const X = p => L + (t1 === t0 ? iw / 2 : ((+new Date(String(p.t).replace(" ", "T")) - t0) / spanT) * iw);
+  const Y = v => T + ih - (Math.max(0, Math.min(100, v)) / 100) * ih;
+  const grid = [0, 25, 50, 75, 100].map(v =>
+    `<line x1="${L}" y1="${Y(v)}" x2="${W - R}" y2="${Y(v)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="${v === 0 ? "" : "3 4"}"/>
+     <text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="10" fill="var(--faint)">${v}</text>`).join("");
+  const fmtD = ts => { const dd = new Date(ts); return `${String(dd.getMonth() + 1).padStart(2, "0")}-${String(dd.getDate()).padStart(2, "0")}`; };
+  const xLabels = (t0 === t1 ? [t0] : [t0, t0 + spanT / 2, t1]).map((v, i, arr) =>
+    `<text x="${L + (arr.length === 1 ? iw / 2 : (i / (arr.length - 1)) * iw)}" y="${H - 8}" text-anchor="${i === 0 ? "start" : i === arr.length - 1 ? "end" : "middle"}" font-size="10" fill="var(--faint)">${fmtD(v)}</text>`).join("");
+  const lines = d.series.map(s => {
+    const color = s.color || "var(--accent)";
+    const path = s.points.map(p => `${X(p).toFixed(1)},${Y(p.overall).toFixed(1)}`).join(" ");
+    const dots = s.points.map(p => {
+      const hollow = p.cats_covered < p.cats_total;   // 覆盖不全 → 空心点（一眼看出"这时还没跑全"）
+      const tip = `${tf("{0}% · 覆盖 {1}/{2} 分类 · 那一刻重跑的是 {3}（任务 #{4}）", [p.overall, p.cats_covered, p.cats_total, p.changed, p.eid])}`;
+      return `<circle cx="${X(p).toFixed(1)}" cy="${Y(p.overall).toFixed(1)}" r="3.4"
+        fill="${hollow ? "var(--card)" : color}" stroke="${color}" stroke-width="1.6"><title>${esc(p.t)} · ${esc(p.label)} · ${esc(tip)}</title></circle>`;
+    }).join("");
+    return `<polyline points="${path}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round"/>${dots}`;
+  }).join("");
+  const legend = d.series.map(s =>
+    `<span style="display:inline-flex;align-items:center;gap:6px;margin-right:14px;font-size:12px">
+       <i style="display:inline-block;width:16px;height:3px;border-radius:2px;background:${s.color || "var(--accent)"}"></i>${esc(s.api)}</span>`).join("");
+  return `
+    <div>${legend}</div>
+    <div style="overflow-x:auto;margin-top:6px">
+      <svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:640px;max-height:420px" role="img" aria-label="${esc(t("综合评分趋势图"))}">
+        ${grid}${xLabels}${lines}
+      </svg>
+    </div>
+    <div class="muted" style="font-size:11.5px;line-height:1.7;margin-top:4px">
+      ${t("每条线 = 一个 API 名：同名的新旧版本按时间串成一条，点的悬停里写明是哪一版跑出来的。")}
+      ${t("纵轴是跨分类等权平均（分类内家族按官方加权算一项）；空心点 = 当时还没覆盖全部分类。")}
+      ${t("部分评测（没跑完题库）不计入综合分；横轴 = 评测完成时间。")}
+    </div>`;
+}
 
 // ---------- 成绩总览 · 模型对比（A2） ----------
 // 回答的是"新版本 vs 旧版本 / A 比 B 差在哪"：**逐基准**的差值，而不是单模型的时间序列

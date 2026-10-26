@@ -15,6 +15,7 @@ Everything runs locally — **API keys never leave your machine** and are never 
     (the data is real; once it exists, it stays)
 - **Dataset downloads**: one-click download of 34 public benchmark datasets into `data/`; GitHub raw falls back to the ghproxy mirror, HuggingFace falls back to hf-mirror
 - **Evaluation engine**: concurrent API calls, automatic scoring, 3 retries, per-item JSONL export
+- **Timestamps**: the run list shows a **completion time** (running tasks show the start time with a `~`); hover for “started → finished · took”; details and exports carry the same information, so results from the same API at different times stay in order
 - **Run management**: **stop** a running job at any time (progress is kept); **deleting stops it first**; **batch delete**; resume an interrupted run (only the missing items)
 - **UI in Chinese or English**: the language switch sits in the top bar, the choice is remembered, and a first visit follows the browser language (the backend returns every string in the selected language)
 - **Leaderboard**: split by category (Knowledge / Chinese / Science / Reasoning / Commonsense / Math / Agent·tool use / Code / Instruction following / Safety·alignment). Start with the
@@ -23,6 +24,7 @@ Everything runs locally — **API keys never leave your machine** and are never 
     “partial x/y”, sorted after complete results, excluded from best-score marking and from the category average
     (defined once in `app/scoring.py`, shared by leaderboard, overview and AI summary)
   - Sorted by **coverage first**, so running only the easy benchmarks does not buy a top spot
+  - **Composite-score trend** (one of the overview views): x = run completion time, y = the **equal-weight average across categories**; **one line per API name** (records sharing the API name are chained in time, and hovering a point shows which version produced it). Each point uses “the latest **complete** run per benchmark under that API name as of that moment”; partial runs are excluded and only hollow dots hint at coverage — so a version upgrade's effect on the score is visible at a glance (the formula lives in the backend, the frontend never recomputes it)
   - **A family of subsets folds into one benchmark**: BFCL v4's 16 subsets are one card in the UI (subset switcher in a dropdown, each option
     with its one-line summary) and one block in the leaderboard (“official weighted score + per-group scores + subset details, expandable”),
     with the **official group and weight** on every subset

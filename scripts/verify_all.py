@@ -34,6 +34,10 @@ SCRIPTS = [
 
 
     ("verify_ifeval.py", False, "IFEval：题库 + 25 类指令规则的正反例"),
+
+
+
+    ("verify_trends.py", False, "综合评分趋势：滚动快照 / 按 API 名合并 / 覆盖率"),
     ("verify_code_assembly.py", False, "代码题拼接：题目自带辅助函数 / 竞赛题不拼题面"),
     ("verify_models.py", False, "模型用途：判别器不能被评测 / 改类型二次确认 / 身份色（临时库）"),
     ("verify_scoring.py", False, "取数口径：完整/部分评测 + 家族官方加权总分（临时库）"),
