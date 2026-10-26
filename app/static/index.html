@@ -2393,9 +2393,10 @@ async function refresh() {
   // 综合得分单元格：**没有任何完整评测（items=0）时显示「—」**，不要画成 0.00%。
   // 后端对"只跑了部分评测"的模型给 items=0 / partial>0 —— 分数不参与综合分，
   // 画成 0 会被读成"这模型 0 分"（实测「指令遵循」就踩了这个）。
+  // 顺序：**条在左、数字在右**（与 .score-cell 的 CSS 约定一致；数字定宽右对齐成一列）
   const scoreCell = (acc, items) => (items > 0)
-    ? `<div class="score-cell"><span class="acc">${score(acc)}<span class="pct">%</span></span>`
-      + `<div class="bar"><i style="width:${Math.min(acc, 100)}%"></i></div></div>`
+    ? `<div class="score-cell"><div class="bar"><i style="width:${Math.min(acc, 100)}%"></i></div>`
+      + `<span class="acc">${score(acc)}<span class="pct">%</span></span></div>`
     : `<span class="muted" title="${t("只跑了部分评测，不参与综合分")}">—</span> <span class="tag warn">${t("仅部分评测")}</span>`;
   // 总览：各分类冠军一览。每行本身即开关，点击展开/收起该分类详情（可同时展开多个）
   const overview = `
@@ -2443,7 +2444,7 @@ ${t("缺组时按已跑组的权重归一化，所以「加权总分」不是完
         return `<tr>
         <td><span class="rank r${i+1}">${i+1}</span></td>
         <td class="tl" style="font-weight:550">${esc(r.model_name)}</td>
-        <td><div class="score-cell"><span class="acc">${r.score}%</span><div class="bar"><i style="width:${Math.min(r.score, 100)}%"></i></div></div></td>
+        <td><div class="score-cell"><div class="bar"><i style="width:${Math.min(r.score, 100)}%"></i></div><span class="acc">${r.score}%</span></div></td>
         <td class="muted"><b>${pct(r.weight_covered)}</b> <span style="font-size:11px">· ${tf("{0}/{1} 组 · {2}/{3} 子集", [r.groups_covered, r.groups_total, r.subsets_run, r.subsets_total])}</span></td>
         ${activeGroups.map(g => {
           const s = rg[g.id] || {};
@@ -2459,7 +2460,7 @@ ${t("缺组时按已跑组的权重归一化，所以「加权总分」不是完
           ${i === 0 ? `<td class="tl muted" rowspan="${b.rows.length}" style="vertical-align:top;font-size:12px">${esc(b.group_name)}<br><span style="font-size:10.5px">${tf("权重 {0}", [pct(b.group_weight)])}</span></td>` : ""}
           ${i === 0 ? `<td class="tl" rowspan="${b.rows.length}" style="font-weight:600;vertical-align:top">${esc(b.benchmark_name.replace(f.name + " · ", ""))}</td>` : ""}
           <td class="tl">${r.partial ? `<span class="muted" title="${t("只跑了部分题库，不排名次")}">—</span>` : `<span class="rank r${i+1}">${i+1}</span>`} ${esc(r.model_name)}${r.partial ? ` <span class="tag warn">${tf("部分 {0}/{1}", [r.total, r.full_count])}</span>` : ""}</td>
-          <td><div class="score-cell"><span class="acc">${score(r.accuracy)}<span class="pct">%</span></span><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div></div></td>
+          <td><div class="score-cell"><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div><span class="acc">${score(r.accuracy)}<span class="pct">%</span></span></div></td>
           <td class="muted">${r.total}</td>
         </tr>`).join("")).join("")}</tbody></table>
       </details>
@@ -2482,7 +2483,7 @@ ${t("缺组时按已跑组的权重归一化，所以「加权总分」不是完
       <tbody>${cat.boards.map(b => b.rows.map((r, i) => `<tr>
         ${i === 0 ? `<td class="tl" rowspan="${b.rows.length}" style="font-weight:600;vertical-align:top">${esc(b.benchmark_name)}</td>` : ""}
         <td class="tl">${r.partial ? `<span class="muted" title="${t("只跑了部分题库，不排名次")}">—</span>` : `<span class="rank r${i+1}">${i+1}</span>`} <span class="mdot" style="background:${mcolor(r.model_name)}"></span>${esc(r.model_name)}${r.partial ? ` <span class="tag warn" title="${tf("只跑了 {0}/{1} 题，分数仅供参考", [r.total, r.full_count])}">${tf("部分 {0}/{1}", [r.total, r.full_count])}</span>` : ''}</td>
-        <td><div class="score-cell"><span class="acc">${score(r.accuracy)}<span class="pct">%</span></span><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div></div></td><td>${r.total}</td>
+        <td><div class="score-cell"><div class="bar"><i style="width:${Math.min(r.accuracy, 100)}%"></i></div><span class="acc">${score(r.accuracy)}<span class="pct">%</span></span></div></td><td>${r.total}</td>
         <td class="muted">${r.avg_latency_ms} ms</td>
         <td class="muted">${r.prompt_tokens + r.completion_tokens}</td>
       </tr>`).join("")).join("")}</tbody></table>
@@ -2725,8 +2726,8 @@ function renderOvProfile(m) {
   const rows = list.map(x => `<tr>
       <td class="tl muted" style="width:110px;font-size:12px">${esc(x.group)}</td>
       <td class="tl" style="width:190px">${esc(x.bench)}</td>
-      <td><div class="score-cell"><span class="acc">${x.acc}%</span>
-          <div class="bar"><i style="width:${Math.min(x.acc, 100)}%"></i></div></div></td>
+      <td><div class="score-cell"><div class="bar"><i style="width:${Math.min(x.acc, 100)}%"></i></div>
+          <span class="acc">${x.acc}%</span></div></td>
     </tr>`).join("");
   return `<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">

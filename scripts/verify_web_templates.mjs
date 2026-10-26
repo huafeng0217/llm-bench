@@ -1321,6 +1321,14 @@ check("成绩总览有「模型对比」视图：只比两边都跑完的、并�
   "对比不能把部分评测/单边成绩混进来，波动列是历史数据的唯一正当用途");// 排行榜大数字的排版规则（用户看过 mock 选的 C 版）：21px 但字重 600、字距 0、墨蓝，
 // % 用 .pct 缩小变淡 —— 750 不是 Segoe UI 的真实字重（会被取整到 700），
 // 再叠负字距会让数字笔画黏在一起、整块显得墨太重。
+// 评分单元格的顺序必须是「**条在左、数字在右**」（.score-cell 的 CSS 注释就是这约定）。
+// 数字写在前面时，它右边的条起点会随数字宽度漂，一排单元格的条不在同一条竖线上 ——
+// 用户看到的就是「进度条和数字反了」。
+check("评分单元格统一：条在左、数字在右（没有数字在前的写法）",
+  (src.match(/class="score-cell"><span class="acc"/g) || []).length === 0
+  && /class="score-cell"><div class="bar"/.test(src),
+  "还有 score-cell 把数字写在条前面");
+
 check("排行榜大数字：600 字重 / 字距 0 / 墨蓝，% 缩小变淡",
   /#board \.score-cell \.acc \{ font-size:21px; font-weight:600; letter-spacing:0; color:#2b3550;/.test(src)
   && /#board \.score-cell \.acc \.pct \{ font-size:\.58em;/.test(src)
