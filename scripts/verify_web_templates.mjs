@@ -668,6 +668,10 @@ const bds = [{
   boards: [], families: [],
 }];
 
+// 夹具里的 combined 早期没写 items（真实接口一定有：items = 进综合分的项数，
+// 只有部分评测时为 0）。这里按"完整评测"补上，否则新口径会把夹具全当成部分评测。
+bds.forEach(c => (c.combined || []).forEach(m => { if (m.items == null) m.items = m.covered; }));
+
 const boardHtml = new Function("bds", "expandedCats", "esc", "score",
   pctLine + "\n" + lastHtmlLine + "\n" + grab("setHtmlIfChanged") + "\n" + script.slice(i0, i1) + "\nreturn overview + details;"
 )(bds, { code: true, agent: true }, s => String(s ?? ""), v => (v == null ? "-" : Number(v).toFixed(2)));
@@ -887,6 +891,14 @@ await new Function("api", "document", "esc", "updateEvalHint",
 const modelHtml = els["models"].innerHTML;
 check("模型表：判别器标出「判别器」", modelHtml.includes(">判别器</span>"));
 // 别名跑过评测后锁定（否则改名会把旧成绩重新归到新名字下）：按钮要置灰 + 说明原因。
+// 只有部分评测的模型：分类综合分必须是「—」，不能画成 0.00%
+//（后端对此给 items=0 / partial>0，表示"不参与综合分"，不是"0 分"）。
+check("排行榜：只有部分评测时不显示 0 分，而是「—」+ 说明",
+  /const scoreCell = \(acc, items\) => \(items > 0\)/.test(src)
+  && /仅部分评测/.test(src)
+  && /const scored = ms\.filter\(m => m\.items > 0\)/.test(src)
+  && /if \(!scored\.length\)/.test(src));
+
 check("模型表：有评测时「别名」按钮置灰并说明原因",
   /m\.evaluations \? `disabled style="opacity:\.5;cursor:not-allowed"` : ""/.test(src)
   && /别名锁定：这些成绩要一直归属这个别名/.test(src)
@@ -1297,8 +1309,10 @@ check("成绩总览有「模型对比」视图：只比两边都跑完的、并�
 check("排行榜大数字：600 字重 / 字距 0 / 墨蓝，% 缩小变淡",
   /#board \.score-cell \.acc \{ font-size:21px; font-weight:600; letter-spacing:0; color:#2b3550;/.test(src)
   && /#board \.score-cell \.acc \.pct \{ font-size:\.58em;/.test(src)
-  // 4 处大数字模板都要包 .pct（冠军行 1 + 综合排行 2 + 分项 1）；>=3 会因为少一处仍通过（负测发现）
-  && (src.match(/<span class="pct">%<\/span>/g) || []).length >= 4
+  // 大数字模板都要包 .pct：冠军行 1 + 分项 1 + scoreCell 助手 1（总览行/综合排行共用它）；
+  // 另钉住两处确实用了 scoreCell（"只有部分评测显示 —" 的口径就写在那里）
+  && (src.match(/<span class="pct">%<\/span>/g) || []).length >= 3
+  && (src.match(/\$\{scoreCell\(/g) || []).length >= 2
   && !/font-weight:750/.test(src),
   "别用不存在的字重（750）配负字距；% 要退成配角");// 图工具条只负责排布：里面的按钮/分段控件自带边框，外面再包一圈就是双重边框（用户实拍反馈）。
 check("图工具条不套外框（按钮本身就有边框）",

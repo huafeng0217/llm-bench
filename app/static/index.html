@@ -739,6 +739,11 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
+  "这个分类下目前只有部分评测，不参与综合分": "Only partial runs in this category so far — they are not part of the composite score",
+  "；另有 {0} 个模型只跑了部分评测（不计综合分）：{1}": "; {0} more model(s) only have partial runs (not counted): {1}",
+  "{0}（{1}/{2}）": "{0} ({1}/{2})",
+  "只跑了部分评测，不参与综合分": "Partial runs only — not part of the composite score",
+  "仅部分评测": "partial only",
   "已经跑过评测，别名锁定：这些成绩要一直归属这个别名。要测新版本请新建一条模型记录（同 API 名、新别名）。": "Runs exist, so the alias is locked: those results must stay with this alias. To test a new version, add a new model record (same API name, new alias).",
   "这个模型已经跑过评测，别名锁定。要测新版本请新建一条模型记录（同 API 名、新别名），旧成绩保持原样。": "This model already has runs, so its alias is locked. To test a new version, add a new model record (same API name, new alias); existing results stay as they are.",
   "别名（显示用；留空 = 用调用名）": "Alias (shown in results; empty = use the API model name)",
@@ -2271,11 +2276,23 @@ async function refresh() {
   const CHAMP_RULE = t("冠军 = 跑得最全的一批里分数最高（防止只挑好跑的那项），所以冠军不一定是分数最高的那个");
   const distBar = c => {
     const ms = c.combined;
-    const champ = ms[0];
+    // items=0 = 这个分类下该模型只有部分评测（后端不算综合分）。**不能当成 0 分画**：
+    // 否则图上一个点贴在 0% 上，看起来就是"这模型考了 0"。它们只出现在悬停说明里。
+    const scored = ms.filter(m => m.items > 0);
+    const onlyPartial = ms.filter(m => !(m.items > 0));
+    const champ = scored[0] || null;
+    const partialNote = onlyPartial.length
+      ? tf("；另有 {0} 个模型只跑了部分评测（不计综合分）：{1}",
+           [onlyPartial.length, onlyPartial.map(m => tf("{0}（{1}/{2}）", [m.model_name, m.covered, m.total])).join("、")])
+      : "";
+    if (!scored.length) {
+      return `<span class="muted" style="font-size:11px" title="${t("这个分类下目前只有部分评测，不参与综合分")}">—</span>`;
+    }
+    const msScored = scored;
     const PAD = 5;    // 两端各留 5%（点半径 + 边距，不然点会被轨道边缘切掉一半）
     const GAP = 9;    // 相邻两点的最小间距（%）≈ 13px：差得再小也不重叠
-    const lo = Math.min(...ms.map(m => m.avg_accuracy));
-    const hi = Math.max(...ms.map(m => m.avg_accuracy));
+    const lo = Math.min(...msScored.map(m => m.avg_accuracy));
+    const hi = Math.max(...msScored.map(m => m.avg_accuracy));
     const span = hi - lo;
     const ideal = m => span === 0 ? 50 : PAD + (m.avg_accuracy - lo) / span * (100 - 2 * PAD);
     const label = m => tf("{0} {1}%（覆盖 {2}/{3}{4}）",
@@ -2285,7 +2302,7 @@ async function refresh() {
     // 踩过一次：先把冠军挪到最后再算位置，遇到「冠军分数最低」的分类
     // （实测安全 / 对齐：冠军 91.5% < 另一个 99%），数组一开始就是降序，
     // 摊开循环把冠军推到了 86% —— 图上冠军跑到了别人右边，看着就是错的。
-    const asc = [...ms].sort((p, q) => p.avg_accuracy - q.avg_accuracy);
+    const asc = [...msScored].sort((p, q) => p.avg_accuracy - q.avg_accuracy);
     const pos = asc.map(ideal);
     for (let i = 1; i < pos.length; i++) pos[i] = Math.max(pos[i], pos[i - 1] + GAP);
     if (pos[pos.length - 1] > 100 - PAD) {          // 推过头了就从右往左回推
@@ -2298,13 +2315,13 @@ async function refresh() {
     const dots = [...asc.filter(m => m !== champ), champ].map(m => `<i class="${m === champ ? "champ" : ""}"
       style="left:${posOf.get(m).toFixed(2)}%;background:${mcolor(m.model_name)}"
       title="${esc(label(m))}${m === champ ? t("　★ 冠军") : ""}"></i>`).join("");
-    const byScore = [...ms].sort((p, q) => q.avg_accuracy - p.avg_accuracy);
-    const higher = ms.slice(1).filter(m => m.avg_accuracy > champ.avg_accuracy);
+    const byScore = [...msScored].sort((p, q) => q.avg_accuracy - p.avg_accuracy);
+    const higher = msScored.slice(1).filter(m => m.avg_accuracy > champ.avg_accuracy);
     const note = higher.length
       ? t("　注意：") + higher.map(m => `${tf("{0} {1}% 更高，但只跑了 {2}/{3} 项", [m.model_name, m.avg_accuracy, m.covered, m.total])}`).join("；")
       : "";
     const tip = `${tf("每行按本分类的分数区间放大显示（不是 0–100 的绝对位置）。{0}。", [CHAMP_RULE])}`
-      + `${tf("本分类 {0} 个模型（按分数）：{1}。{2}", [ms.length, esc(byScore.map(label).join("；")), note])}`;
+      + `${tf("本分类 {0} 个模型（按分数）：{1}。{2}", [msScored.length, esc(byScore.map(label).join("；")), note + partialNote])}`;
     // 只有一个模型（或所有模型同分）时不标区间：两端都是同一个数，标了反而是噪音
     if (span === 0) {
       return `<div class="ov-dist" title="${tip}">${dots}</div>`;
@@ -2316,6 +2333,13 @@ async function refresh() {
       <span class="muted" style="font-size:9.5px;font-variant-numeric:tabular-nums">${fmt(hi)}</span>
     </div>`;
   };
+  // 综合得分单元格：**没有任何完整评测（items=0）时显示「—」**，不要画成 0.00%。
+  // 后端对"只跑了部分评测"的模型给 items=0 / partial>0 —— 分数不参与综合分，
+  // 画成 0 会被读成"这模型 0 分"（实测「指令遵循」就踩了这个）。
+  const scoreCell = (acc, items) => (items > 0)
+    ? `<div class="score-cell"><span class="acc">${score(acc)}<span class="pct">%</span></span>`
+      + `<div class="bar"><i style="width:${Math.min(acc, 100)}%"></i></div></div>`
+    : `<span class="muted" title="${t("只跑了部分评测，不参与综合分")}">—</span> <span class="tag warn">${t("仅部分评测")}</span>`;
   // 总览：各分类冠军一览。每行本身即开关，点击展开/收起该分类详情（可同时展开多个）
   const overview = `
     <div class="card" style="padding:14px 18px">
@@ -2329,7 +2353,7 @@ async function refresh() {
           <td class="tl"><span style="display:inline-block;width:12px;color:var(--faint)">${open ? "▾" : "▸"}</span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:3px;background:${c.color};margin-right:6px"></span>${esc(c.name)}</td>
           <td class="tl" style="font-weight:550"><span class="mdot" style="background:${mcolor(champ.model_name)}"></span>${esc(champ.model_name)}</td>
           <td>${distBar(c)}</td>
-          <td><div class="score-cell"><div class="bar"><i style="width:${Math.min(champ.avg_accuracy, 100)}%"></i></div><span class="acc">${score(champ.avg_accuracy)}<span class="pct">%</span></span></div></td>
+          <td>${scoreCell(champ.avg_accuracy, champ.items)}</td>
           <td class="muted ov-cov">${champ.covered}/${champ.total}${famCover(champ)}</td>
         </tr>`;
       }).join("")}</tbody></table></div>
@@ -2393,7 +2417,7 @@ ${t("缺组时按已跑组的权重归一化，所以「加权总分」不是完
       <tbody>${cat.combined.map((m, i) => `<tr>
         <td><span class="rank r${i+1}">${i+1}</span></td>
         <td class="tl" style="font-weight:550"><span class="mdot" style="background:${mcolor(m.model_name)}"></span>${esc(m.model_name)}</td>
-        <td><div class="score-cell"><span class="acc">${score(m.avg_accuracy)}<span class="pct">%</span></span><div class="bar"><i style="width:${Math.min(m.avg_accuracy, 100)}%"></i></div></div></td>
+        <td>${scoreCell(m.avg_accuracy, m.items)}</td>
         <td class="muted">${m.covered}/${m.total}${m.covered < m.total ? ` <span class="tag warn">${t("未跑全")}</span>` : ''}${m.partial ? ` <span class="tag warn" title="${t("这些项只有部分评测，分数不计入综合得分")}">${tf("{0} 项为部分", [m.partial])}</span>` : ''}${famCover(m)}</td>
       </tr>`).join("")}</tbody></table>
       <div style="font-weight:600;font-size:13px;margin:16px 0 6px">${t("分项")}${(cat.families || []).length ? ` <span class="muted" style="font-weight:400">${tf("（家族子集已折叠，见下方「{0}」块）", [cat.families.map(f => f.name).join("、")])}</span>` : ""}</div>
