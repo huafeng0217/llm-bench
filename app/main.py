@@ -799,23 +799,23 @@ async def delete_evaluation(eid: int):
 TREND_CATEGORIES = [c["id"] for c in CATEGORIES if c["id"] != "custom"]
 
 
-def _trend_cat_scores(latest: dict) -> dict:
-    """把"截至当前时刻每基准的最新完整成绩"折叠成 {分类: 分类综合分}。
+def _composite_of_benchmarks(best_by_bench: dict) -> dict:
+    """{基准: 该基准最高分} → 综合评分（分类等权平均）。
 
     分类内的口径和排行榜一致：独立基准各算 1 项；家族（如 BFCL v4）用官方加权总分算 1 项，
-    然后对分类里的项目**等权平均**。家族缺组时按已跑组归一化（scoring.family_composite）。
+    然后对分类里的项目等权平均；跨分类再**等权平均**。
     """
-    by_cat: dict[str, dict] = {}      # cat -> {"独立基准": {bid: acc}, "家族": {fid: {bid: acc}}}
-    for bid, cell in latest.items():
+    by_cat: dict[str, dict] = {}
+    for bid, acc in best_by_bench.items():
         meta = get_meta(bid)
         cat = meta.get("category_id") or "custom"
         holder = by_cat.setdefault(cat, {"solo": {}, "fam": {}})
         fam = meta.get("family")
         if fam:
-            holder["fam"].setdefault(fam, {})[bid] = cell["accuracy"]
+            holder["fam"].setdefault(fam, {})[bid] = acc
         else:
-            holder["solo"][bid] = cell["accuracy"]
-    out = {}
+            holder["solo"][bid] = acc
+    cat_scores = {}
     for cat, holder in by_cat.items():
         items = list(holder["solo"].values())
         for fid, scores in holder["fam"].items():
@@ -823,59 +823,82 @@ def _trend_cat_scores(latest: dict) -> dict:
             if comp:
                 items.append(comp["score"])
         if items:
-            out[cat] = sum(items) / len(items)
-    return out
+            cat_scores[cat] = sum(items) / len(items)
+    if not cat_scores:
+        return {"overall": None, "cats": {}, "cats_covered": 0}
+    return {
+        "overall": round(sum(cat_scores.values()) / len(cat_scores), 2),
+        "cats": {k: round(v, 2) for k, v in cat_scores.items()},
+        "cats_covered": len(cat_scores),
+    }
 
 
-def _trend_series(rows: list) -> dict:
-    """rows → 折线数据（纯函数，自检直接喂合成数据）。
+def _trend_series(models_runs: dict) -> dict:
+    """{model_id: {"api","label","color","t","runs":[行]}} → 折线数据（纯函数，自检喂合成数据）。
 
-    每行字段：api（API 调用名）、label（别名或调用名）、color、benchmark、t（完成时间）、
-    accuracy、model_id、eid。调用方负责过滤掉 mock / 非完整 / 未完成的评测。
+    每个模型记录（版本）= 一个点：
+      - 对每个基准取**最高分**（完整评测优先，scoring.pick_best）—— 用户说的"每个最高评分"；
+      - 综合评分 = 分类等权平均（见 _composite_of_benchmarks）；
+      - x = 该版本最后一次**完整**评测的完成时间（它的分数定型时刻）；
+      - 一条线 = 同一个 API 名（同名不同版本按时间串起来）。
+    只有部分评测的基准不进综合分，但会记在 partials 里（前端可提示覆盖不全）。
     """
-    groups: dict[str, list] = {}
-    for r in rows:
-        groups.setdefault(r["api"], []).append(r)
-
-    series = []
-    for api, rs in groups.items():
-        rs.sort(key=lambda r: (r["t"], r["eid"]))
-        latest: dict[str, dict] = {}
-        points = []
-        for r in rs:
-            latest[r["benchmark"]] = r                 # 同基准后来的覆盖先前的（最新完整成绩）
-            cats = _trend_cat_scores(latest)
-            if not cats:
+    series_map: dict[str, list] = {}
+    for mid, m in models_runs.items():
+        by_bench: dict[str, list] = {}
+        for r in m["runs"]:
+            by_bench.setdefault(r["benchmark"], []).append(r)
+        best_by_bench, partials = {}, 0
+        last_t = ""                                # 该版本**最后一次完整评测**的完成时间
+        for bid, rs in by_bench.items():
+            full = scoring.full_count(bid)
+            pick = scoring.pick_best(rs, full)
+            if not pick:
                 continue
-            points.append({
-                "t": r["t"],
-                "label": r["label"],                       # 这个点是谁跑出来的（版本别名）
-                "color": r["color"] or "",
-                "overall": round(sum(cats.values()) / len(cats), 2),
-                "cats_covered": len(cats),
-                "cats_total": len(TREND_CATEGORIES),
-                "benches": len(latest),
-                "cats": sorted(cats),                      # 悬停里能说清"这几个分类有分"
-                "changed": get_meta(r["benchmark"])["name"],  # 这个点为什么出现（哪项重跑了）
-                "eid": r["eid"],
-            })
-        if points:
-            series.append({
-                "api": api,
-                "label": api,
-                "color": points[-1]["color"],              # 取最新记录的颜色（和榜上最新版本一致）
-                "points": points,
-            })
+            if pick.partial:                      # 只有部分评测 → 不进综合分
+                partials += 1
+                continue
+            best_by_bench[bid] = scoring.accuracy_of(pick.best)
+            # x 取"最后一次完整评测"（不是"最高分那次"）：这才是这个版本分数定型的时刻
+            for r in rs:
+                if not scoring.is_partial(r, full) and (r.get("t") or "") > last_t:
+                    last_t = r["t"]
+        comp = _composite_of_benchmarks(best_by_bench)
+        if comp["overall"] is None:
+            continue                              # 这个版本还没有任何完整评测 → 不画点
+        series_map.setdefault(m["api"], []).append({
+            "model_id": mid,
+            "label": m["label"],
+            "color": m["color"] or "",
+            "t": last_t,                           # 分数定型时间
+            "overall": comp["overall"],
+            "cats": comp["cats"],
+            "cats_covered": comp["cats_covered"],
+            "cats_total": len(TREND_CATEGORIES),
+            "benches": len(best_by_bench),
+            "partials": partials,                  # 有几项只有部分评测（没进综合分）
+            "evals": len(m["runs"]),
+        })
+    series = []
+    for api, points in series_map.items():
+        points.sort(key=lambda x: (x["t"], x["model_id"]))
+        series.append({
+            "api": api,
+            "label": api,
+            "color": points[-1]["color"],          # 和榜上最新版本的颜色一致
+            "points": points,
+        })
     series.sort(key=lambda x: x["api"])
     return {"categories_total": len(TREND_CATEGORIES), "series": series}
 
 
 @app.get("/api/trends")
 def trends():
-    """综合评分趋势：一个 API 名一条折线，横轴时间，纵轴跨分类等权平均。
+    """综合评分趋势：**每个点 = 一个模型版本的综合评分**，一条线 = 同一个 API 名。
 
-    只统计**完整**评测（部分评测不进综合分，但覆盖率会显示到几项）；
-    演示模型（mock://local）不参与（和排行榜一致）。
+    综合评分的算法（用户口径）：对每个基准取**最高分**（只在完整评测里取，部分评测不算），
+    分类内独立基准各一项、家族按官方权重算一项，再对分类等权平均（"加权后"）。
+    横轴 = 该版本最后一次完整评测的完成时间（分数定型的时刻），用于看版本演进。
     """
     rows = db.query(
         "SELECT e.id AS eid, e.model_id, e.benchmark, e.correct, e.done, e.total,"
@@ -885,24 +908,23 @@ def trends():
         " WHERE e.status = 'done' AND e.done > 0"
         " ORDER BY t, e.id"
     )
-    out, skipped_mock, skipped_partial = [], 0, 0
+    per_model: dict[int, dict] = {}
+    skipped_mock = 0
     for r in rows:
         if scoring.is_mock_model(r["base_url"]):
             skipped_mock += 1
             continue
-        full = scoring.full_count(r["benchmark"])
-        if scoring.is_partial(r, full):
-            skipped_partial += 1
-            continue
-        out.append({
-            "eid": r["eid"], "model_id": r["model_id"], "api": r["api"],
+        m = per_model.setdefault(r["model_id"], {
+            "api": r["api"],
             "label": (r["alias"] or "").strip() or r["api"],
-            "color": r["color"] or "", "benchmark": r["benchmark"], "t": r["t"],
-            "accuracy": scoring.accuracy_of(r),
+            "color": r["color"] or "",
+            "runs": [],
         })
-    data = _trend_series(out)
+        m["runs"].append({"benchmark": r["benchmark"], "correct": r["correct"],
+                          "done": r["done"], "total": r["total"], "t": r["t"],
+                          "eid": r["eid"]})
+    data = _trend_series(per_model)
     data["skipped_mock"] = skipped_mock
-    data["skipped_partial"] = skipped_partial
     return data
 
 

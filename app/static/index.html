@@ -739,6 +739,18 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
+  "还没有足够的数据（至少要有一条完整评测）": "Not enough data yet (at least one complete run is needed)",
+  "{0}：综合 {1}%（{2} 个基准）· 覆盖 {3}/{4} 分类": "{0}: composite {1}% ({2} benchmarks) · covers {3}/{4} categories",
+  " · 另有 {0} 项只有部分评测没计入": " · {0} more benchmark(s) have partial runs only and are excluded",
+  " · 分数定型于 {0}": " · score finalized {0}",
+  "每个点 = 一个模型版本的综合评分：对每个基准取最高分（只在完整评测里取），分类内独立基准各一项、家族按官方权重算一项，再对分类等权平均。": "Each point is one model version's composite score: take the highest score per benchmark (complete runs only), count each standalone benchmark as one item and each family as one item via its official weighting, then average equally across categories.",
+  "横轴 = 该版本最后一次完整评测的完成时间；一条虚线 = 同一个 API 名的不同版本（版本演进）。": "The x-axis is the completion time of that version's last complete run; a dashed line connects different versions under the same API name (version evolution).",
+  "空心点 = 该版本还没覆盖全部分类，分数只代表它跑过的分类；部分评测不计入。": "Hollow dots mean the version does not cover all categories yet, so the score reflects only the categories it ran; partial runs are excluded.",
+  "折线图看版本演进：每个点 = 一个模型版本的综合评分（每个基准取最高分后按分类等权加权）；一条虚线 = 同一个 API 名下的不同版本。": "Line chart of version evolution: each point is one model version's composite score (highest score per benchmark, then equal-weight across categories); a dashed line connects versions under the same API name.",
+  "版本": "Version",
+  "分数定型时间": "Score finalized",
+  "综合评分": "Composite score",
+  "依据": "Based on",
   "时间": "When",
   "开始 {0}": "Started {0}",
   " · 完成 {0}": " · finished {0}",
@@ -2593,7 +2605,7 @@ function viewHint() {
   if (ovView === "compare") return t("模型对比看两个模型逐基准的差距：谁在哪项更强、差多少，以及这点差距是否超过重复测评的波动。");
   if (ovView === "radar") return t("雷达图看能力结构：哪个分类强、哪个分类是短板。");
   if (ovView === "scatter") return t("散点图看性价比：谁又快又准（默认一个点 = 一个模型的一个分类，可切到基准下钻）。");
-  if (ovView === "trend") return t("折线图看版本演进：一条线 = 一个 API 名（同名不同版本按时间串起来），纵轴是跨分类等权平均的综合分（部分评测不计入，覆盖度看悬停）。");
+  if (ovView === "trend") return t("折线图看版本演进：每个点 = 一个模型版本的综合评分（每个基准取最高分后按分类等权加权）；一条虚线 = 同一个 API 名下的不同版本。");
   return `${t("行 = 基准，列 = 模型。")}<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle">
           <i style="display:inline-block;width:26px;height:11px;border-radius:3px;background:var(--accent)"></i></span>
           <b>${t("蓝色 = 该基准上参与评测的模型中的最高分")}</b>${t("（仅在完整评测之间评），并列最高会同时标出；其余格子统一底色。")}
@@ -2894,54 +2906,83 @@ function radarTable(mm) {
 }
 
 
-// ---------- 成绩总览 · 综合评分趋势（时间轴 × 一个 API 名一条线） ----------
-// 口径全部来自后端 /api/trends：每个点是"截至该时刻，该 API 名下各基准最新完整成绩"的
-// 跨分类等权平均（部分评测不进分子分母）。前端只负责画，不重算分 —— 这个项目为"口径漂移"付过代价。
+// ---------- 成绩总览 · 综合评分趋势（点 = 模型版本，线 = 同一个 API 名） ----------
+// 口径全部来自后端 /api/trends：
+//   每个点 = **一个模型版本**的综合评分 —— 对每个基准取最高分（只在完整评测里取），
+//   分类内独立基准各一项、家族按官方权重算一项，再对分类等权平均；
+//   横轴 = 该版本最后一次完整评测的完成时间；一条线 = 同一个 API 名（版本演进）。
+// 前端只负责画，不重算分 —— 这个项目为"口径漂移"付过代价。
 function trendView() {
   const d = trendData;
-  if (!d || !d.series || !d.series.length) {
-    return `<div class="empty">${t("还没有足够的历史数据（至少要有一条完整评测）")}</div>`;
+  const allPts = (d && d.series || []).flatMap(s => s.points);
+  if (!allPts.length) {
+    return `<div class="empty">${t("还没有足够的数据（至少要有一条完整评测）")}</div>`;
   }
-  const W = 960, H = 360, L = 46, R = 16, T = 18, B = 30;
+  const W = 960, H = 380, L = 52, R = 20, T = 26, B = 34;
   const iw = W - L - R, ih = H - T - B;
-  const pts = d.series.flatMap(s => s.points);
-  const ts = pts.map(p => +new Date(String(p.t).replace(" ", "T")));
+  const ts = allPts.map(p => +new Date(String(p.t).replace(" ", "T")));
   const t0 = Math.min(...ts), t1 = Math.max(...ts);
   const spanT = Math.max(t1 - t0, 1);
+  // 只有一个时间点时把点摆在中间，不假装有一条横轴跨度
   const X = p => L + (t1 === t0 ? iw / 2 : ((+new Date(String(p.t).replace(" ", "T")) - t0) / spanT) * iw);
   const Y = v => T + ih - (Math.max(0, Math.min(100, v)) / 100) * ih;
   const grid = [0, 25, 50, 75, 100].map(v =>
     `<line x1="${L}" y1="${Y(v)}" x2="${W - R}" y2="${Y(v)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="${v === 0 ? "" : "3 4"}"/>
-     <text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="10" fill="var(--faint)">${v}</text>`).join("");
-  const fmtD = ts => { const dd = new Date(ts); return `${String(dd.getMonth() + 1).padStart(2, "0")}-${String(dd.getDate()).padStart(2, "0")}`; };
+     <text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="10" fill="var(--faint)">${v}%</text>`).join("");
+  const fmtD = ms => { const dd = new Date(ms); return `${String(dd.getMonth() + 1).padStart(2, "0")}-${String(dd.getDate()).padStart(2, "0")}`; };
   const xLabels = (t0 === t1 ? [t0] : [t0, t0 + spanT / 2, t1]).map((v, i, arr) =>
-    `<text x="${L + (arr.length === 1 ? iw / 2 : (i / (arr.length - 1)) * iw)}" y="${H - 8}" text-anchor="${i === 0 ? "start" : i === arr.length - 1 ? "end" : "middle"}" font-size="10" fill="var(--faint)">${fmtD(v)}</text>`).join("");
-  const lines = d.series.map(s => {
-    const color = s.color || "var(--accent)";
-    const path = s.points.map(p => `${X(p).toFixed(1)},${Y(p.overall).toFixed(1)}`).join(" ");
-    const dots = s.points.map(p => {
-      const hollow = p.cats_covered < p.cats_total;   // 覆盖不全 → 空心点（一眼看出"这时还没跑全"）
-      const tip = `${tf("{0}% · 覆盖 {1}/{2} 分类 · 那一刻重跑的是 {3}（任务 #{4}）", [p.overall, p.cats_covered, p.cats_total, p.changed, p.eid])}`;
-      return `<circle cx="${X(p).toFixed(1)}" cy="${Y(p.overall).toFixed(1)}" r="3.4"
-        fill="${hollow ? "var(--card)" : color}" stroke="${color}" stroke-width="1.6"><title>${esc(p.t)} · ${esc(p.label)} · ${esc(tip)}</title></circle>`;
-    }).join("");
-    return `<polyline points="${path}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round"/>${dots}`;
-  }).join("");
+    `<text x="${L + (arr.length === 1 ? iw / 2 : (i / (arr.length - 1)) * iw)}" y="${H - 10}" text-anchor="${i === 0 ? "start" : i === arr.length - 1 ? "end" : "middle"}" font-size="10" fill="var(--faint)">${fmtD(v)}</text>`).join("");
+  const shortLabel = (s) => s.length > 20 ? s.slice(0, 19) + "…" : s;
+  const lines = [];
+  const dots = [];
+  for (const ser of d.series) {
+    const color = ser.color || "var(--accent)";
+    const pts = ser.points;
+    if (pts.length > 1) {                       // 同一 API 名的多个版本 → 连线（版本演进）
+      const path = pts.map(p => `${X(p).toFixed(1)},${Y(p.overall).toFixed(1)}`).join(" ");
+      lines.push(`<polyline points="${path}" fill="none" stroke="${color}" stroke-width="1.6" stroke-opacity=".55" stroke-dasharray="5 4"/>`);
+    }
+    for (const p of pts) {
+      // 空心 = 这个版本还没覆盖全部分类（分数只代表它跑过的那些分类）
+      const hollow = p.cats_covered < p.cats_total;
+      const tip = `${tf("{0}：综合 {1}%（{2} 个基准）· 覆盖 {3}/{4} 分类", [p.label, p.overall, p.benches, p.cats_covered, p.cats_total])}`
+        + (p.partials ? tf(" · 另有 {0} 项只有部分评测没计入", [p.partials]) : "")
+        + tf(" · 分数定型于 {0}", [p.t]);
+      const catTip = Object.entries(p.cats || {}).map(([k, v]) => `${k} ${v}%`).join(" · ");
+      dots.push(`<g>
+        <circle cx="${X(p).toFixed(1)}" cy="${Y(p.overall).toFixed(1)}" r="5"
+          fill="${hollow ? "var(--card)" : color}" stroke="${color}" stroke-width="2">
+          <title>${esc(tip)}${catTip ? "\n" + esc(catTip) : ""}</title></circle>
+        <text x="${X(p).toFixed(1)}" y="${(Y(p.overall) - 10).toFixed(1)}" text-anchor="middle"
+          font-size="9.5" fill="var(--faint)">${esc(shortLabel(p.label))}</text>
+      </g>`);
+    }
+  }
   const legend = d.series.map(s =>
     `<span style="display:inline-flex;align-items:center;gap:6px;margin-right:14px;font-size:12px">
        <i style="display:inline-block;width:16px;height:3px;border-radius:2px;background:${s.color || "var(--accent)"}"></i>${esc(s.api)}</span>`).join("");
+  const table = allPts.map(p => `<tr>
+      <td class="tl">${esc(p.label)}</td>
+      <td class="muted">${esc(String(p.t).slice(0, 16))}</td>
+      <td class="acc">${score(p.overall)}%</td>
+      <td class="muted">${p.benches} 项 · 覆盖 ${p.cats_covered}/${p.cats_total} 分类${p.partials ? ` · ${p.partials} 项部分` : ""}</td>
+    </tr>`).join("");
   return `
     <div>${legend}</div>
-    <div style="overflow-x:auto;margin-top:6px">
-      <svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:640px;max-height:420px" role="img" aria-label="${esc(t("综合评分趋势图"))}">
-        ${grid}${xLabels}${lines}
+    <div style="overflow-x:auto;margin-top:4px">
+      <svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:660px;max-height:440px" role="img" aria-label="${esc(t("综合评分趋势图"))}">
+        ${grid}${xLabels}${lines.join("")}${dots.join("")}
       </svg>
     </div>
-    <div class="muted" style="font-size:11.5px;line-height:1.7;margin-top:4px">
-      ${t("每条线 = 一个 API 名：同名的新旧版本按时间串成一条，点的悬停里写明是哪一版跑出来的。")}
-      ${t("纵轴是跨分类等权平均（分类内家族按官方加权算一项）；空心点 = 当时还没覆盖全部分类。")}
-      ${t("部分评测（没跑完题库）不计入综合分；横轴 = 评测完成时间。")}
-    </div>`;
+    <div class="muted" style="font-size:11.5px;line-height:1.7;margin:2px 0 8px">
+      ${t("每个点 = 一个模型版本的综合评分：对每个基准取最高分（只在完整评测里取），分类内独立基准各一项、家族按官方权重算一项，再对分类等权平均。")}
+      ${t("横轴 = 该版本最后一次完整评测的完成时间；一条虚线 = 同一个 API 名的不同版本（版本演进）。")}
+      ${t("空心点 = 该版本还没覆盖全部分类，分数只代表它跑过的分类；部分评测不计入。")}
+    </div>
+    <table><thead><tr>
+      <th class="tl">${t("版本")}</th><th style="width:130px">${t("分数定型时间")}</th>
+      <th style="width:110px">${t("综合评分")}</th><th class="tl">${t("依据")}</th>
+    </tr></thead><tbody>${table}</tbody></table>`;
 }
 
 // ---------- 成绩总览 · 模型对比（A2） ----------
