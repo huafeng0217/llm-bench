@@ -154,6 +154,9 @@
   .lane .rail { height:9px; border-radius:6px; background:rgba(255,255,255,.07); overflow:hidden; }
   .lane .rail i { display:block; height:100%; border-radius:6px; box-shadow:0 0 18px -2px currentColor; }
   .lane .v { text-align:right; font-size:12px; color:#dbe5f7; font-weight:600; font-variant-numeric:tabular-nums; }
+  /* hero 是深色底，身份色是按浅灰卡片校核出来的深色，直接画在深底上会发闷（深紫/深红几乎看不见）。
+     这里只对 hero 里的色条和色点做提亮 —— 数据里的颜色不变，浅色卡片上仍是同一色相身份色。 */
+  .hero .lane .dot, .hero .lane .rail i, .hero .podium .dot, .hero .podium .mdot { filter: saturate(1.12) brightness(1.9); }
   .dot { display:inline-block; width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
   @media (max-width:820px) {
     .secnav { order:3; width:100%; margin-left:0; overflow-x:auto; }
@@ -739,6 +742,7 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
+  "覆盖率（它跑过几个分类）在悬停和下面的明细表里；部分评测不计入综合分。": "Coverage (how many categories it ran) is in the hover and the table below; partial runs are excluded.",
   "还没有足够的数据（至少要有一条完整评测）": "Not enough data yet (at least one complete run is needed)",
   "{0}：综合 {1}%（{2} 个基准）· 覆盖 {3}/{4} 分类": "{0}: composite {1}% ({2} benchmarks) · covers {3}/{4} categories",
   " · 另有 {0} 项只有部分评测没计入": " · {0} more benchmark(s) have partial runs only and are excluded",
@@ -2943,18 +2947,23 @@ function trendView() {
       lines.push(`<polyline points="${path}" fill="none" stroke="${color}" stroke-width="1.6" stroke-opacity=".55" stroke-dasharray="5 4"/>`);
     }
     for (const p of pts) {
-      // 空心 = 这个版本还没覆盖全部分类（分数只代表它跑过的那些分类）
-      const hollow = p.cats_covered < p.cats_total;
+      // 同一条 API 线统一用一个颜色（避免"线上点颜色各不相同"看起来像配色出错）；
+      // 版本差异靠点上的文字标注 + 悬停说明。覆盖率不是"空心点"——几乎没有模型覆盖满 10 类，
+      // 全画空心就全都发白了；覆盖率放悬停和下面的明细表。
       const tip = `${tf("{0}：综合 {1}%（{2} 个基准）· 覆盖 {3}/{4} 分类", [p.label, p.overall, p.benches, p.cats_covered, p.cats_total])}`
         + (p.partials ? tf(" · 另有 {0} 项只有部分评测没计入", [p.partials]) : "")
         + tf(" · 分数定型于 {0}", [p.t]);
       const catTip = Object.entries(p.cats || {}).map(([k, v]) => `${k} ${v}%`).join(" · ");
+      const cx = X(p), cy = Y(p.overall);
+      // 标签防裁切：靠右的改成右对齐、靠左的改成左对齐；靠上的写下面一行，避免贴边被切
+      const anchor = cx > W - R - 80 ? "end" : cx < L + 80 ? "start" : "middle";
+      const ly = p.overall >= 88 ? cy + 16 : cy - 10;
       dots.push(`<g>
-        <circle cx="${X(p).toFixed(1)}" cy="${Y(p.overall).toFixed(1)}" r="5"
-          fill="${hollow ? "var(--card)" : color}" stroke="${color}" stroke-width="2">
+        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4.6"
+          fill="${color}" stroke="var(--card)" stroke-width="1.6">
           <title>${esc(tip)}${catTip ? "\n" + esc(catTip) : ""}</title></circle>
-        <text x="${X(p).toFixed(1)}" y="${(Y(p.overall) - 10).toFixed(1)}" text-anchor="middle"
-          font-size="9.5" fill="var(--faint)">${esc(shortLabel(p.label))}</text>
+        <text x="${(anchor === "middle" ? cx : anchor === "start" ? cx + 7 : cx - 7).toFixed(1)}" y="${ly.toFixed(1)}"
+          text-anchor="${anchor}" font-size="9.5" fill="var(--faint)">${esc(shortLabel(p.label))}</text>
       </g>`);
     }
   }
@@ -2977,7 +2986,7 @@ function trendView() {
     <div class="muted" style="font-size:11.5px;line-height:1.7;margin:2px 0 8px">
       ${t("每个点 = 一个模型版本的综合评分：对每个基准取最高分（只在完整评测里取），分类内独立基准各一项、家族按官方权重算一项，再对分类等权平均。")}
       ${t("横轴 = 该版本最后一次完整评测的完成时间；一条虚线 = 同一个 API 名的不同版本（版本演进）。")}
-      ${t("空心点 = 该版本还没覆盖全部分类，分数只代表它跑过的分类；部分评测不计入。")}
+      ${t("覆盖率（它跑过几个分类）在悬停和下面的明细表里；部分评测不计入综合分。")}
     </div>
     <table><thead><tr>
       <th class="tl">${t("版本")}</th><th style="width:130px">${t("分数定型时间")}</th>

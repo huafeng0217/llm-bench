@@ -66,6 +66,7 @@ db.init_db()
 from fastapi import HTTPException  # noqa: E402
 
 from app import main  # noqa: E402
+from app.benchmarks import CATEGORIES  # noqa: E402
 
 # 关键：别让 sync_models_file 覆盖用户真实的 data/models.json
 main.MODELS_FILE = _tmp_root / "models.json"
@@ -276,7 +277,7 @@ def main_() -> int:
         # 色板校核（圆点坐在浅灰轨道 #eef1f6 上；16 色在色相环上只隔 22.5°，
         # 只靠色相必然出现"两个看起来一样的红/蓝"，所以明暗也参与区分）
         pal = model_colors.PALETTE
-        check("色板 16 色互不相同", len(set(pal)), len(pal))
+        check(f"色板 {len(pal)} 色互不相同", len(set(pal)), len(pal))
         worst_contrast = min(_contrast(c, DOT_BG) for c in pal)
         check_true("色板每色在浅灰轨道上对比度 ≥3:1（WCAG 图形对象要求）",
                    worst_contrast >= 3.0, f"最低 {worst_contrast:.2f}")
@@ -284,6 +285,12 @@ def main_() -> int:
                        for i in range(len(pal)) for j in range(i + 1, len(pal)))
         check_true("色板两两可区分（ΔE76 ≥20，防明显撞色）", worst_de >= 20,
                    f"最像的一对只有 ΔE {worst_de:.1f}")
+        # 模型色和**分类色**也必须分得开：两套颜色会出现在同一屏（排行榜总览每行
+        # 左边是分类点、中间是冠军模型点）。上一版色板照分类色挑，最严重的 ΔE=0。
+        cat_colors = [c["color"] for c in CATEGORIES]
+        worst_vs_cat = min(_de76(c, cc) for c in pal for cc in cat_colors)
+        check_true("色板与分类色可区分（ΔE76 ≥16，模型点/分类点不撞）",
+                   worst_vs_cat >= 16, f"最像的一对只有 ΔE {worst_vs_cat:.1f}")
 
         def colors_now() -> dict:
             return {r["id"]: r["color"] for r in db.query("SELECT id, color FROM models")}
@@ -377,13 +384,13 @@ def main_() -> int:
                    and len({r["color"] for r in old_rows}) == 2,
                    f"{old_rows}")
 
-        # 色板用完（>16 个模型）时按"用得最少"分配，而不是从头再轮一遍
+        # 色板用完（>12 个模型）时按"用得最少"分配，而不是从头再轮一遍
         while len(colors_now()) < len(pal):
             add_model(f"__填满 {len(colors_now())}__")
         full_house = list(colors_now().values())
-        check("填满色板：16 个模型颜色互不相同", len(set(full_house)), len(pal))
+        check(f"填满色板：{len(pal)} 个模型颜色互不相同", len(set(full_house)), len(pal))
         overflow = add_model("__第 17 个__")
-        check("第 17 个模型复用用得最少的颜色（不是随便挑一个）",
+        check(f"第 {len(pal) + 1} 个模型复用用得最少的颜色（不是随便挑一个）",
               colors_now()[overflow], model_colors.pick(full_house))
 
         # ---- 6) 删模型：成绩必须一起删干净，而且删之前要让人看见代价 ----------
