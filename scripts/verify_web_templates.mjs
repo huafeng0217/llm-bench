@@ -137,9 +137,10 @@ check("排行榜「覆盖」列徽章不换行（行高等齐，数字才对得�
 check("结果卡不再加左侧强调边（层级交给深色 hero 和大数字）",
   !/\.card\.key/.test(src) && !/class="card key"/.test(src));
 check("排行榜百分比放大成「成绩单」字号（只影响 #board，矩阵保持紧凑）",
-  /#board \.score-cell \.acc \{ font-size:21px/.test(src)
-  && /#board \.score-cell \.bar \{ height:9px/.test(src)
-  && !/\.ov-table td \{[^}]*font-size:21px/.test(src));
+  // 2026-11-18 从 21px 收到 18px（21px 在 13px 的表格里太抢），仍明显大于正文 13px
+  /#board \.score-cell \.acc \{ font-size:18px/.test(src)
+  && /#board \.score-cell \.bar \{ height:8px/.test(src)
+  && !/\.ov-table td \{[^}]*font-size:(18|21)px/.test(src));
 check("基准卡片悬停轻微抬起（36 张卡「能点」有手感）",
   /\.bm:hover \{ transform:translateY\(-2px\)/.test(src));
 check("首屏数字有骨架占位，数据到了再撤（不会先显示 0 再跳）",
@@ -1348,9 +1349,12 @@ check("评分单元格统一：条在左、数字在右（没有数字在前的�
   && /class="score-cell"><div class="bar"/.test(src),
   "还有 score-cell 把数字写在条前面");
 
-check("排行榜大数字：600 字重 / 字距 0 / 墨蓝，% 缩小变淡",
-  /#board \.score-cell \.acc \{ font-size:21px; font-weight:600; letter-spacing:0; color:#2b3550;/.test(src)
-  && /#board \.score-cell \.acc \.pct \{ font-size:\.58em;/.test(src)
+// 2026-11-18：数字从 21px 收到 18px（21px 在 13px 表格里太抢），数字字体显式指定
+// Segoe UI 系（中文界面回退雅黑时数字宽度不匀）；% 从 .58em 放大到 .62em 退成配角。
+check("排行榜大数字：18px / 600 字重 / Segoe UI 数字 / % 缩小变淡",
+  /#board \.score-cell \.acc \{ font-size:18px; font-weight:600; letter-spacing:\.1px; color:#2b3550;/.test(src)
+  && /font-family:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;/.test(src)
+  && /#board \.score-cell \.acc \.pct \{ font-size:\.62em;/.test(src)
   // 大数字模板都要包 .pct：冠军行 1 + 分项 1 + scoreCell 助手 1（总览行/综合排行共用它）；
   // 另钉住两处确实用了 scoreCell（"只有部分评测显示 —" 的口径就写在那里）
   && (src.match(/<span class="pct">%<\/span>/g) || []).length >= 3

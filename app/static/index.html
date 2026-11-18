@@ -470,14 +470,17 @@
   .acc { font-weight:650; }
   /* 排行榜的数字是全站的"成绩单"：13px 挤在表格里太委屈了。
      只放大 #board 里的百分比（矩阵里的要留紧凑），并给得分条同一档高度 —— 数字和条要配。 */
-  /* 大数字（记分牌）：21px 但**字重 600、字距 0** ——
-     750 不是 Segoe UI 的真实字重（浏览器会取整到 700），再叠 -0.5px 字距会让 8/6/0
-     的笔画黏在一起、整块显得"墨太重"；% 缩小变淡，退成配角，不和数字抢大小。 */
-  #board .score-cell .acc { font-size:21px; font-weight:600; letter-spacing:0; color:#2b3550;
-                            font-variant-numeric:tabular-nums; min-width:78px; line-height:1; }
-  #board .score-cell .acc .pct { font-size:.58em; font-weight:600; opacity:.5; margin-left:2px; }
-  #board .score-cell .bar { height:9px; }
-  #board .score-cell { gap:12px; }
+  /* 排行榜的"成绩单"数字（2026-11-18 调整）：原来 21px 在 13px 的表格里太抢，
+     而且中文界面回退到雅黑后数字宽度不匀。现在 18px、Segoe UI 系数字（Latin 走它、
+     中文字形不受影响）、tabular 对齐、右对齐成一列；% 不再压到 12px，改成 .62em/500，
+     退成配角但仍是"百分比"的一部分。条高从 9px 收到 8px，和数字同一视觉重量。 */
+  #board .score-cell .acc { font-size:18px; font-weight:600; letter-spacing:.1px; color:#2b3550;
+                            font-family:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
+                            font-variant-numeric:tabular-nums; min-width:72px; text-align:right;
+                            line-height:1.05; }
+  #board .score-cell .acc .pct { font-size:.62em; font-weight:500; opacity:.55; margin-left:1px; letter-spacing:0; }
+  #board .score-cell .bar { height:8px; }
+  #board .score-cell { gap:10px; }
   /* 基准卡片：悬停轻微抬起 + 阴影，让 36 张卡"能点"这件事有手感（原来只有边框变色） */
   .bm:hover { transform:translateY(-2px); box-shadow:0 10px 24px -18px rgba(29,36,51,.55); }
   /* 首屏骨架：数据到之前先占位，别让大数字先显示 0 再跳 */
