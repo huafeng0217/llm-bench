@@ -125,6 +125,74 @@
           mask-image:radial-gradient(620px 320px at 76% 0%,#000 18%,transparent 78%);
           -webkit-mask-image:radial-gradient(620px 320px at 76% 0%,#000 18%,transparent 78%); }
   .hero-in { position:relative; padding:30px 32px 26px; }
+  /* 高度要跟着「汇总 / 详情」两层里较高的那层变，用 height 过渡把它做成滑动的节奏 */
+  .hero { transition: height .46s cubic-bezier(.22,.9,.2,1); }
+  .hero.no-anim, .hero.no-anim * { transition:none !important; }
+  .hero-summary { position:relative; z-index:1;
+                  transition: transform .38s cubic-bezier(.22,.9,.2,1), opacity .26s ease; }
+  /* 详情层用绝对定位放在同一块里：汇总滑走、详情从右侧压入（"液体滑动"） */
+  .hero-detail { position:absolute; left:0; right:0; top:0; z-index:2; padding:26px 32px 30px;
+                 opacity:0; transform:translateX(7%); pointer-events:none;
+                 transition: transform .42s cubic-bezier(.22,.9,.2,1), opacity .3s ease; }
+  .hero.is-detail .hero-summary { opacity:0; transform:translateX(-9%); pointer-events:none; }
+  .hero.is-detail .hero-detail { opacity:1; transform:none; pointer-events:auto; }
+  /* 点击时从被点那行扩散出去的光斑（液体感），画在内容下面 */
+  .hero-blob { position:absolute; z-index:0; border-radius:50%; filter:blur(30px);
+               opacity:.5; transform:scale(.35); pointer-events:none;
+               transition: transform .52s cubic-bezier(.2,.9,.2,1), opacity .52s ease; }
+  /* 汇总层的模型行/领奖台：可点（进入详情） */
+  .lane[role="button"], .pod[role="button"] { cursor:pointer; transition: background .15s ease; }
+  .lane[role="button"] { padding:5px 8px; margin:0 -8px; border-radius:10px; }
+  .lane[role="button"]:hover, .pod[role="button"]:hover { background:rgba(255,255,255,.06); }
+  .lane[role="button"]:focus-visible, .pod[role="button"]:focus-visible {
+    outline:2px solid #9dc0ff; outline-offset:2px; }
+  /* 详情层：顶部返回/模型切换 + 分类方块网格 */
+  .hd-top { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .hd-back { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16);
+             color:#dbe5f7; border-radius:9px; padding:5px 10px; font-size:12px; cursor:pointer; }
+  .hd-back:hover { background:rgba(255,255,255,.16); }
+  .hd-name { display:flex; align-items:center; gap:8px; font-size:15px; font-weight:700; }
+  .hd-meta { font-size:11.5px; color:#93a7ca; }
+  .hd-switch { margin-left:auto; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .hd-chip { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+             color:#a9bada; border-radius:999px; padding:4px 9px; font-size:11px;
+             cursor:pointer; display:inline-flex; gap:6px; align-items:center; }
+  .hd-chip:hover { background:rgba(255,255,255,.12); }
+  .hd-chip.on { background:#eef3ff; color:#0d1526; border-color:transparent; }
+  .hd-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(198px, 1fr));
+             gap:12px; margin-top:16px; }
+  .hd-grid.slide-l { animation:hgL .24s ease; }
+  .hd-grid.slide-r { animation:hgR .24s ease; }
+  @keyframes hgL { from { opacity:.2; transform:translateX(14px); } to { opacity:1; transform:none; } }
+  @keyframes hgR { from { opacity:.2; transform:translateX(-14px); } to { opacity:1; transform:none; } }
+  .hcard { position:relative; overflow:hidden; border-radius:14px; padding:13px 14px 12px;
+           background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.11);
+           transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+  .hcard::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
+                   background:var(--hc); opacity:.85; }
+  .hcard:hover { transform:translateY(-3px); border-color:rgba(255,255,255,.2);
+                 box-shadow:0 16px 28px -18px rgba(0,0,0,.6); }
+  .hcard-h { display:flex; align-items:center; gap:7px; font-size:12px; color:#cdd9ee; }
+  .hcard-h b { font-size:12.5px; }
+  .hc-cov { margin-left:auto; font-size:10.5px; color:#8fa3c9; font-variant-numeric:tabular-nums; }
+  .hcard-score { margin:6px 0 4px; font-size:30px; font-weight:700; letter-spacing:-1px;
+                 color:#fff; font-variant-numeric:tabular-nums; }
+  .hcard-score .pct { font-size:.5em; opacity:.6; margin-left:2px; }
+  .hcard-bar { height:5px; border-radius:4px; background:rgba(255,255,255,.08); overflow:hidden; }
+  .hcard-bar i { display:block; height:100%; border-radius:4px;
+                 background:var(--hc); box-shadow:0 0 14px -2px var(--hc); }
+  .hcard-items { display:flex; flex-wrap:wrap; gap:4px 6px; margin-top:9px; }
+  .hci { display:inline-flex; gap:5px; align-items:baseline; font-size:10px; color:#a9bada;
+         background:rgba(255,255,255,.05); border-radius:6px; padding:2px 6px; max-width:100%; }
+  .hci b { color:#eef3ff; font-variant-numeric:tabular-nums; }
+  .hci.part { border:1px dashed rgba(255,255,255,.3); }
+  .hci.more { opacity:.7; }
+  .hero-empty { margin-top:18px; font-size:12.5px; color:#93a7ca; }
+  @media (max-width:820px) {
+    .hd-grid { grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); }
+    .hcard-score { font-size:24px; }
+    .hero-detail { padding:22px 20px 26px; }
+  }
   .hero-eyebrow { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#8fa3c9; }
   .hero-title { font-size:34px; line-height:1.18; font-weight:700; letter-spacing:-.4px;
                 margin-top:11px; color:#f2f6ff; }
@@ -575,6 +643,8 @@
     <div id="onboard"></div>
     <div class="hero" id="top">
       <div class="hero-in">
+        <!-- 汇总层：分类第一 + 领奖台 + 赛道。点某一行会切到下面的详情层。 -->
+        <div class="hero-summary" id="hero-summary">
         <div class="hero-eyebrow" id="hero-eyebrow" data-i18n="正在读取成绩…">正在读取成绩…</div>
         <div class="hero-title skel" id="hero-title" style="min-height:42px;width:min(560px,76%);max-width:100%">&nbsp;</div>
         <div class="hero-note" id="hero-note" data-i18n="分类第一 = 后端榜单里该分类的第一名；不跨分类求平均，所以不叫「综合分」。">分类第一 = 后端榜单里该分类的第一名；不跨分类求平均，所以不叫「综合分」。</div>
@@ -587,6 +657,9 @@
         </div>
         <div class="podium" id="hero-podium"></div>
         <div class="track" id="hero-track"></div>
+        </div><!-- /.hero-summary -->
+        <!-- 详情层：某一模型「按分类」的成绩方块（内容由 renderHeroDetail() 填） -->
+        <div class="hero-detail" id="hero-detail"></div>
       </div>
     </div>
     <h2 id="sec5"><span class="no">1</span><span data-i18n="排行榜">排行榜</span></h2>
@@ -742,6 +815,13 @@
 // ② 漏译能被自动测出来（英文模式下界面里不该再出现中文）；③ 不用先给几百条文案编 key。
 // 服务端返回的文案（基准简介、报错、判定）走 app/i18n.py，同一套思路；前端每条请求都带 X-Lang。
 const EN = {
+  "返回汇总": "Back to summary",
+  "项": "items",
+  "覆盖 {0}/{1} 分类 · {2} 项基准": "covers {0}/{1} categories · {2} benchmarks",
+  "这个模型还没有完整评测，暂时没有分类成绩。": "No complete runs for this model yet, so there are no category scores.",
+  "查看 {0} 的分类成绩": "View {0}'s category scores",
+  "{0} · 分类综合分 {1}%（覆盖 {2}/{3} 项）": "{0} · category score {1}% (covers {2}/{3} items)",
+  "部分评测（没跑完题库），不计入分类综合分": "Partial run (dataset not finished) — excluded from the category score",
   "覆盖率（它跑过几个分类）在悬停和下面的明细表里；部分评测不计入综合分。": "Coverage (how many categories it ran) is in the hover and the table below; partial runs are excluded.",
   "还没有足够的数据（至少要有一条完整评测）": "Not enough data yet (at least one complete run is needed)",
   "{0}：综合 {1}%（{2} 个基准）· 覆盖 {3}/{4} 分类": "{0}: composite {1}% ({2} benchmarks) · covers {3}/{4} categories",
@@ -2055,8 +2135,188 @@ async function startEval() {
 }
 
 // ===== 首屏记分牌 =====
-// 只用现有口径：**分类第一 = 后端榜单里该分类 combined[0] 的模型**（后端已按"跑得全的一批里
-// 分数最高"排好序，前端不重新排序、也不算跨分类平均）。这样 hero 的数字和下面排行榜能对上。
+// 汇总层：分类第一 / 领奖台 / 赛道（口径只用后端榜单，前端不重新排序）。
+// 详情层：点模型行 → 在这个 hero 里"液体滑动"切到该模型的分分类成绩方块；
+// 点方块外/返回/Esc 滑回。数据全部来自 /api/leaderboard，不新开接口。
+let heroModel = null;        // 当前展开的模型名（null = 汇总层）
+let heroIndex = null;        // 模型 -> {color, cats:[{分类分 + 覆盖 + 前几项基准}]}
+let heroNames = [];          // 模型顺序（按分类第一数 / 最高分类分，和赛道一致）
+let heroReady = false;       // 首次渲染完成（?hero= 深链接只处理一次）
+let heroAnimating = false;   // 过渡中不要被 2.5s 的 refresh 打回原形
+
+function escAttr(v) { return esc(v).replace(/"/g, "&quot;"); }
+
+function heroItemsFor(c, name) {
+  // 分类方块里的"前几项基准"：独立基准 + 家族（家族按官方加权总分算一项）
+  const out = [];
+  for (const b of (c.boards || [])) {
+    const row = (b.rows || []).find(r => r.model_name === name);
+    if (!row) continue;
+    out.push({ name: row.benchmark_name || b.benchmark_name, score: row.accuracy,
+               partial: !!row.partial, family: false });
+  }
+  for (const f of (c.families || [])) {
+    const row = (f.rows || []).find(r => r.model_name === name);
+    if (!row) continue;
+    out.push({ name: f.name || f.id, score: row.score, partial: !!row.partial, family: true });
+  }
+  return out.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+}
+
+function buildHeroIndex(bds) {
+  const idx = {};
+  for (const c of bds) {
+    for (const m of (c.combined || [])) {
+      const e = idx[m.model_name] || (idx[m.model_name] = { color: m.color || "", cats: [] });
+      if (m.color) e.color = m.color;
+      e.cats.push({
+        id: c.id, name: c.name, color: c.color,
+        score: m.avg_accuracy, covered: m.covered, total: m.total,
+        partial: m.partial || 0, items: heroItemsFor(c, m.model_name),
+      });
+    }
+  }
+  return idx;
+}
+
+function heroCard(c) {
+  const items = (c.items || []).slice(0, 3);
+  const more = (c.items || []).length - items.length;
+  const scoreTxt = c.score == null ? "—" : `${score(c.score)}`;
+  return `<div class="hcard" style="--hc:${c.color}"
+       title="${escAttr(tf("{0} · 分类综合分 {1}%（覆盖 {2}/{3} 项）",
+                            [c.name, c.score == null ? "—" : score(c.score), c.covered, c.total]))}">
+      <div class="hcard-h"><i class="dot" style="background:${c.color}"></i><b>${esc(c.name)}</b>
+        <span class="hc-cov">${c.covered}/${c.total} ${t("项")}</span></div>
+      <div class="hcard-score">${scoreTxt}<span class="pct">%</span></div>
+      <div class="hcard-bar"><i style="width:${Math.min(c.score || 0, 100)}%"></i></div>
+      <div class="hcard-items">
+        ${items.map(it => `<span class="hci${it.partial ? " part" : ""}"
+          title="${escAttr(it.partial ? t("部分评测（没跑完题库），不计入分类综合分") : it.name)}"
+          >${esc(it.name)}<b>${it.score == null ? "—" : score(it.score)}</b></span>`).join("")}
+        ${more > 0 ? `<span class="hci more">+${more}</span>` : ""}
+      </div>
+    </div>`;
+}
+
+function renderHeroDetail() {
+  const box = document.getElementById("hero-detail");
+  if (!box) return;
+  const data = heroModel && heroIndex ? heroIndex[heroModel] : null;
+  if (!data) { setHtmlIfChanged(box, ""); return; }
+  const cats = data.cats;
+  const totalCats = (lbData || []).length || cats.length;
+  const chips = heroNames.map(n =>
+    `<button class="hd-chip${n === heroModel ? " on" : ""}" data-m="${escAttr(n)}"
+       onclick="switchHeroModel(this.dataset.m)"><i class="dot"
+       style="background:${(heroIndex[n] || {}).color || "var(--border2)"}"></i>${esc(n)}</button>`).join("");
+  const grid = cats.length
+    ? `<div class="hd-grid" id="hd-grid">${cats.map(heroCard).join("")}</div>`
+    : `<div class="hero-empty">${t("这个模型还没有完整评测，暂时没有分类成绩。")}</div>`;
+  setHtmlIfChanged(box, `
+    <div class="hd-top">
+      <button class="hd-back" onclick="closeHeroModel()">← ${t("返回汇总")}</button>
+      <span class="hd-name"><i class="dot" style="background:${data.color}"></i>${esc(heroModel)}</span>
+      <span class="hd-meta">${tf("覆盖 {0}/{1} 分类 · {2} 项基准",
+        [cats.length, totalCats, cats.reduce((n, c) => n + (c.covered || 0), 0)])}</span>
+      <span class="hd-switch">${chips}</span>
+    </div>${grid}`);
+}
+
+function heroPadding() {
+  const heroIn = document.querySelector("#top .hero-in");
+  if (!heroIn) return 56;
+  const cs = getComputedStyle(heroIn);
+  return (parseFloat(cs.paddingTop) || 30) + (parseFloat(cs.paddingBottom) || 26);
+}
+
+function measureHeroDetail() {
+  const d = document.getElementById("hero-detail");
+  return d ? Math.round(d.scrollHeight + heroPadding()) : 0;
+}
+
+function measureHeroSummary() {
+  const el = document.getElementById("hero-summary");
+  return el ? Math.round(el.scrollHeight + heroPadding()) : 0;
+}
+
+function setHeroHeight(px, animate) {
+  const hero = document.getElementById("top");
+  if (!hero) return;
+  if (!animate) hero.classList.add("no-anim");
+  hero.style.height = px ? px + "px" : "";
+  if (!animate) requestAnimationFrame(() => hero.classList.remove("no-anim"));
+}
+
+function playHeroBlob(el) {
+  const hero = document.getElementById("top");
+  if (!hero || !el) return;
+  const hr = hero.getBoundingClientRect(), er = el.getBoundingClientRect();
+  const b = document.createElement("div");
+  b.className = "hero-blob";
+  b.style.left = (er.left - hr.left) + "px";
+  b.style.top = (er.top - hr.top) + "px";
+  b.style.width = er.width + "px";
+  b.style.height = er.height + "px";
+  b.style.background = (el.dataset && el.dataset.color) || "#6d8cff";
+  hero.appendChild(b);
+  requestAnimationFrame(() => { b.style.transform = "scale(9, 5.4)"; b.style.opacity = "0"; });
+  setTimeout(() => b.remove(), 640);
+}
+
+function openHeroModel(el) {
+  const name = el && el.dataset ? el.dataset.model : null;
+  if (!name || !heroIndex || !heroIndex[name] || heroModel === name) return;
+  heroModel = name;
+  heroAnimating = true;
+  renderHeroDetail();
+  setHeroHeight(measureHeroDetail(), true);
+  document.getElementById("top").classList.add("is-detail");
+  playHeroBlob(el);
+  syncHeroUrl();
+  setTimeout(() => {
+    heroAnimating = false;
+    const back = document.querySelector("#hero-detail .hd-back");
+    if (back) back.focus({ preventScroll: true });
+  }, 460);
+}
+
+function closeHeroModel() {
+  if (!heroModel) return;
+  heroModel = null;
+  const hero = document.getElementById("top");
+  heroAnimating = true;
+  setHeroHeight(measureHeroSummary(), true);
+  hero.classList.remove("is-detail");
+  syncHeroUrl();
+  setTimeout(() => {
+    heroAnimating = false;
+    setHeroHeight(null, false);          // 回落到自动高度，窗口缩放也跟得上
+    setHtmlIfChanged(document.getElementById("hero-detail"), "");
+  }, 470);
+}
+
+function switchHeroModel(name) {
+  if (!name || !heroIndex || !heroIndex[name] || name === heroModel) return;
+  const names = heroNames;
+  const dir = names.indexOf(name) > names.indexOf(heroModel) ? "r" : "l";
+  heroModel = name;
+  renderHeroDetail();
+  const grid = document.getElementById("hd-grid");
+  if (grid) { grid.classList.add(dir === "r" ? "slide-r" : "slide-l"); }
+  setHeroHeight(measureHeroDetail(), true);
+  syncHeroUrl();
+}
+
+function syncHeroUrl() {
+  try {
+    const u = new URL(location.href);
+    if (heroModel) u.searchParams.set("hero", heroModel);
+    else u.searchParams.delete("hero");
+    history.replaceState(null, "", u.toString());
+  } catch { /* file:// 之类不支持 replaceState 就算了 */ }
+}
+
 function renderHero(bds) {
   const title = document.getElementById("hero-title");
   const trackEl = document.getElementById("hero-track");
@@ -2085,6 +2345,9 @@ function renderHero(bds) {
     .sort((a, b) => b.n - a.n || (bestOf[b.name] ?? 0) - (bestOf[a.name] ?? 0));
   if (!rows.length) return;
 
+  heroIndex = buildHeroIndex(bds);
+  heroNames = rows.map(r => r.name);        // 顺序跟赛道一致：模型切换条也按这个排
+
   const champ = rows[0];
   title.innerHTML = tf("<b>{0}</b> 拿下 {1} 个分类第一", [esc(champ.name), champ.n]);
   winsEl.textContent = champ.n;
@@ -2098,19 +2361,51 @@ function renderHero(bds) {
     ? tf("最近一次评测 {0} · 分类共 {1} 个", [last.slice(0, 16), cats])
     : tf("分类共 {0} 个", [cats]);
 
+  // 领奖台 / 赛道都可点：点开这个模型的分类成绩（详情层）
+  const clickable = (name) => `role="button" tabindex="0" data-model="${escAttr(name)}" data-color="${escAttr(colors[name] || "")}" onclick="openHeroModel(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openHeroModel(this);}" aria-label="${escAttr(tf("查看 {0} 的分类成绩", [name]))}"`;
   podEl.innerHTML = rows.slice(0, 3).map((r, i) =>
-    `<div class="pod"><span class="rib">${i + 1}</span>
+    `<div class="pod" ${clickable(r.name)}><span class="rib">${i + 1}</span>
        <span class="nm"><i class="dot" style="background:${r.color}"></i>${esc(r.name)}</span>
        <span class="w">${tf("{0} 个第一", [r.n])}</span></div>`).join("");
 
   const maxN = rows[0].n || 1;
   // 0 胜的模型也列出来（暗一点）：赛道是"全场成绩"，只画赢家会看不出还剩谁
   trackEl.innerHTML = rows.map(r =>
-    `<div class="lane"${r.n ? "" : ' style="opacity:.55"'}>
+    `<div class="lane" ${clickable(r.name)}${r.n ? "" : ' style="opacity:.55"'}>
        <span class="nm"><i class="dot" style="background:${r.color}"></i>${esc(r.name)}</span>
        <span class="rail"><i style="width:${(r.n / maxN * 100).toFixed(1)}%;background:${r.color};color:${r.color}"></i></span>
        <span class="v">${r.n}</span></div>`).join("");
+
+  // 2.5 秒的 refresh 会反复调用这里：详情层开着就保持打开、只更新内容（不重播动画）
+  if (heroModel && heroIndex[heroModel]) {
+    renderHeroDetail();
+    if (!heroAnimating) setHeroHeight(measureHeroDetail(), false);
+  } else if (heroModel) {
+    // 展开的模型被删了（或数据没了）→ 回到汇总
+    heroModel = null;
+    const hero = document.getElementById("top");
+    hero.classList.remove("is-detail");
+    document.getElementById("hero-detail").innerHTML = "";
+    setHeroHeight(null, false);
+  }
+  // 深链接：?hero=模型名（方便分享"这模型的分类成绩"），只在首屏处理一次
+  if (!heroReady) {
+    heroReady = true;
+    let want = "";
+    try { want = new URLSearchParams(location.search).get("hero") || ""; } catch { want = ""; }
+    if (want && heroIndex[want]) {
+      heroModel = want;
+      renderHeroDetail();
+      document.getElementById("top").classList.add("is-detail");
+      setHeroHeight(measureHeroDetail(), false);
+    }
+  }
 }
+
+// Esc 从详情层滑回汇总
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && heroModel) closeHeroModel();
+});
 
 // 顶部三页签：用 [hidden] 切页，**不重渲染** —— 各段的渲染挂载点与内部状态都保持原样
 // （排行榜/矩阵/折叠状态/启动卡的吸底都不受影响）。上次看的页签记在 localStorage 里。

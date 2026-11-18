@@ -1152,6 +1152,24 @@ check("逐题明细：安全类把这一档换成本口径的说法（越狱成�
 // ---------------- 首屏记分牌（hero）----------------
 // 一屏回答"谁第一/差多少"。**口径只能用现有的**：分类第一 = 后端榜单里该分类 combined[0]，
 // 不跨分类求平均（那等于前端发明一个"综合分"，和排行榜/散点会打架）。
+// hero 的模型行/领奖台可点：在同一个 hero 里滑动切到"这个模型的分类成绩"（分类方块）。
+// 数据只来自 /api/leaderboard（不新增接口），口径与排行榜一致。
+check("hero：模型行可点开分类方块详情（滑动切换 + 返回/Esc）",
+  /id="hero-summary"/.test(src) && /id="hero-detail"/.test(src)
+  && /function openHeroModel\(el\)/.test(src) && /function closeHeroModel\(\)/.test(src)
+  && /role="button" tabindex="0" data-model=/.test(src)
+  && /function buildHeroIndex\(bds\)/.test(src) && /class="hcard"/.test(src)
+  && /items \|\| \[\]\)\.slice\(0, 3\)/.test(src)
+  && /e\.key === "Escape" && heroModel/.test(src)
+  && /get\("hero"\)/.test(src),
+  "hero 详情要么没做出来，要么把聚合算到前端了");
+// "液体滑动"的视觉：双层过渡 + 点击位置扩散的光斑
+check("hero：切换用滑动/光斑过渡（不弹层、不跳页）",
+  /\.hero\.is-detail \.hero-detail \{ opacity:1; transform:none/.test(src)
+  && /\.hero\.is-detail \.hero-summary \{ opacity:0; transform:translateX\(-9%\)/.test(src)
+  && /\.hero-blob \{/.test(src) && /function playHeroBlob\(el\)/.test(src)
+  && /\.hcard:hover \{ transform:translateY\(-3px\)/.test(src));
+
 check("首屏有 hero 记分牌（标题 / 大数字 / 领奖台 / 赛道）",
   /<div class="hero" id="top">/.test(src)
   && /id="hero-title"/.test(src) && /id="hero-wins"/.test(src)
@@ -1160,7 +1178,8 @@ check("首屏有 hero 记分牌（标题 / 大数字 / 领奖台 / 赛道）",
 check("首屏数字用现有口径：分类第一取 combined[0]，不自己算平均",
   /const top = \(c\.combined \|\| \[\]\)\[0\];/.test(src)
   && /不跨分类求平均/.test(src)
-  && !/function renderHero[\s\S]{0,2400}?\.reduce\(/.test(src),      // 没有"求平均/求和"式聚合
+  // 只看 renderHero 本体：正则要写成 renderHero\(bds\)，否则会先匹配到 renderHeroDetail(（它里面确实有分类分聚合，那是详情层，不是汇总层）
+  && !/function renderHero\(bds\)[\s\S]{0,2600}?\.reduce\(/.test(src),      // 没有"求平均/求和"式聚合
   "hero 里不许出现对分类分做 reduce 的聚合");
 check("首屏的四个统计沿用原来的 id（refresh 还在更新它们）",
   ["stat-models", "stat-bms", "stat-evals", "stat-best"].every(id =>
