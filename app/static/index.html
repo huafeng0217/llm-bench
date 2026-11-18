@@ -9,11 +9,22 @@
     --bg:#f3f5f9; --bg2:#eef1f6; --card:#ffffff; --card2:#f7f9fc; --border:#e3e7ef; --border2:#ccd4e2;
     --text:#1d2433; --muted:#667085; --faint:#98a2b3;
     --accent:#4a7de0; --accent2:#3d6cd0; --green:#22995c; --red:#d64f58; --amber:#b97e1e;
+    /* 数字/Latin 字体：数字宽度均匀（tabular 对齐用），中文自动回退系统中文族 */
+    --numfont:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
   }
   * { box-sizing:border-box; margin:0; }
   body { background:var(--bg); color:var(--text);
          font:14px/1.65 "Inter",-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
          -webkit-font-smoothing:antialiased; }
+  /* ===== 数字字体统一 =====
+     只有排行榜的 .acc 指定过字体时，成绩总览矩阵 / 任务表 / 模型管理 / 分类方块里的数字
+     会回退到雅黑（或苹方）的数字，同一屏里数字宽度不一致、竖排看着不齐。
+     这里把"会出数字"的容器统一到同一支字体 + tabular 数字：中文没有这些字形，会自动回退，
+     所以中文排版不受影响。 */
+  table, .hero, .hcard, .ov-main, .ov-table { font-family:var(--numfont); }
+  .ov-cell, .ov-part, .ov-head, .ov-main th, .ov-main td,
+  .hero-nums b, .hero .lane .v, .hero .pod .w, .hcard-score, .hci b,
+  .tag, .score-cell .acc { font-variant-numeric:tabular-nums; }
   .wrap { max-width:1120px; margin:0 auto; padding:0 20px 80px; }
 
   /* ===== 顶栏（全宽、吸顶）=====
@@ -475,7 +486,7 @@
      中文字形不受影响）、tabular 对齐、右对齐成一列；% 不再压到 12px，改成 .62em/500，
      退成配角但仍是"百分比"的一部分。条高从 9px 收到 8px，和数字同一视觉重量。 */
   #board .score-cell .acc { font-size:18px; font-weight:600; letter-spacing:.1px; color:#2b3550;
-                            font-family:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
+                            font-family:var(--numfont);
                             font-variant-numeric:tabular-nums; min-width:72px; text-align:right;
                             line-height:1.05; }
   #board .score-cell .acc .pct { font-size:.62em; font-weight:500; opacity:.55; margin-left:1px; letter-spacing:0; }

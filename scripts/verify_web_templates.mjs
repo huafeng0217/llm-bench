@@ -1351,9 +1351,17 @@ check("评分单元格统一：条在左、数字在右（没有数字在前的�
 
 // 2026-11-18：数字从 21px 收到 18px（21px 在 13px 表格里太抢），数字字体显式指定
 // Segoe UI 系（中文界面回退雅黑时数字宽度不匀）；% 从 .58em 放大到 .62em 退成配角。
+// 数字字体全站统一：只有排行榜指定字体时，矩阵/任务表/模型管理/方块里的数字会回退到
+// 雅黑的数字，同一屏里字宽不一致。现在统一走 --numfont + tabular。
+check("数字字体全站统一（表格 / hero / 方块 / 矩阵用同一支 --numfont）",
+  /table, \.hero, \.hcard, \.ov-main, \.ov-table \{ font-family:var\(--numfont\); \}/.test(src)
+  && /\.ov-cell, \.ov-part, \.ov-head/.test(src)
+  && /font-variant-numeric:tabular-nums; \}/.test(src));
+
 check("排行榜大数字：18px / 600 字重 / Segoe UI 数字 / % 缩小变淡",
   /#board \.score-cell \.acc \{ font-size:18px; font-weight:600; letter-spacing:\.1px; color:#2b3550;/.test(src)
-  && /font-family:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;/.test(src)
+  && /--numfont:"Segoe UI Variable Display","Segoe UI",system-ui/.test(src)
+  && /font-family:var\(--numfont\);/.test(src)
   && /#board \.score-cell \.acc \.pct \{ font-size:\.62em;/.test(src)
   // 大数字模板都要包 .pct：冠军行 1 + 分项 1 + scoreCell 助手 1（总览行/综合排行共用它）；
   // 另钉住两处确实用了 scoreCell（"只有部分评测显示 —" 的口径就写在那里）
